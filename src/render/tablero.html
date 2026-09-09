@@ -269,10 +269,12 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
   </section>
 
   <p class="pie-pagina" id="pie">
-    Claude sale entero del disco de esta máquina: el <code>.claude.json</code> de cada perfil y las
-    transcripciones locales. Codex no deja la cuota en ningún lado, así que ese número se le pide a
-    <code>codex</code>, que usa su propia credencial — es la única vez que algo sale a la red, y va
-    al mismo lugar al que Codex ya habla. El tablero escucha sólo en 127.0.0.1.
+    Todo sale del disco de esta máquina: el <code>.claude.json</code> de cada perfil, los rollouts de
+    Codex y la base de sesiones de opencode. Lo único que sale a la red es el refresco de cuota, y
+    sólo cuando se pide: al mismo lugar al que Claude Code y Codex ya hablan. Las cuentas de opencode
+    son planes por API key — su porcentaje vive en el endpoint del proveedor, así que acá se muestra
+    el consumo y se dice por qué no hay barra. <b>Ninguna credencial de opencode se lee.</b>
+    El tablero escucha sólo en 127.0.0.1.
   </p>
 </div>
 
@@ -341,6 +343,7 @@ const nombreVentana = (v) =>
 const MARCAS = {
   claude: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2.6v10.8M3.3 5.3l9.4 5.4M12.7 5.3l-9.4 5.4"/></g></svg>',
   codex:  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 4.2 2.4 8l3.4 3.8M10.2 4.2 13.6 8l-3.4 3.8"/></g></svg>',
+  opencode: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><path d="M8 2.6 13.4 8 8 13.4 2.6 8Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
 };
 const marca = (p) => `<span class="marca-prod" title="${esc(p)}">${MARCAS[p] || MARCAS.claude}</span>`;
 

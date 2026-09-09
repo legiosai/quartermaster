@@ -111,7 +111,16 @@ func glifoProducto(_ producto: String, _ color: NSColor, _ lado: CGFloat) -> NSI
         let t = NSBezierPath()
         t.lineWidth = 1.3
         t.lineCapStyle = .round
-        if producto == "codex" {
+        if producto == "opencode" {
+            // Un rombo: ni asterisco ni chevrones, y se distingue de los dos a
+            // 9 px, que es lo único que se le pide a un glifo de barra.
+            let r0 = lado * 0.34
+            t.move(to: NSPoint(x: c.x, y: c.y + r0))
+            t.line(to: NSPoint(x: c.x + r0, y: c.y))
+            t.line(to: NSPoint(x: c.x, y: c.y - r0))
+            t.line(to: NSPoint(x: c.x - r0, y: c.y))
+            t.close()
+        } else if producto == "codex" {
             // Los chevrones necesitan aire en el medio: pegados, y con la punta
             // redondeada, a 10 px se fusionan y el glifo se lee como una «o».
             let a = lado * 0.30, hueco = lado * 0.20

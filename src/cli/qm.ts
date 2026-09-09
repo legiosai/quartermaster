@@ -31,6 +31,7 @@ import {
 } from '../adapters/codex.ts';
 import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import { leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
+import { consumoOpencode, hayOpencode, medidoEnOpencode } from '../adapters/opencode.ts';
 import {
   esPreocupante,
   frase,
@@ -149,7 +150,7 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
 
 interface FilaPerfil {
   /** De qué producto es esta fila. Lo único que distingue una cuenta de otra. */
-  producto: 'claude' | 'codex';
+  producto: 'claude' | 'codex' | 'opencode';
   perfil: Perfil;
   veredicto: string;
   cuota: ResultadoCuota;
@@ -253,6 +254,50 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
   };
 }
 
+/**
+ * Los planes que viven adentro de opencode: GLM (zai), MiniMax, Kimi…
+ *
+ * Traen consumo real y NO traen cuota: son planes por API key y el porcentaje
+ * sólo existe del otro lado. La fila igual se muestra, con la frase que dice
+ * por qué no hay barra — una cuenta que gastó 2,7 M de tokens y no aparece es
+ * el bug original de este repo, con otro vendor.
+ */
+function filasOpencode(o: Opciones): FilaPerfil[] {
+  if (!hayOpencode() || o.breve) return [];
+  const bonito: Record<string, string> = {
+    'zai-coding-plan': 'glm',
+    'minimax-coding-plan': 'minimax',
+    'kimi-for-coding': 'kimi',
+  };
+  const desde = new Date(Date.now() - o.dias * 24 * 3600_000);
+  const ventana = new Date(Date.now() - o.ventanaH * 3600_000);
+  const enVentana = new Map(consumoOpencode(ventana).map((c) => [c.proveedor, c.tokens]));
+  const medido = medidoEnOpencode();
+
+  return consumoOpencode(desde).map((c): FilaPerfil => ({
+    producto: 'opencode',
+    localMedido: true,
+    perfil: {
+      directorio: 'opencode',
+      nombre: bonito[c.proveedor] ?? c.proveedor,
+      porDefecto: false,
+      cuenta: { email: null, organizacion: 'opencode', plan: c.modelo },
+    },
+    veredicto: medido === null ? 'vía opencode' : `vía opencode · visto hace ${duracion(Date.now() - medido.getTime())}`,
+    cuota: {
+      estado: 'sin-cuota-legible',
+      detalle: `plan por API key: el porcentaje vive en el endpoint de ${c.proveedor} y no en esta máquina`,
+    },
+    notaRefresco: null,
+    proyeccion: null,
+    archivos: c.sesiones,
+    requests: c.sesiones,
+    tokens: c.tokens,
+    tokensVentana: enVentana.get(c.proveedor) ?? 0,
+    porModelo: c.modelo === null ? [] : [[c.modelo, c.tokens]],
+  }));
+}
+
 async function medir(o: Opciones): Promise<FilaPerfil[]> {
   const perfiles = descubrirPerfiles();
   const desde = new Date(Date.now() - o.dias * 24 * 3600_000);
@@ -350,7 +395,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
   );
 
   const codex = o.codex ? await filaCodex(o) : null;
-  const todas = codex === null ? claude : [...claude, codex];
+  const todas = [...claude, ...(codex === null ? [] : [codex]), ...filasOpencode(o)];
   // Descubrir todo y mostrar todo no son lo mismo: lo primero es la misión,
   // lo segundo es una preferencia.
   const { filas, nota } = seleccionar(todas, configEfectiva());

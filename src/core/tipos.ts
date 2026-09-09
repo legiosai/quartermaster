@@ -114,6 +114,13 @@ export type ResultadoCuota =
   | { readonly estado: 'sin-cache' }
   | { readonly estado: 'sin-suscripcion' }
   | { readonly estado: 'no-consultada' }
+  /**
+   * La cuenta existe y se usa, pero su cuota no está en ninguna parte de esta
+   * máquina: vive en el endpoint del proveedor y hace falta su API key para
+   * pedirla. Es distinto de 'sin-suscripcion' —ahí no hay límites que
+   * reportar— y de 'sin-cache' —ahí el número existe y todavía no se escribió—.
+   */
+  | { readonly estado: 'sin-cuota-legible'; readonly detalle: string }
   | { readonly estado: 'ilegible'; readonly detalle: string }
   | { readonly estado: 'error'; readonly detalle: string };
 
@@ -197,6 +204,8 @@ export function frase(r: ResultadoCuota, perfil: string): string {
       return `credencial vencida — corré: CLAUDE_CONFIG_DIR=${perfil} claude auth login`;
     case 'sin-cache':
       return 'Claude Code todavía no dejó cuota en .claude.json para este perfil (usalo una vez)';
+    case 'sin-cuota-legible':
+      return r.detalle;
     case 'no-consultada':
       return 'no se consultó el endpoint (--sin-red)';
     case 'sin-suscripcion':

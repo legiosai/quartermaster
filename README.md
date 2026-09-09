@@ -232,7 +232,32 @@ Hoy hay dos formas resueltas, y las dos sirven de molde:
 - **Codex** — la cuota está en los rollouts y el app-server es el refresco. El
   consumo sale de los mismos archivos.
 
-Lo que encontré en esta máquina para las tres que faltan:
+### GLM y MiniMax: estaban adentro de opencode
+
+No hacía falta un CLI propio de cada uno. Los dos planes viven en **opencode**,
+y opencode deja en `~/.local/share/opencode/opencode.db` una tabla `session` con
+`model`, `cost` y cinco columnas de tokens. O sea: **el piso está**, local, sin
+red y sin credencial, igual que las transcripciones de Claude y los rollouts de
+Codex.
+
+```
+minimax    MiniMax-M3   2,7M en 7d · 2 sesiones
+glm        glm-5.3      837,3k en 7d · 1 sesión
+openai     gpt-5.6-sol  549,3k en 7d · 4 sesiones
+```
+
+Dos decisiones:
+
+- **No se lee `auth.json` de opencode.** Los proveedores se descubren de la base
+  de sesiones, que además dice cuáles se usaron de verdad y no cuáles están
+  configurados. La única forma segura de no filtrar una clave es no leerla.
+- **La cuota no se inventa.** Son planes por API key: el porcentaje sólo existe
+  en el endpoint de cada proveedor y hace falta la clave para pedirlo. La fila
+  trae consumo y una frase que dice por qué no hay barra — nunca un 0 % que
+  parezca un dato. Es un estado nuevo y explícito, `sin-cuota-legible`, distinto
+  de «no hay límites» y de «todavía no se escribió».
+
+Lo que encontré en esta máquina para la que falta:
 
 - **Gemini CLI 0.59.0** — instalado, autenticado (`oauth-personal`). Pero en
   `~/.gemini` **no hay ningún número de cuota ni de uso**: hay credenciales,
@@ -241,16 +266,8 @@ Lo que encontré en esta máquina para las tres que faltan:
   `VentanaCuota` sin decidir antes qué significa «80 %» ahí. Da para el punto 1
   hoy; el 2 necesita encontrarle una fuente, y el 3 un lugar donde cuente
   tokens, que tampoco aparece.
-- **GLM y MiniMax** — **no están instalados acá**, así que no puedo verificar
-  nada y no voy a escribir un adaptador contra documentación. Lo que sí sé es
-  que los dos se usan normalmente *a través de Claude Code*, apuntando
-  `ANTHROPIC_BASE_URL` a su gateway: en ese caso ya aparecen como un perfil más
-  —el descubrimiento no cambia— pero la cuota **no** la va a servir el endpoint
-  de Anthropic, así que hace falta saber qué expone cada gateway.
-
-El molde está y la selección de arriba ya prevé que sobren cuentas. Lo que falta
-en los tres casos es el mismo dato: **dónde deja cada uno su número**. Con eso,
-cada proveedor es un archivo en `src/adapters/` y una fila más.
+El molde está y la selección de arriba ya prevé que sobren cuentas: con siete,
+`--ocultar` deja de ser un lujo.
 
 ## Instalación
 
