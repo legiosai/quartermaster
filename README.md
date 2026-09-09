@@ -273,31 +273,30 @@ make barra-autostart   # y que arranque solo al iniciar sesión, vía launchd
 make barra-quitar      # para sacarlo
 ```
 
-Queda un item arriba a la derecha que **se dibuja**: por cada cuenta, un par de
-medidores —a la izquierda la sesión, en tono neutro; a la derecha la barra que
-la frena antes, con el color del estado— y al lado **el porcentaje de la sesión
-de 5 h de esa cuenta**.
+Queda un item arriba a la derecha que **se dibuja**. Por cada cuenta, tres
+cosas, y cada una quiere decir siempre lo mismo:
 
 ```
-▍▍ 23    ▍▍ 9    ▍▍ 93
+✳ ▍37    ✳ ▍21    <> ▍100
 ```
 
-El número es el de la sesión y no el de la semanal a propósito: es el que
-contesta la pregunta que se hace uno cuando mira la barra —«¿puedo seguir
-trabajando ahora?»—. La semanal no desaparece, es el medidor de la derecha con
-su color; simplemente no gasta ancho en dígitos.
+- **El glifo dice qué suscripción es.** La *forma* es el producto —el asterisco
+  es la marca de Claude, los chevrones son código—; el *color*, cuál de ellas.
+  Esos colores son azul, violeta y magenta: deliberadamente lejos de la paleta
+  de estado, porque los colores de estado están reservados y no pueden
+  significar además «esta es la cuenta 2».
+- **El medidor es la semanal**: ¿llego al final?
+- **El número es la sesión de 5 h**: ¿puedo seguir ahora? Se tiñe con su propio
+  estado, pero recién cuando aprieta — si se pintara siempre, el color dejaría
+  de querer decir algo.
 
-Dos preguntas, dos marcas. Meterlas en un solo medidor lo parte al medio y se
-lee como si fueran dos. Y el color va siempre en la marca, nunca en el número:
-ese se queda con el `labelColor` del sistema, que se adapta solo a la barra
-clara y a la oscura.
+Antes el medidor mostraba «la que frena antes», que a veces era la semanal y a
+veces la sesión — y cuando era la sesión dibujaba lo mismo que ya decía el
+número al lado. Un encoding que cambia de significado según el dato no se lee de
+un vistazo, que es lo único que hace la barra de menú.
 
-**Las dos banderas no son la misma cosa y no van al mismo lado.** `~` califica
-al número —este 23 es de hace rato— así que va pegado a él: `~23`. El aviso, en
-cambio, es de la cuenta, y **no** se escribe al lado de la sesión: el aviso
-suele ser de la barra semanal, y un `23!` diría que lo alarmante es la sesión,
-que es falso. Eso lo lleva el color del medidor de la derecha, que es
-exactamente el de esa barra.
+`~` va pegado al número, porque califica a *ese* número: `~37` es «esta sesión
+es de hace rato».
 
 Es lo que se hace en una barra de menú de macOS —una marca chica y callada, no
 un renglón de texto— y además es lo único que entra: **91 puntos contra los 192

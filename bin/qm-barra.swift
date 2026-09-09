@@ -183,14 +183,24 @@ struct Proyeccion {
 /// lado del número de la sesión: el aviso puede ser de la barra semanal, y un
 /// `23!` diría que lo alarmante es la sesión, que es falso. La alerta la lleva
 /// el color del medidor de la derecha, que es justamente el de esa barra.
+/// Dos números por cuenta, cada uno SIEMPRE con el mismo significado:
+/// el medidor es la semanal y el número es la sesión de 5 h.
+///
+/// Antes el medidor mostraba «la que frena antes», que a veces era la semanal y
+/// a veces la sesión — y cuando era la sesión, dibujaba lo mismo que ya decía
+/// el número al lado. Un encoding que cambia de significado según el dato no se
+/// puede leer de un vistazo, que es lo único que hace la barra de menú.
 struct Trozo {
     let nombre: String
     let producto: String
     let indice: Int
+    /// La ventana corta: «¿puedo seguir ahora?». Va como número.
     let sesion: Int?
-    let peor: Int
+    let sesionAlerta: Bool
+    /// La peor de las semanales: «¿llego al final?». Va como medidor.
+    let semanal: Int?
+    let semanalAlerta: Bool
     let viejo: Bool
-    let alerta: Bool
 }
 
 struct PerfilVista {
@@ -472,7 +482,7 @@ final class Barra: NSObject, NSApplicationDelegate {
     /// falta para el techo según la proyección—, que es exactamente para lo que
     /// existe la proyección.
     func cadencia() -> TimeInterval {
-        let alto = ultimas.map(\.peor).max() ?? 0
+        let alto = ultimas.map { max($0.sesion ?? 0, $0.semanal ?? 0) }.max() ?? 0
         var segundos: TimeInterval = SEGUNDOS_SONDEO
         if alto >= 90 { segundos = 20 }
         else if alto >= 75 { segundos = 45 }
@@ -605,14 +615,26 @@ final class Barra: NSObject, NSApplicationDelegate {
 
                 if p.hayNumero, let cual = peor(visibles) {
                     let viejo = (p.edadSegundos ?? 0) >= VIEJO_SEGUNDOS
-                    let sesion = visibles.first { $0.grupo == "session" || $0.clave == "session" }?.porcentaje
                     // El `!` no es sólo severidad: también avisa que a este
                     // ritmo tocás el techo ANTES del reinicio.
                     let chocas = p.proyeccion?.chocas ?? false
-                    piezas.append(Trozo(nombre: corto(p.nombre), producto: p.producto,
-                                        indice: piezas.count, sesion: sesion,
-                                        peor: cual.porcentaje,
-                                        viejo: viejo, alerta: cual.preocupa || chocas))
+                    let esLaProyectada = { (v: Ventana) in chocas && v.clave == cual.clave }
+
+                    let ses = visibles.first { $0.grupo == "session" || $0.clave == "session" }
+                    // Puede haber más de una semanal (weekly_all y
+                    // weekly_scoped): manda la que frena antes de las dos.
+                    let sem = visibles
+                        .filter { $0.grupo == "weekly" || $0.clave.hasPrefix("weekly") || $0.clave == "seven_day" }
+                        .max { ($0.activa ? 1 : 0, $0.porcentaje) < ($1.activa ? 1 : 0, $1.porcentaje) }
+                        ?? visibles.filter { $0.clave != ses?.clave }.max { $0.porcentaje < $1.porcentaje }
+
+                    piezas.append(Trozo(
+                        nombre: corto(p.nombre), producto: p.producto, indice: piezas.count,
+                        sesion: ses?.porcentaje,
+                        sesionAlerta: ses.map { $0.preocupa || esLaProyectada($0) } ?? false,
+                        semanal: sem?.porcentaje,
+                        semanalAlerta: sem.map { $0.preocupa || esLaProyectada($0) } ?? false,
+                        viejo: viejo))
                     peorPct = max(peorPct, cual.porcentaje)
                     revisarAvisos(p, visibles)
                 }
@@ -650,38 +672,6 @@ final class Barra: NSObject, NSApplicationDelegate {
         programar()
     }
 
-    /// Los títulos posibles, del que más dice al que menos, para que `titular`
-    /// se quede con el primero que entre. `23/75!` es «vas 23 % de la sesión y
-    /// 75 % de la barra que te frena»: la primera dice si podés seguir ahora,
-    /// la segunda si llegás al final de la semana.
-    func candidatos(_ piezas: [Trozo]) -> [String] {
-        guard !piezas.isEmpty else { return ["sin cuota"] }
-        let masApretada = piezas.max { $0.peor < $1.peor }!
-
-        // En dos renglones entra casi el doble de información en la mitad del
-        // ancho, que es la moneda que escasea en la barra de menú. Se reparten
-        // las cuentas entre los dos, las primeras arriba.
-        func enDos(_ ts: [String]) -> String {
-            guard ts.count > 1 else { return ts.joined() }
-            let corte = (ts.count + 1) / 2
-            return ts[0..<corte].joined(separator: "  ") + "\n" + ts[corte...].joined(separator: "  ")
-        }
-
-        // Al lado de los medidores no hace falta una tabla: el dibujo ya dice
-        // cuántas cuentas hay y cómo va cada una. El texto sólo pone número a
-        // la que aprieta, y si tampoco entra, se va y quedan los medidores.
-        return [
-            "\(masApretada.peor)%\(masApretada.alerta ? "!" : "")",
-            "\(masApretada.peor)",
-            "",
-        ]
-    }
-
-    /// Dos renglones adentro de los ~22 puntos de alto de la barra: fuente
-    /// chica, interlineado apretado y dígitos de ancho fijo para que las
-    /// columnas no bailen cuando un número pasa de 9 a 10.
-    /// Un renglón, en la tipografía y el tamaño con que macOS escribe en su
-    /// barra. Dígitos de ancho fijo para que el número no baile al cambiar.
     func comoRenglones(_ texto: String) -> NSAttributedString {
         NSAttributedString(string: texto, attributes: [
             .font: NSFont.monospacedDigitSystemFont(ofSize: 11.5, weight: .regular),
@@ -692,14 +682,11 @@ final class Barra: NSObject, NSApplicationDelegate {
     /// La barra de menú de una Mac con muesca tiene mucho menos lugar del que
     /// aparenta: los items se acomodan de derecha a izquierda y el sistema
     /// esconde —sin decir nada, y con `isVisible` en true— al que caería abajo
-    /// de la muesca. Medido en la máquina donde se escribió esto: quedaban 111
-    /// puntos, y `personal ~50% · teams 42%` necesita 192.
+    /// de la muesca. Medido acá: quedaban ~137 puntos, y el item con glifos,
+    /// medidores y números pedía 158.
     ///
-    /// Por eso el título no se elige, se mide: se prueba el completo y, si no
-    /// entró, se cae al compacto. En una Mac sin muesca o en un monitor
-    /// externo entra el completo y se ven todos los perfiles.
-    /// Prueba las caras del item de la que más dice a la que menos, midiendo
-    /// cada una. Los medidores no se negocian: son 30 puntos y dicen lo
+    /// Por eso la cara no se elige, se mide: se prueba con números, y si no
+    /// entró se cae a sólo los medidores. Esos no se negocian — dicen lo
     /// esencial aunque los números se caigan.
     func probarCaras(_ conNumeros: [Bool], _ piezas: [Trozo]) {
         guard let boton = item.button, !conNumeros.isEmpty else { return }
@@ -712,25 +699,6 @@ final class Barra: NSObject, NSApplicationDelegate {
         }
         intentar(0)
     }
-
-    func titular(_ opciones: [String]) {
-        guard let boton = item.button, !opciones.isEmpty else { return }
-        probar(opciones, 0, boton)
-    }
-
-    /// Pone un título, deja que AppKit lo acomode, y recién ahí mide. Si no
-    /// entró, sigue con el siguiente. No se elige: se mide.
-    private func probar(_ opciones: [String], _ i: Int, _ boton: NSStatusBarButton) {
-        boton.attributedTitle = comoRenglones(opciones[i])
-        DispatchQueue.main.async {
-            if self.tapadoPorLaMuesca(), i + 1 < opciones.count {
-                self.probar(opciones, i + 1, boton)
-            } else {
-                self.revisarSiSeVe()
-            }
-        }
-    }
-
     /// El sistema esconde un item que no entra en la barra —y deja `isVisible`
     /// en true igual, así que no se entera nadie. Un número que no se ve es el
     /// mismo bug que el silencio, así que se avisa una vez.
@@ -806,8 +774,13 @@ final class Barra: NSObject, NSApplicationDelegate {
         // viendo —es la barra de la derecha, con su color— sin gastar dígitos.
         func texto(_ t: Trozo) -> NSAttributedString? {
             guard numeros, let s = t.sesion else { return nil }
+            // El número es la sesión, así que lleva el estado DE LA SESIÓN. Se
+            // tiñe recién cuando aprieta: si se pintara siempre, el color
+            // dejaría de querer decir algo.
+            let n = nivelDe(s, preocupa: t.sesionAlerta)
+            let color: NSColor = (n == .aviso || n == .critico) ? n.color : .labelColor
             return NSAttributedString(string: "\(t.viejo ? "~" : "")\(s)", attributes: [
-                .font: fuente, .foregroundColor: NSColor.labelColor,
+                .font: fuente, .foregroundColor: color,
             ])
         }
 
@@ -840,7 +813,12 @@ final class Barra: NSObject, NSApplicationDelegate {
                 glifoProducto(t.producto, colorCuenta(t.indice), ladoGlifo)
                     .draw(in: NSRect(x: x, y: (alto - ladoGlifo) / 2, width: ladoGlifo, height: ladoGlifo))
                 let xb = x + ladoGlifo + aireGlifo
-                barra(xb, t.peor, nivelDe(t.peor, preocupa: t.alerta).color)
+                // El medidor es SIEMPRE la semanal. Si la cuenta no informa
+                // ninguna, queda la pista vacía: mejor un hueco honesto que
+                // dibujar ahí otra cosa.
+                barra(xb, t.semanal ?? 0,
+                      t.semanal == nil ? NSColor.labelColor.withAlphaComponent(0.16)
+                                       : nivelDe(t.semanal!, preocupa: t.semanalAlerta).color)
                 if let n = texto(t) {
                     n.draw(at: NSPoint(x: xb + par + aireNumero, y: (alto - n.size().height) / 2))
                 }
@@ -850,7 +828,11 @@ final class Barra: NSObject, NSApplicationDelegate {
         }
         img.isTemplate = false
         img.accessibilityDescription = piezas
-            .map { "\($0.nombre) \($0.sesion.map { "sesión \($0) por ciento, " } ?? "")semana \($0.peor) por ciento\($0.alerta ? ", con aviso" : "")" }
+            .map { t in
+                let a = t.sesion.map { "sesión \($0) por ciento" } ?? "sin sesión"
+                let b = t.semanal.map { "semana \($0) por ciento" } ?? "sin semanal"
+                return "\(t.nombre): \(a), \(b)\(t.sesionAlerta || t.semanalAlerta ? ", con aviso" : "")"
+            }
             .joined(separator: "; ")
         return img
     }
