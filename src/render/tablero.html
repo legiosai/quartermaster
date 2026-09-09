@@ -1,0 +1,628 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>quartermaster</title>
+<style>
+/* ── Tokens ───────────────────────────────────────────────────────────────
+   Paleta de estado fija (good/warning/serious/critical): el color nunca va
+   solo, siempre con glifo y palabra. La rampa azul es la de acento y la de
+   las tres series del desglose por modelo. */
+:root {
+  color-scheme: light;
+  --plano:        #f9f9f7;
+  --sup:          #fcfcfb;
+  --sup-2:        #f2f1ed;
+  --tinta:        #0b0b0b;
+  --tinta-2:      #52514e;
+  --tinta-3:      #898781;
+  --linea:        #e1e0d9;
+  --borde:        rgba(11,11,11,0.10);
+  --acento:       #2a78d6;
+  --serie-1:      #2a78d6;
+  --serie-2:      #eb6834;
+  --serie-3:      #1baf7a;
+  --sombra:       0 1px 2px rgba(11,11,11,.04), 0 8px 24px -12px rgba(11,11,11,.18);
+  --ok:       #0ca30c;
+  --atento:   #fab219;
+  --aviso:    #ec835a;
+  --critico:  #d03b3b;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema="claro"]) {
+    color-scheme: dark;
+    --plano:   #0d0d0d;
+    --sup:     #1a1a19;
+    --sup-2:   #232322;
+    --tinta:   #ffffff;
+    --tinta-2: #c3c2b7;
+    --tinta-3: #898781;
+    --linea:   #2c2c2a;
+    --borde:   rgba(255,255,255,0.10);
+    --acento:  #3987e5;
+    --serie-1: #3987e5;
+    --serie-2: #d95926;
+    --serie-3: #199e70;
+    --sombra:  0 1px 2px rgba(0,0,0,.5), 0 12px 32px -16px rgba(0,0,0,.8);
+  }
+}
+:root[data-tema="oscuro"] {
+  color-scheme: dark;
+  --plano: #0d0d0d; --sup: #1a1a19; --sup-2: #232322;
+  --tinta: #ffffff; --tinta-2: #c3c2b7; --tinta-3: #898781;
+  --linea: #2c2c2a; --borde: rgba(255,255,255,0.10);
+  --acento: #3987e5; --serie-1: #3987e5; --serie-2: #d95926; --serie-3: #199e70;
+  --sombra: 0 1px 2px rgba(0,0,0,.5), 0 12px 32px -16px rgba(0,0,0,.8);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--plano);
+  color: var(--tinta);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  padding: 0 24px 72px;
+}
+.envoltorio { max-width: 1120px; margin: 0 auto; }
+
+/* ── Cabecera ─────────────────────────────────────────────────────────── */
+header.barra {
+  display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap;
+  padding: 28px 0 20px; border-bottom: 1px solid var(--linea); margin-bottom: 28px;
+}
+.marca { font-size: 15px; font-weight: 620; letter-spacing: -0.01em; }
+.marca .punto {
+  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+  background: var(--acento); margin-right: 8px; vertical-align: 1px;
+}
+.lema { color: var(--tinta-3); font-size: 13px; }
+.barra .derecha { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--borde); border-radius: 999px;
+  padding: 3px 10px; font-size: 12px; color: var(--tinta-2); background: var(--sup);
+  white-space: nowrap;
+}
+button.chip { cursor: pointer; font-family: inherit; }
+button.chip:hover { background: var(--sup-2); color: var(--tinta); }
+button.chip:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.anillo-refresco { width: 12px; height: 12px; transform: rotate(-90deg); }
+.anillo-refresco circle { fill: none; stroke-width: 2.5; }
+.anillo-refresco .pista { stroke: var(--linea); }
+.anillo-refresco .avance { stroke: var(--acento); transition: stroke-dashoffset .95s linear; }
+
+/* ── Héroe ────────────────────────────────────────────────────────────── */
+.heroe {
+  display: flex; gap: 32px; align-items: center; flex-wrap: wrap;
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 16px;
+  padding: 28px 32px; box-shadow: var(--sombra); margin-bottom: 28px;
+}
+.heroe .medidor-anillo { flex: none; }
+.heroe .texto { min-width: 240px; flex: 1; }
+.rotulo {
+  font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+  color: var(--tinta-3); font-weight: 600; margin-bottom: 8px;
+}
+.heroe .cual { font-size: 22px; font-weight: 620; letter-spacing: -0.02em; margin-bottom: 6px; }
+.heroe .cual .perfil-nom { color: var(--tinta); }
+.heroe .cual .barra-nom { color: var(--tinta-2); font-weight: 500; }
+.heroe .detalle { color: var(--tinta-2); font-size: 13.5px; }
+.heroe .detalle .sep { color: var(--tinta-3); margin: 0 7px; }
+.cifra { font-size: 52px; font-weight: 640; letter-spacing: -0.035em; line-height: 1; }
+.cifra .signo { font-size: 24px; font-weight: 500; color: var(--tinta-3); margin-left: 2px; }
+
+/* ── Insignias de estado: color + glifo + palabra, nunca color solo ──── */
+.estado { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 550; }
+.estado .glifo { font-size: 11px; line-height: 1; }
+.estado[data-nivel="ok"]      { color: var(--ok); }
+.estado[data-nivel="atento"]  { color: color-mix(in oklab, var(--atento) 82%, var(--tinta)); }
+.estado[data-nivel="aviso"]   { color: var(--aviso); }
+.estado[data-nivel="critico"] { color: var(--critico); }
+
+/* ── Tarjetas de perfil ───────────────────────────────────────────────── */
+.rejilla { display: flex; flex-direction: column; gap: 16px; }
+.tarjeta {
+  background: var(--sup); border: 1px solid var(--borde); border-radius: 14px;
+  padding: 22px 24px; box-shadow: var(--sombra);
+  display: grid; grid-template-columns: 270px minmax(0, 1fr) 300px; gap: 32px; align-items: start;
+}
+.col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+/* Angosto: las tres columnas se apilan y queda la tarjeta de siempre. */
+@media (max-width: 940px) {
+  .tarjeta { grid-template-columns: 1fr; gap: 18px; }
+  .consumo { border-left: none !important; padding-left: 0 !important;
+             border-top: 1px solid var(--linea); padding-top: 16px; }
+}
+.tarjeta.apagada { opacity: .72; }
+.tarjeta h2 { margin: 0; font-size: 17px; font-weight: 620; letter-spacing: -0.015em;
+               display: flex; align-items: center; gap: 7px; }
+.marca-prod { color: var(--tinta-3); display: inline-flex; flex: none; }
+.tarjeta .cuenta { color: var(--tinta-3); font-size: 12.5px; margin-top: 3px; word-break: break-all; }
+.cabeza-tarjeta { display: flex; align-items: flex-start; gap: 12px; }
+.cabeza-tarjeta .estado { margin-left: auto; flex: none; padding-top: 2px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ── Medidores ────────────────────────────────────────────────────────── */
+.medidores { display: flex; flex-direction: column; gap: 13px; }
+.medidor .fila { display: flex; align-items: baseline; gap: 8px; margin-bottom: 5px; }
+.medidor .nombre { font-size: 13px; color: var(--tinta-2); }
+.medidor .alcance { color: var(--tinta-3); }
+.medidor .marca-activa {
+  font-size: 10px; letter-spacing: .05em; text-transform: uppercase; font-weight: 600;
+  color: var(--tinta-3); border: 1px solid var(--borde); border-radius: 4px; padding: 0 4px;
+}
+.medidor .valor { margin-left: auto; font-size: 13px; font-weight: 620; font-variant-numeric: tabular-nums; }
+.pista {
+  height: 10px; border-radius: 5px; overflow: hidden; position: relative;
+  background: color-mix(in oklab, var(--relleno, var(--acento)) 16%, var(--sup));
+  cursor: default;
+}
+.relleno {
+  height: 100%; border-radius: 0 4px 4px 0; background: var(--relleno);
+  min-width: 2px; transition: width .5s cubic-bezier(.22,.61,.36,1);
+}
+.medidor[data-nivel="ok"]      { --relleno: var(--ok); }
+.medidor[data-nivel="atento"]  { --relleno: var(--atento); }
+.medidor[data-nivel="aviso"]   { --relleno: var(--aviso); }
+.medidor[data-nivel="critico"] { --relleno: var(--critico); }
+.medidor .pie { display: flex; gap: 8px; margin-top: 5px; font-size: 12px; color: var(--tinta-3); }
+.medidor .pie .ritmo { margin-left: auto; text-align: right; }
+.medidor .pie .choque { color: var(--critico); font-weight: 550; }
+.heroe .detalle .choque { color: var(--critico); font-weight: 550; }
+
+/* ── Frase: todo estado sin número produce una oración ────────────────── */
+.frase {
+  font-size: 13px; color: var(--tinta-2); background: var(--sup-2);
+  border-left: 2px solid var(--linea); border-radius: 0 6px 6px 0; padding: 10px 12px;
+}
+.frase code {
+  font: 12px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: var(--sup); border: 1px solid var(--borde);
+  border-radius: 4px; padding: 1px 5px; display: inline-block; margin-top: 4px;
+}
+
+/* ── Consumo local ────────────────────────────────────────────────────── */
+.consumo { border-left: 1px solid var(--linea); padding-left: 24px; }
+.baldosas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+.baldosa .k { font-size: 11px; color: var(--tinta-3); letter-spacing: .04em; text-transform: uppercase; font-weight: 600; }
+.baldosa .v { font-size: 20px; font-weight: 620; letter-spacing: -0.02em; margin-top: 2px; }
+.apilada { display: flex; gap: 2px; height: 10px; margin-bottom: 9px; }
+.apilada .seg { height: 100%; min-width: 3px; }
+.apilada .seg:first-child { border-radius: 4px 0 0 4px; }
+.apilada .seg:last-child  { border-radius: 0 4px 4px 0; }
+.apilada .seg:only-child  { border-radius: 4px; }
+.leyenda { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12px; color: var(--tinta-2); }
+.leyenda .item { display: inline-flex; align-items: center; gap: 6px; }
+.leyenda .llave { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.leyenda .pct { color: var(--tinta-3); font-variant-numeric: tabular-nums; }
+
+/* ── Tabla (canal de respaldo, sin color) ─────────────────────────────── */
+.zona-tabla { margin-top: 28px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; background: var(--sup);
+        border: 1px solid var(--borde); border-radius: 12px; overflow: hidden; }
+th, td { text-align: left; padding: 9px 14px; border-bottom: 1px solid var(--linea); }
+th { font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--tinta-3); font-weight: 600; }
+tbody tr:last-child td { border-bottom: none; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* ── Tooltip ──────────────────────────────────────────────────────────── */
+#globo {
+  position: fixed; pointer-events: none; z-index: 20; opacity: 0;
+  transition: opacity .12s ease; background: var(--sup); color: var(--tinta);
+  border: 1px solid var(--borde); border-radius: 8px; padding: 8px 11px;
+  font-size: 12.5px; line-height: 1.45; box-shadow: var(--sombra); max-width: 280px;
+}
+#globo .t { font-weight: 620; margin-bottom: 2px; }
+#globo .l { color: var(--tinta-2); }
+
+.pie-pagina { margin-top: 32px; color: var(--tinta-3); font-size: 12px; }
+.aviso-error {
+  background: var(--sup); border: 1px solid var(--critico); border-radius: 12px;
+  padding: 18px 20px; margin-bottom: 24px;
+}
+.aviso-error .rotulo { color: var(--critico); }
+.aviso-error pre {
+  margin: 8px 0 0; white-space: pre-wrap; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--tinta-2);
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="envoltorio">
+  <header class="barra">
+    <div>
+      <div class="marca"><span class="punto"></span>quartermaster</div>
+      <div class="lema">Cuánta cuota te queda, en todas tus cuentas de agentes.</div>
+    </div>
+    <div class="derecha">
+      <span class="chip" id="chip-meta">—</span>
+      <button class="chip" id="btn-tema" title="Cambiar tema">◐ tema</button>
+      <button class="chip" id="btn-refrescar" title="Volver a leer ahora">
+        <svg class="anillo-refresco" viewBox="0 0 12 12" aria-hidden="true">
+          <circle class="pista" cx="6" cy="6" r="4.5"></circle>
+          <circle class="avance" cx="6" cy="6" r="4.5" stroke-dasharray="28.3" stroke-dashoffset="28.3"></circle>
+        </svg>
+        <span id="txt-refrescar">leyendo…</span>
+      </button>
+    </div>
+  </header>
+
+  <div id="error" hidden class="aviso-error">
+    <div class="rotulo">no pude leer el estado</div>
+    <pre id="error-texto"></pre>
+  </div>
+
+  <section id="heroe"></section>
+  <div class="rejilla" id="rejilla"></div>
+
+  <section class="zona-tabla">
+    <button class="chip" id="btn-tabla">▤ ver todo como tabla</button>
+    <div id="tabla" hidden style="margin-top:12px"></div>
+  </section>
+
+  <p class="pie-pagina" id="pie">
+    Claude sale entero del disco de esta máquina: el <code>.claude.json</code> de cada perfil y las
+    transcripciones locales. Codex no deja la cuota en ningún lado, así que ese número se le pide a
+    <code>codex</code>, que usa su propia credencial — es la única vez que algo sale a la red, y va
+    al mismo lugar al que Codex ya habla. El tablero escucha sólo en 127.0.0.1.
+  </p>
+</div>
+
+<div id="globo" role="tooltip"></div>
+
+<script type="module">
+// El tablero DIBUJA y nada más: le pide el JSON a `qm` y no sabe qué es una
+// credencial ni habla HTTP con nadie más que con su propio servidor local.
+
+const SEG_REFRESCO = 30;
+const nf = new Intl.NumberFormat('es-AR');
+
+// ── formato ────────────────────────────────────────────────────────────
+const corto = (n) => n.replace(/^\.claude/, '').replace(/^-/, '') || 'main';
+
+function tokens(n) {
+  if (n >= 1e9) return (n / 1e9).toFixed(1).replace('.', ',') + 'G';
+  if (n >= 1e6) return (n / 1e6).toFixed(1).replace('.', ',') + 'M';
+  if (n >= 1e3) return (n / 1e3).toFixed(1).replace('.', ',') + 'k';
+  return nf.format(n);
+}
+
+function duracion(seg) {
+  seg = Math.max(0, Math.round(seg));
+  const h = Math.floor(seg / 3600), m = Math.floor((seg % 3600) / 60);
+  if (h >= 24) { const d = Math.floor(h / 24); return `${d}d ${h % 24}h`; }
+  if (h > 0) return `${h}h ${String(m).padStart(2, '0')}m`;
+  if (m > 0) return `${m}m ${String(seg % 60).padStart(2, '0')}s`;
+  return `${seg}s`;
+}
+
+// ── reglas del núcleo, repetidas acá porque acá se dibuja ──────────────
+// paraMostrar: el servidor manda barras que no aplican a la cuenta.
+const paraMostrar = (vs) => vs.filter(v => v.activa || v.porcentaje > 0 || v.severidad !== 'normal');
+
+// peor: la activa gana, salvo que haya una más alta — es lo único que evita
+// que un 75 % con aviso quede tapado por un 8 % que se ve más lindo.
+function peor(vs) {
+  if (!vs.length) return null;
+  const orden = [...vs].sort((a, b) => (a.activa !== b.activa) ? (a.activa ? -1 : 1) : b.porcentaje - a.porcentaje);
+  const activa = orden[0];
+  const alta = [...vs].sort((a, b) => b.porcentaje - a.porcentaje)[0];
+  return alta.porcentaje > activa.porcentaje ? alta : activa;
+}
+
+// Cuatro niveles de estado. El color nunca viaja solo: siempre con glifo y palabra.
+function nivel(v) {
+  if (v.porcentaje >= 95) return 'critico';
+  if (v.severidad !== 'normal' || v.porcentaje >= 80) return 'aviso';
+  if (v.porcentaje >= 60) return 'atento';
+  return 'ok';
+}
+const PALABRA = { ok: 'holgado', atento: 'atento', aviso: 'aviso', critico: 'crítico' };
+const GLIFO   = { ok: '●', atento: '◆', aviso: '▲', critico: '■' };
+
+const insignia = (n) =>
+  `<span class="estado" data-nivel="${n}"><span class="glifo">${GLIFO[n]}</span>${PALABRA[n]}</span>`;
+
+// La proyección viaja por el JSON sin frase y sin decir de qué barra es: qm la
+// calcula siempre sobre peor(paraMostrar(...)), así que acá se re-ata a esa barra.
+function fraseProy(proy) {
+  const ritmo = proy.ritmoPuntosPorHora.toFixed(1).replace('.', ',');
+  const falta = (new Date(proy.techo).getTime() - Date.now()) / 1000;
+  const techo = falta <= 0 ? 'ya' : 'en ' + duracion(falta);
+  return `ritmo ${ritmo} pts/h · 100 % ${techo}` + (proy.chocasAntesDelReinicio ? ' — antes del reinicio' : '');
+}
+
+const nombreVentana = (v) =>
+  v.alcance === null ? v.clave : `${v.clave} <span class="alcance">(${v.alcance})</span>`;
+
+// SVG chico por producto. No hay logo de nadie acá: un asterisco —la forma de
+// la marca de Claude— y los chevrones de código para Codex. Alcanza para saber
+// de un vistazo cuál es cuál, que es todo lo que tiene que hacer.
+const MARCAS = {
+  claude: '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><g stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2.6v10.8M3.3 5.3l9.4 5.4M12.7 5.3l-9.4 5.4"/></g></svg>',
+  codex:  '<svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5.8 4.2 2.4 8l3.4 3.8M10.2 4.2 13.6 8l-3.4 3.8"/></g></svg>',
+};
+const marca = (p) => `<span class="marca-prod" title="${esc(p)}">${MARCAS[p] || MARCAS.claude}</span>`;
+
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+// ── tooltip ────────────────────────────────────────────────────────────
+const globo = document.getElementById('globo');
+function conGlobo(el, titulo, lineas) {
+  el.addEventListener('pointerenter', () => {
+    globo.innerHTML = `<div class="t">${titulo}</div>` + lineas.map(l => `<div class="l">${l}</div>`).join('');
+    globo.style.opacity = '1';
+  });
+  el.addEventListener('pointermove', (e) => {
+    const r = globo.getBoundingClientRect();
+    let x = e.clientX + 14, y = e.clientY + 16;
+    if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+    if (y + r.height > innerHeight - 8) y = e.clientY - r.height - 16;
+    globo.style.left = x + 'px'; globo.style.top = y + 'px';
+  });
+  el.addEventListener('pointerleave', () => { globo.style.opacity = '0'; });
+}
+
+// ── estado vivo: las cuentas regresivas corren en el cliente ───────────
+let datos = null;
+const relojes = [];   // { el, hasta } — se recalculan cada segundo
+
+function reloj(iso, prefijo = 'reinicia en ') {
+  if (!iso) return '';
+  const id = 'r' + relojes.length;
+  relojes.push({ id, hasta: new Date(iso).getTime(), prefijo });
+  return `<span id="${id}"></span>`;
+}
+setInterval(() => {
+  const ahora = Date.now();
+  for (const r of relojes) {
+    const el = document.getElementById(r.id);
+    if (!el) continue;
+    const faltan = (r.hasta - ahora) / 1000;
+    el.textContent = faltan <= 0 ? 'ya reinició' : r.prefijo + duracion(faltan);
+  }
+}, 1000);
+
+// ── render ─────────────────────────────────────────────────────────────
+function medidor(v, proy, esLaProyectada) {
+  const n = nivel(v);
+  const p = Math.min(100, Math.max(0, v.porcentaje));
+  const proyBarra = esLaProyectada && proy ? proy : null;
+  return `
+  <div class="medidor" data-nivel="${n}" data-tip='${esc(JSON.stringify({
+      t: v.alcance ? `${v.clave} · ${v.alcance}` : v.clave,
+      l: [
+        `${v.porcentaje}% usado · ${100 - v.porcentaje}% libre`,
+        `severidad: ${v.severidad}${v.activa ? ' · el servidor la marca activa' : ''}`,
+        v.reinicia ? `reinicia: ${new Date(v.reinicia).toLocaleString('es-AR')}` : 'sin reinicio informado',
+      ],
+    }))}'>
+    <div class="fila">
+      <span class="nombre">${nombreVentana(v)}</span>
+      ${v.activa ? '<span class="marca-activa">activa</span>' : ''}
+      <span class="valor">${v.porcentaje}%</span>
+    </div>
+    <div class="pista"><div class="relleno" style="width:${p}%"></div></div>
+    <div class="pie">
+      <span>${reloj(v.reinicia)}</span>
+      ${proyBarra ? `<span class="ritmo ${proyBarra.chocasAntesDelReinicio ? 'choque' : ''}">${esc(fraseProy(proyBarra))}</span>` : ''}
+    </div>
+  </div>`;
+}
+
+function desglose(porModelo) {
+  const pares = Object.entries(porModelo).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  if (!pares.length) return '';
+  // Máximo tres slots categóricos; el resto se pliega en «otros».
+  let slots = pares.slice(0, 3);
+  const resto = pares.slice(3).reduce((s, [, v]) => s + v, 0);
+  if (resto > 0) slots.push(['otros', resto]);
+  const total = pares.reduce((s, [, v]) => s + v, 0);
+  const colores = ['var(--serie-1)', 'var(--serie-2)', 'var(--serie-3)', 'var(--tinta-3)'];
+  const segs = slots.map(([k, v], i) => {
+    const pct = (v / total) * 100;
+    return `<div class="seg" style="flex:${v};background:${colores[i]}" data-tip='${esc(JSON.stringify({
+      t: k, l: [`${tokens(v)} tokens`, `${pct.toFixed(1).replace('.', ',')} % del total`],
+    }))}'></div>`;
+  }).join('');
+  const leyenda = slots.map(([k, v], i) =>
+    `<span class="item"><span class="llave" style="background:${colores[i]}"></span>${esc(k)}
+       <span class="pct">${((v / total) * 100).toFixed(0)}%</span></span>`).join('');
+  return `<div class="apilada">${segs}</div><div class="leyenda">${leyenda}</div>`;
+}
+
+function tarjeta(p) {
+  const c = p.cuota;
+  const hayNumero = c.estado === 'ok';
+  const vs = hayNumero ? paraMostrar(c.ventanas) : [];
+  const peorV = hayNumero ? peor(vs) : null;
+  const viejo = hayNumero && c.edadSegundos >= 6 * 3600;
+  const proy = p.proyeccion && p.proyeccion.estado === 'sube' ? p.proyeccion : null;
+
+  const proyectada = hayNumero ? peor(vs) : null;
+  const cuerpo = hayNumero
+    ? `<div class="medidores">${vs.map(v => medidor(v, proy, v === proyectada)).join('')}</div>` +
+      (p.proyeccion && p.proyeccion.estado !== 'sube'
+        ? `<div class="frase">ritmo: ${p.proyeccion.estado === 'plano'
+             ? 'plano, no sube' : 'todavía no sé el ritmo — ' + esc(p.proyeccion.motivo)}</div>` : '')
+    : `<div class="frase">${esc(c.frase)}</div>`;
+
+  return `
+  <article class="tarjeta ${hayNumero ? '' : 'apagada'}">
+    <div class="col">
+      <div class="cabeza-tarjeta">
+        <div>
+          <h2>${marca(p.producto || 'claude')}${esc(corto(p.perfil))}</h2>
+          <div class="cuenta">${esc(p.cuenta || 'sin cuenta')}</div>
+        </div>
+        ${peorV ? insignia(nivel(peorV)) : ''}
+      </div>
+      <div class="chips">
+        <span class="chip">${esc(p.plan || 'sin plan')}</span>
+        <span class="chip">${esc(p.credencial)}</span>
+        ${hayNumero ? `<span class="chip">cache ${duracion(c.edadSegundos)}${viejo ? ' · viejo' : ''}</span>` : ''}
+      </div>
+    </div>
+    <div class="col">${cuerpo}</div>
+    <div class="consumo">
+      <div class="rotulo">consumo local · ${datos.ventanaDias} d</div>
+      ${p.local === null || p.local === undefined
+        ? `<div class="frase">no se midió el consumo local de esta cuenta. Informar 0 sería
+             decir que no consumiste nada, y lo que pasa es que no hay de dónde leerlo.</div>`
+        : `<div class="baldosas">
+             <div class="baldosa"><div class="k">tokens 7 d</div><div class="v">${tokens(p.local.tokens)}</div></div>
+             <div class="baldosa"><div class="k">tokens 5 h</div><div class="v">${tokens(p.local.tokensVentana)}</div></div>
+             <div class="baldosa"><div class="k">requests</div><div class="v">${nf.format(p.local.requests)}</div></div>
+           </div>
+           ${desglose(p.local.porModelo)}`}
+    </div>
+  </article>`;
+}
+
+function heroe() {
+  // Una sola cifra héroe por vista: la barra que te frena primero, en toda la máquina.
+  let mejor = null;
+  for (const p of datos.perfiles) {
+    if (p.cuota.estado !== 'ok') continue;
+    const v = peor(paraMostrar(p.cuota.ventanas));
+    if (v && (!mejor || v.porcentaje > mejor.v.porcentaje)) mejor = { p, v };
+  }
+  if (!mejor) {
+    return `<div class="heroe"><div class="texto">
+      <div class="rotulo">lo primero que te frena</div>
+      <div class="cual">Ningún perfil dejó cuota en el disco todavía</div>
+      <div class="detalle">Usá Claude Code una vez en algún perfil y el número aparece acá.</div>
+    </div></div>`;
+  }
+  const { p, v } = mejor;
+  const n = nivel(v);
+  const R = 52, C = 2 * Math.PI * R;
+  const off = C * (1 - Math.min(100, v.porcentaje) / 100);
+  const col = `var(--${n})`;
+  const proy = p.proyeccion && p.proyeccion.estado === 'sube' ? p.proyeccion : null;
+  return `
+  <div class="heroe">
+    <svg class="medidor-anillo" width="132" height="132" viewBox="0 0 132 132" aria-hidden="true">
+      <circle cx="66" cy="66" r="${R}" fill="none" stroke-width="11"
+              stroke="color-mix(in oklab, ${col} 16%, var(--sup))"/>
+      <circle cx="66" cy="66" r="${R}" fill="none" stroke-width="11" stroke="${col}"
+              stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}"
+              stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 66 66)"/>
+    </svg>
+    <div class="texto">
+      <div class="rotulo">lo primero que te frena</div>
+      <div class="cifra">${v.porcentaje}<span class="signo">%</span></div>
+      <div class="cual" style="margin-top:10px">
+        <span class="perfil-nom">${esc(corto(p.perfil))}</span>
+        <span class="barra-nom">· ${nombreVentana(v)}</span>
+      </div>
+      <div class="detalle">
+        ${insignia(n)}
+        <span class="sep">·</span>${reloj(v.reinicia)}
+        ${proy ? `<span class="sep">·</span><span class="${proy.chocasAntesDelReinicio ? 'choque' : ''}">${esc(fraseProy(proy))}</span>` : ''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function tabla() {
+  const filas = [];
+  for (const p of datos.perfiles) {
+    if (p.cuota.estado !== 'ok') {
+      filas.push(`<tr><td>${esc(p.producto || 'claude')}</td><td>${esc(corto(p.perfil))}</td><td colspan="5">${esc(p.cuota.frase)}</td></tr>`);
+      continue;
+    }
+    for (const v of paraMostrar(p.cuota.ventanas)) {
+      filas.push(`<tr>
+        <td>${esc(p.producto || 'claude')}</td>
+        <td>${esc(corto(p.perfil))}</td>
+        <td>${esc(v.alcance ? `${v.clave} (${v.alcance})` : v.clave)}</td>
+        <td class="num">${v.porcentaje}%</td>
+        <td>${esc(v.severidad)}</td>
+        <td>${v.activa ? 'sí' : 'no'}</td>
+        <td>${v.reinicia ? new Date(v.reinicia).toLocaleString('es-AR') : '—'}</td>
+      </tr>`);
+    }
+  }
+  return `<table><thead><tr>
+    <th>producto</th><th>cuenta</th><th>barra</th><th style="text-align:right">%</th>
+    <th>severidad</th><th>activa</th><th>reinicia</th>
+  </tr></thead><tbody>${filas.join('')}</tbody></table>`;
+}
+
+function pintar() {
+  relojes.length = 0;
+  document.getElementById('heroe').innerHTML = heroe();
+  document.getElementById('rejilla').innerHTML = datos.perfiles.map(tarjeta).join('');
+  document.getElementById('tabla').innerHTML = tabla();
+  document.getElementById('chip-meta').textContent =
+    `${datos.plataforma} · ${datos.perfiles.length} cuentas · leído ${new Date(datos.generado).toLocaleTimeString('es-AR')}`;
+  for (const el of document.querySelectorAll('[data-tip]')) {
+    const d = JSON.parse(el.dataset.tip);
+    conGlobo(el, esc(d.t), d.l.map(esc));
+  }
+}
+
+// ── ciclo ──────────────────────────────────────────────────────────────
+const btn = document.getElementById('btn-refrescar');
+const txt = document.getElementById('txt-refrescar');
+const avance = document.querySelector('.anillo-refresco .avance');
+const cajaError = document.getElementById('error');
+let restante = SEG_REFRESCO, leyendo = false;
+
+async function leer() {
+  if (leyendo) return;
+  leyendo = true; txt.textContent = 'leyendo…';
+  try {
+    const r = await fetch('/api/estado');
+    const cuerpo = await r.json();
+    if (!r.ok || cuerpo.error) throw new Error(cuerpo.detalle || cuerpo.error || `HTTP ${r.status}`);
+    datos = cuerpo;
+    cajaError.hidden = true;
+    pintar();
+  } catch (e) {
+    // Silencio es el bug: si no hay número, hay una frase.
+    document.getElementById('error-texto').textContent = String(e.message || e);
+    cajaError.hidden = false;
+  } finally {
+    leyendo = false; restante = SEG_REFRESCO;
+  }
+}
+
+setInterval(() => {
+  if (leyendo) return;
+  restante--;
+  const frac = Math.max(0, restante) / SEG_REFRESCO;
+  avance.style.strokeDashoffset = (28.3 * frac).toFixed(2);
+  txt.textContent = restante > 0 ? `en ${restante}s` : 'leyendo…';
+  if (restante <= 0) leer();
+}, 1000);
+
+btn.addEventListener('click', leer);
+
+document.getElementById('btn-tabla').addEventListener('click', (e) => {
+  const t = document.getElementById('tabla');
+  t.hidden = !t.hidden;
+  e.currentTarget.textContent = t.hidden ? '▤ ver todo como tabla' : '▤ ocultar la tabla';
+});
+
+// Tema: ?tema= manda, después lo que el usuario eligió, después el del sistema.
+const temaPedido = new URLSearchParams(location.search).get('tema')
+  || localStorage.getItem('qm-tema');
+if (temaPedido === 'claro' || temaPedido === 'oscuro') document.documentElement.dataset.tema = temaPedido;
+
+document.getElementById('btn-tema').addEventListener('click', () => {
+  const oscuro = matchMedia('(prefers-color-scheme: dark)').matches;
+  const actual = document.documentElement.dataset.tema || (oscuro ? 'oscuro' : 'claro');
+  const nuevo = actual === 'oscuro' ? 'claro' : 'oscuro';
+  document.documentElement.dataset.tema = nuevo;
+  try { localStorage.setItem('qm-tema', nuevo); } catch {}
+});
+
+leer();
+</script>
+</body>
+</html>

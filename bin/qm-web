@@ -1,0 +1,132 @@
+#!/usr/bin/env node
+// qm en el navegador.
+//
+// Es la contraparte de `bin/qm-indicator` para las máquinas sin barra de GNOME:
+// misma regla, sólo dibuja. Le pide el JSON a `qm` por stdout y no sabe qué es
+// una credencial, un llavero ni un endpoint. Si algún día `qm` cambia por
+// dentro, esto no se entera.
+//
+// El servidor escucha sólo en 127.0.0.1: el tablero muestra mails, planes y
+// rutas de casa, y SOUL.md dice que nada sale de la máquina.
+//
+// Es JavaScript común, no TypeScript, y a propósito: así corre con el Node que
+// haya (>= 18) y el requisito de 22.6 queda donde de verdad hace falta, adentro
+// de `qm`, que es quien lee el TypeScript.
+
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const AQUI = path.dirname(fileURLToPath(import.meta.url));
+const RAIZ = path.resolve(AQUI, '..');
+const PAGINA = path.join(RAIZ, 'src', 'render', 'tablero.html');
+const QM = path.join(RAIZ, 'bin', 'qm');
+
+const AYUDA = `qm-web · el tablero de quartermaster en el navegador
+
+  qm-web                 levanta el tablero y abre el navegador
+  qm-web --puerto=N      en otro puerto (por defecto 7391)
+  qm-web --dias=N        ventana del consumo local (por defecto 7)
+  qm-web --sin-abrir     no abre el navegador, sólo imprime la URL
+
+Escucha únicamente en 127.0.0.1. Sólo dibuja: el número lo pone \`qm\`.`;
+
+// ── argumentos ──────────────────────────────────────────────────────────
+const opciones = { puerto: 7391, dias: 7, abrir: true };
+for (const a of process.argv.slice(2)) {
+  const m = /^--(puerto|dias)=(\d+)$/.exec(a);
+  if (m) { opciones[m[1]] = Number(m[2]); continue; }
+  if (a === '--sin-abrir') { opciones.abrir = false; continue; }
+  if (a === '--ayuda' || a === '-h' || a === '--help') { console.log(AYUDA); process.exit(0); }
+  console.error(`no entiendo "${a}".\n\n${AYUDA}`);
+  process.exit(2);
+}
+
+// ── el único dato: lo que imprime qm --json ─────────────────────────────
+// Una lectura completa tarda ~1 s (lee todas las transcripciones), así que dos
+// pestañas abiertas no disparan dos lecturas: la segunda se cuelga de la
+// primera.
+let enVuelo = null;
+
+function estado() {
+  if (enVuelo) return enVuelo;
+  enVuelo = new Promise((resolver) => {
+    execFile(QM, ['--json', `--dias=${opciones.dias}`], { maxBuffer: 32 << 20 }, (err, salida, errSalida) => {
+      enVuelo = null;
+      if (err && !salida) {
+        // Silencio es el bug (SOUL.md): si no hay número, hay una frase.
+        resolver({
+          ok: false,
+          cuerpo: {
+            error: 'qm no pudo leer el estado',
+            detalle: (errSalida || err.message || '').trim() || 'sin detalle',
+          },
+        });
+        return;
+      }
+      try {
+        resolver({ ok: true, cuerpo: JSON.parse(salida) });
+      } catch (e) {
+        resolver({
+          ok: false,
+          cuerpo: { error: 'qm no devolvió JSON', detalle: (errSalida || String(e)).trim().slice(0, 4000) },
+        });
+      }
+    });
+  });
+  return enVuelo;
+}
+
+// ── servidor ────────────────────────────────────────────────────────────
+const servidor = http.createServer(async (pedido, respuesta) => {
+  const ruta = (pedido.url || '/').split('?')[0];
+
+  if (ruta === '/api/estado') {
+    const r = await estado();
+    respuesta.writeHead(r.ok ? 200 : 503, {
+      'content-type': 'application/json; charset=utf-8',
+      'cache-control': 'no-store',
+    });
+    respuesta.end(JSON.stringify(r.cuerpo));
+    return;
+  }
+
+  if (ruta === '/' || ruta === '/index.html') {
+    fs.readFile(PAGINA, (err, buf) => {
+      if (err) {
+        respuesta.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+        respuesta.end(`no encuentro el tablero en ${PAGINA}\n`);
+        return;
+      }
+      respuesta.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+      respuesta.end(buf);
+    });
+    return;
+  }
+
+  respuesta.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
+  respuesta.end('no hay nada acá\n');
+});
+
+servidor.on('error', (e) => {
+  if (e.code === 'EADDRINUSE') {
+    console.error(`el puerto ${opciones.puerto} ya está ocupado.\n\n  qm-web --puerto=${opciones.puerto + 1}\n`);
+    process.exit(1);
+  }
+  throw e;
+});
+
+servidor.listen(opciones.puerto, '127.0.0.1', () => {
+  const url = `http://127.0.0.1:${opciones.puerto}`;
+  console.log(`quartermaster · tablero en ${url}`);
+  console.log('sólo en 127.0.0.1 · ctrl-c para salir');
+  if (!opciones.abrir) return;
+  const abridor = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open';
+  execFile(abridor, [url], () => {});
+});
+
+for (const senal of ['SIGINT', 'SIGTERM']) {
+  process.on(senal, () => { servidor.close(); process.exit(0); });
+}
