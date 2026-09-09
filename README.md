@@ -187,6 +187,71 @@ Tres decisiones más:
   `PATH=/usr/bin:/bin:/usr/sbin:/sbin`; hay un `rutaCodex()` que mira también
   los lugares de siempre, y `QM_CODEX` para forzarlo.
 
+## Elegir qué se muestra
+
+Descubrir todo es la misión; **mostrar** todo es una preferencia. Con cuatro
+cuentas la barra de menú ya no entra, y una cuenta que no usás es ruido
+permanente.
+
+```bash
+qm --solo=codex,personal     # sólo esas
+qm --ocultar=teams           # todas menos esa
+```
+
+o fijo, en `~/.config/quartermaster/config.json`:
+
+```json
+{ "ocultar": ["main"] }
+```
+
+Se acepta el nombre corto (`main`, `personal`, `teams`, `codex`) o el completo
+del perfil. `mostrar` gana sobre `ocultar`. Como todos los que dibujan leen el
+JSON de `qm`, la selección vale igual en la terminal, en la barra y en el
+tablero, sin configurar nada tres veces.
+
+Un detalle que es una regla del repo: **si el filtro no coincide con ninguna
+cuenta, se muestran todas** y se dice que el filtro no pegó. Casi siempre es un
+nombre mal escrito, y quedarse con una pantalla vacía y sin explicación es
+exactamente el bug que motivó todo esto.
+
+## Sumar otra herramienta: Gemini, GLM, MiniMax
+
+La pregunta no es «¿se puede?» sino **de dónde sale el número**. Un proveedor
+tiene que contestar tres cosas, y sólo la primera es obligatoria:
+
+| | Qué es | Si falta |
+|---|---|---|
+| **1. Qué cuentas hay** | descubrir directorios/credenciales | no hay fila |
+| **2. Cuánta cuota queda** | barras con % y reinicio | hay fila y una frase que dice por qué no hay número |
+| **3. Cuánto consumiste** | el piso local, de transcripciones | se informa `null`, nunca `0` |
+
+Hoy hay dos formas resueltas, y las dos sirven de molde:
+
+- **Claude Code** — la cuota está en `.claude.json` (H5) y el endpoint es el
+  refresco (H2).
+- **Codex** — la cuota está en los rollouts y el app-server es el refresco. El
+  consumo sale de los mismos archivos.
+
+Lo que encontré en esta máquina para las tres que faltan:
+
+- **Gemini CLI 0.59.0** — instalado, autenticado (`oauth-personal`). Pero en
+  `~/.gemini` **no hay ningún número de cuota ni de uso**: hay credenciales,
+  cuentas, `installation_id` y estado de UI, y nada más. Su límite además no es
+  un porcentaje sino requests por día, así que ni siquiera encaja en la forma
+  `VentanaCuota` sin decidir antes qué significa «80 %» ahí. Da para el punto 1
+  hoy; el 2 necesita encontrarle una fuente, y el 3 un lugar donde cuente
+  tokens, que tampoco aparece.
+- **GLM y MiniMax** — **no están instalados acá**, así que no puedo verificar
+  nada y no voy a escribir un adaptador contra documentación. Lo que sí sé es
+  que los dos se usan normalmente *a través de Claude Code*, apuntando
+  `ANTHROPIC_BASE_URL` a su gateway: en ese caso ya aparecen como un perfil más
+  —el descubrimiento no cambia— pero la cuota **no** la va a servir el endpoint
+  de Anthropic, así que hace falta saber qué expone cada gateway.
+
+El molde está y la selección de arriba ya prevé que sobren cuentas. Lo que falta
+en los tres casos es el mismo dato: **dónde deja cada uno su número**. Con eso,
+cada proveedor es un archivo en `src/adapters/` y una fila más.
+
 ## Instalación
 
 ```bash

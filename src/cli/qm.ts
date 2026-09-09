@@ -30,6 +30,7 @@ import {
   DIRECTORIO_CODEX,
 } from '../adapters/codex.ts';
 import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
+import { leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
 import {
   esPreocupante,
   frase,
@@ -89,6 +90,8 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --redactado      con --json, saca mails y rutas de casa: para comitear
   qm --breve          un renglón y nada más. No lee transcripciones, así que
                       tarda milisegundos: es lo que va en una statusline
+  qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
+  qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
   qm --calentar       refresca el endpoint de cada perfil y el de Codex, guarda
                       lo que vuelve y no imprime nada. Es lo que corre la barra
@@ -117,6 +120,9 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     else if (a === '--redactado') o.redactado = true;
     else if (a === '--breve') o.breve = true;
     else if (a === '--sin-codex') o.codex = false;
+    // La selección la lee configEfectiva() de process.argv; acá sólo se
+    // aceptan para que el parser no las rechace.
+    else if (a.startsWith('--solo=') || a.startsWith('--ocultar=')) continue;
     else if (a === '--refrescar' || a === '--red') o.refrescar = true;
     // --sin-red era el nombre viejo de lo que ahora es el comportamiento por
     // defecto. Se acepta sin decir nada para no romper a quien ya lo escribió.
@@ -344,7 +350,27 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
   );
 
   const codex = o.codex ? await filaCodex(o) : null;
-  return codex === null ? claude : [...claude, codex];
+  const todas = codex === null ? claude : [...claude, codex];
+  // Descubrir todo y mostrar todo no son lo mismo: lo primero es la misión,
+  // lo segundo es una preferencia.
+  const { filas, nota } = seleccionar(todas, configEfectiva());
+  if (nota !== null && !o.json && !o.breve) console.error(tenue(`  (${nota} · ${RUTA_CONFIG})`));
+  return filas;
+}
+
+/** La config del archivo, con --solo / --ocultar pisándola. */
+function configEfectiva(): Config {
+  const base = leerConfigUsuario();
+  const arg = (n: string): string[] | null => {
+    const a = process.argv.find((x) => x.startsWith(`--${n}=`));
+    return a === undefined ? null : a.slice(n.length + 3).split(',').filter((x) => x !== '');
+  };
+  const solo = arg('solo');
+  const ocultar = arg('ocultar');
+  return {
+    mostrar: solo ?? base.mostrar,
+    ocultar: ocultar ?? base.ocultar,
+  };
 }
 
 const colorPct = (p: number): ((t: string) => string) => (p >= 90 ? rojo : p >= 70 ? amarillo : verde);
