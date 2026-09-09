@@ -1,0 +1,23 @@
+{
+  "name": "@legios/quartermaster",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "qm": "src/cli/qm.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "qm": "node --experimental-strip-types src/cli/qm.ts",
+    "demo-h0": "node --experimental-strip-types src/cli/preflight.ts",
+    "demo-h1": "node --experimental-strip-types src/cli/demo-h1.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0"
+  }
+}
