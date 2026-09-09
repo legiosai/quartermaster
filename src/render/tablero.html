@@ -170,6 +170,10 @@ button.chip:focus-visible { outline: 2px solid var(--acento); outline-offset: 2p
 .medidor .pie { display: flex; gap: 8px; margin-top: 5px; font-size: 12px; color: var(--tinta-3); }
 .medidor .pie .ritmo { margin-left: auto; text-align: right; }
 .medidor .pie .choque { color: var(--critico); font-weight: 550; }
+.curva { margin-top: 8px; }
+.curva svg { display: block; width: 100%; height: 30px; }
+.pie-curva { display: flex; justify-content: space-between; font-size: 10.5px;
+             color: var(--tinta-3); margin-top: 2px; }
 .heroe .detalle .choque { color: var(--critico); font-weight: 550; }
 
 /* ── Frase: todo estado sin número produce una oración ────────────────── */
@@ -379,6 +383,8 @@ setInterval(() => {
 }, 1000);
 
 // ── render ─────────────────────────────────────────────────────────────
+let historiaActual = null;
+
 function medidor(v, proy, esLaProyectada) {
   const n = nivel(v);
   const p = Math.min(100, Math.max(0, v.porcentaje));
@@ -402,6 +408,38 @@ function medidor(v, proy, esLaProyectada) {
       <span>${reloj(v.reinicia)}</span>
       ${proyBarra ? `<span class="ritmo ${proyBarra.chocasAntesDelReinicio ? 'choque' : ''}">${esc(fraseProy(proyBarra))}</span>` : ''}
     </div>
+    ${esLaProyectada ? curva(historiaActual, n) : ''}
+  </div>`;
+}
+
+// La serie de las últimas dos horas de la barra que frena. Existe por lo mismo
+// que en la barra de menú: «100 % en 21m» pide creerle a un número sin nada
+// atrás, y la curva se mira y se entiende sola —además muestra las mesetas,
+// que es cuando la recta no aplica—.
+function curva(historia, nivel) {
+  if (!historia || historia.length < 3) return '';
+  const An = 100, Al = 26;
+  const ts = historia.map(m => m.t), ps = historia.map(m => m.porcentaje);
+  const t0 = Math.min(...ts), t1 = Math.max(...ts);
+  const p0 = Math.min(...ps), p1 = Math.max(...ps);
+  if (t1 === t0) return '';
+  const rango = Math.max(1, p1 - p0);
+  const x = t => ((t - t0) / (t1 - t0)) * An;
+  const y = p => Al - ((p - p0) / rango) * Al;
+  const puntos = historia.map(m => `${x(m.t).toFixed(2)},${y(m.porcentaje).toFixed(2)}`);
+  const horas = (t1 - t0) / 3600000;
+  return `
+  <div class="curva" data-tip='${esc(JSON.stringify({
+      t: 'las últimas ' + (horas >= 1 ? horas.toFixed(1) + ' h' : Math.round(horas * 60) + ' min'),
+      l: [`${historia.length} lecturas`, `de ${p0} % a ${p1} %`,
+          'el eje va del mínimo al máximo, no de 0 a 100: lo que importa es la pendiente'],
+    }))}'>
+    <svg viewBox="0 0 ${An} ${Al}" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="0,${Al} ${puntos.join(' ')} ${An},${Al}" fill="var(--${nivel})" opacity="0.14"/>
+      <polyline points="${puntos.join(' ')}" fill="none" stroke="var(--${nivel})"
+                stroke-width="1.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <span class="pie-curva"><span>${p0} %</span><span>${horas >= 1 ? horas.toFixed(1) + ' h' : Math.round(horas * 60) + ' min'}</span></span>
   </div>`;
 }
 
@@ -435,6 +473,7 @@ function tarjeta(p) {
   const proy = p.proyeccion && p.proyeccion.estado === 'sube' ? p.proyeccion : null;
 
   const proyectada = hayNumero ? c.frena : null;
+  historiaActual = hayNumero ? c.historia : null;
   const cuerpo = hayNumero
     ? `<div class="medidores">${vs.map(v => medidor(v, proy, proyectada !== null && v.clave === proyectada.clave)).join('')}</div>` +
       (p.proyeccion && p.proyeccion.estado !== 'sube'
@@ -551,7 +590,7 @@ function pintar() {
   document.getElementById('rejilla').innerHTML = datos.perfiles.map(tarjeta).join('');
   document.getElementById('tabla').innerHTML = tabla();
   document.getElementById('chip-meta').textContent =
-    `${datos.plataforma} · ${datos.perfiles.length} cuentas · leído ${new Date(datos.generado).toLocaleTimeString('es-AR')}`;
+    `${datos.plataforma} · ${datos.perfiles.length} cuentas · leído ${new Date(datos.generado).toLocaleTimeString('es-AR', { hour12: false })}`;
   for (const el of document.querySelectorAll('[data-tip]')) {
     const d = JSON.parse(el.dataset.tip);
     conGlobo(el, esc(d.t), d.l.map(esc));

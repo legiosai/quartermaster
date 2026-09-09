@@ -226,6 +226,8 @@ struct PerfilVista {
     let frase: String?
     /// Ya filtradas por qm: las que vale la pena mostrar.
     let mostrar: [Ventana]
+    /// Las muestras recientes de la barra que frena, ya recortadas por qm.
+    let historia: [(t: Double, pct: Int)]
     /// La que frena antes, la sesión y la semanal — resueltas por qm.
     let frena: Ventana?
     let sesion: Ventana?
@@ -294,6 +296,10 @@ func leer() -> Lectura {
                     preocupa: v["preocupa"] as? Bool ?? false)
         }
         let mostrar = (cuota["mostrar"] as? [[String: Any]] ?? []).map(aVentana)
+        let historia: [(t: Double, pct: Int)] = (cuota["historia"] as? [[String: Any]] ?? []).compactMap {
+            guard let t = $0["t"] as? Double, let p = $0["porcentaje"] as? Int else { return nil }
+            return (t, p)
+        }
         let una = { (k: String) -> Ventana? in (cuota[k] as? [String: Any]).map(aVentana) }
         var proy: Proyeccion? = nil
         if let pr = p["proyeccion"] as? [String: Any], (pr["estado"] as? String) == "sube",
@@ -311,7 +317,7 @@ func leer() -> Lectura {
             credencial: p["credencial"] as? String ?? "?",
             hayNumero: hayNumero,
             frase: cuota["frase"] as? String,
-            mostrar: mostrar,
+            mostrar: mostrar, historia: historia,
             frena: una("frena"), sesion: una("sesion"), semanal: una("semanal"),
             edadSegundos: cuota["edadSegundos"] as? Int,
             proyeccion: proy)
@@ -338,11 +344,16 @@ func notificar(titulo: String, cuerpo: String) {
 /// Es una NSView y no un NSMenuItem con texto porque el menú es donde se
 /// contesta la pregunta completa —qué barra, cuánto, cuándo se reinicia, a qué
 /// ritmo— y eso pide una grilla, no un renglón.
+/// La clave de la barra que frena, para saber a cuál pegarle la curva.
+private func peor_clave(_ p: PerfilVista) -> String? { p.frena?.nombre }
+
 final class VistaCuenta: NSView {
     private let titulo: String
     private let sub: String
     private let icono: NSImage?
     private let barras: [(nombre: String, pct: Int, nivel: Nivel, activa: Bool, pie: String)]
+    private let historia: [(t: Double, pct: Int)]
+    private let claveQueFrena: String?
     private let frase: String?
     private let ritmo: String?
     private let ritmoRojo: Bool
@@ -352,6 +363,10 @@ final class VistaCuenta: NSView {
     // Un renglón de barra = nombre (14) + medidor (8) + pie (13). Si esta
     // cuenta no coincide con lo que dibuja draw(), los renglones se pisan.
     private static let ALTO_BARRA: CGFloat = 35
+    // 6 de aire + 16 de curva + 12 para los rótulos de abajo. Si esto no
+    // coincide con lo que dibuja draw(), los rótulos se comen el renglón
+    // siguiente — que fue exactamente lo que pasó.
+    private static let ALTO_CURVA: CGFloat = 34
 
     init(_ p: PerfilVista, icono: NSImage?) {
         self.titulo = corto(p.nombre)
@@ -360,6 +375,8 @@ final class VistaCuenta: NSView {
         if let pl = p.plan { partes.append(pl) }
         self.sub = partes.joined(separator: "  ·  ")
         self.icono = icono
+        self.historia = p.historia
+        self.claveQueFrena = peor_clave(p)
 
         let visibles = p.mostrar
         let cual = p.frena
@@ -388,6 +405,7 @@ final class VistaCuenta: NSView {
 
         var alto = VistaCuenta.MARGEN + 16 + 15 + 6
         alto += CGFloat(barras.count) * VistaCuenta.ALTO_BARRA
+        if historia.count >= 3 { alto += VistaCuenta.ALTO_CURVA }
         if frase != nil { alto += 34 }
         if ritmo != nil { alto += 16 }
         alto += 12
@@ -400,6 +418,48 @@ final class VistaCuenta: NSView {
                           derecha: CGFloat? = nil) {
         let a = NSAttributedString(string: t, attributes: [.font: f, .foregroundColor: c])
         a.draw(at: NSPoint(x: derecha == nil ? x : derecha! - a.size().width, y: y))
+    }
+
+    /// Las dos horas de muestras, dibujadas. El eje Y va del mínimo al máximo
+    /// de la serie y no de 0 a 100: lo que interesa acá es la PENDIENTE, y a
+    /// escala completa una subida de tres puntos se ve plana.
+    private func dibujarCurva(_ caja: NSRect, _ nivel: Nivel) {
+        guard historia.count >= 3 else { return }
+        let ts = historia.map(\.t), ps = historia.map { Double($0.pct) }
+        let t0 = ts.min()!, t1 = ts.max()!
+        let p0 = ps.min()!, p1 = ps.max()!
+        guard t1 > t0 else { return }
+        let rango = max(1, p1 - p0)
+
+        let x = { (t: Double) in caja.minX + caja.width * CGFloat((t - t0) / (t1 - t0)) }
+        let y = { (p: Double) in caja.minY + caja.height * CGFloat((p - p0) / rango) }
+
+        // Un piso tenue, para que se vea que es un área y no una raya suelta.
+        let area = NSBezierPath()
+        area.move(to: NSPoint(x: x(ts[0]), y: caja.minY))
+        for (i, t) in ts.enumerated() { area.line(to: NSPoint(x: x(t), y: y(ps[i]))) }
+        area.line(to: NSPoint(x: x(ts[ts.count - 1]), y: caja.minY))
+        area.close()
+        nivel.color.withAlphaComponent(0.14).setFill()
+        area.fill()
+
+        let linea = NSBezierPath()
+        linea.lineWidth = 1.5
+        linea.lineJoinStyle = .round
+        linea.move(to: NSPoint(x: x(ts[0]), y: y(ps[0])))
+        for (i, t) in ts.enumerated().dropFirst() { linea.line(to: NSPoint(x: x(t), y: y(ps[i]))) }
+        nivel.color.setStroke()
+        linea.stroke()
+
+        // El punto de ahora, que es el que se mira.
+        let fin = NSRect(x: x(ts[ts.count - 1]) - 2.5, y: y(ps[ps.count - 1]) - 2.5, width: 5, height: 5)
+        nivel.color.setFill()
+        NSBezierPath(ovalIn: fin).fill()
+
+        let horas = (t1 - t0) / 3_600_000
+        escribir(String(format: "%.0f%%", p0), caja.minX, caja.minY - 11, .systemFont(ofSize: 9), .tertiaryLabelColor)
+        escribir(horas >= 1 ? String(format: "últimas %.1f h", horas) : "última hora",
+                 0, caja.minY - 11, .systemFont(ofSize: 9), .tertiaryLabelColor, derecha: caja.maxX)
     }
 
     override func draw(_ dirtyRect: NSRect) {
@@ -443,6 +503,12 @@ final class VistaCuenta: NSView {
                          xRadius: 2, yRadius: 2).fill()
             y -= 13
             escribir(b.pie, m, y, .systemFont(ofSize: 10), .tertiaryLabelColor)
+
+            // La curva va pegada a la barra que frena: es de ella.
+            if b.nombre == claveQueFrena, historia.count >= 3 {
+                y -= VistaCuenta.ALTO_CURVA
+                dibujarCurva(NSRect(x: m, y: y + 14, width: der - m, height: 16), b.nivel)
+            }
         }
 
         if let r = ritmo {
@@ -494,6 +560,24 @@ final class Barra: NSObject, NSApplicationDelegate {
     /// Lo último que se vio, para decidir cada cuánto volver a mirar.
     var ultimas: [Trozo] = []
     var avisoBarraLlena = false
+    /// `perfil|barra` -> [minuto de reinicio, porcentaje] de la última vuelta.
+    /// Persistido: es lo que permite notar que una ventana se dio vuelta.
+    var previos: [String: [Int]] = Barra.leerPrevios()
+
+    static var rutaPrevios: String {
+        (Barra.rutaAvisados as NSString).deletingLastPathComponent + "/previos.json"
+    }
+    static func leerPrevios() -> [String: [Int]] {
+        guard let d = FileManager.default.contents(atPath: rutaPrevios),
+              let m = try? JSONDecoder().decode([String: [Int]].self, from: d) else { return [:] }
+        return m
+    }
+    func guardarPrevios() {
+        let url = URL(fileURLWithPath: Barra.rutaPrevios)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        try? JSONEncoder().encode(previos).write(to: url)
+    }
 
     func applicationDidFinishLaunching(_ n: Notification) {
         // Con autosaveName el sistema recuerda dónde lo dejó el usuario: en una
@@ -672,6 +756,7 @@ final class Barra: NSObject, NSApplicationDelegate {
                         viejo: viejo))
                     peorPct = max(peorPct, cual.porcentaje)
                     revisarAvisos(p, visibles)
+                    revisarLiberadas(p, visibles)
                 }
             }
 
@@ -732,8 +817,15 @@ final class Barra: NSObject, NSApplicationDelegate {
         func intentar(_ i: Int) {
             boton.image = medidores(piezas, glifos: caras[i].glifos, numeros: caras[i].numeros)
             DispatchQueue.main.async {
-                if self.tapadoPorLaMuesca(), i + 1 < caras.count { intentar(i + 1) }
-                else { self.revisarSiSeVe() }
+                if !self.tapadoPorLaMuesca() { self.revisarSiSeVe(); return }
+                if i + 1 < caras.count { intentar(i + 1); return }
+                // Ninguna entró. Antes se quedaba en la última —la que no tiene
+                // números— y el item terminaba mudo justo en la parte que se
+                // viene a mirar, aunque igual estuviera tapado. Si va a estar
+                // tapado de todos modos, que esté tapada la versión completa:
+                // en cuanto el usuario lo cmd-arrastra a un hueco, está todo.
+                boton.image = self.medidores(piezas, glifos: caras[0].glifos, numeros: caras[0].numeros)
+                self.revisarSiSeVe()
             }
         }
         intentar(0)
@@ -898,6 +990,29 @@ final class Barra: NSObject, NSApplicationDelegate {
     }
 
     // Avisos ---------------------------------------------------------------
+    /// El aviso que faltaba: **cuándo volvés a poder trabajar**.
+    ///
+    /// Todo lo demás avisa que te estás quedando sin cuota. Nada avisaba lo
+    /// contrario, y es la mitad útil de la pregunta: si te frenaste, lo que
+    /// querés saber es cuándo se liberó, y hasta ahora eso había que ir a
+    /// mirarlo. Se dispara cuando una barra que estaba apretada cambia de
+    /// ventana —cambia su minuto de reinicio— y vuelve abajo.
+    func revisarLiberadas(_ p: PerfilVista, _ visibles: [Ventana]) {
+        for v in visibles {
+            let clave = "\(p.nombre)|\(v.nombre)"
+            let minuto = v.reinicia.map { Int($0.timeIntervalSince1970 / 60) } ?? 0
+            defer { previos[clave] = [minuto, v.porcentaje] }
+            guard let antes = previos[clave], antes.count == 2 else { continue }
+            let (minutoAntes, pctAntes) = (antes[0], antes[1])
+            // Ventana nueva, y en la anterior estabas contra el techo.
+            if minuto != minutoAntes, pctAntes >= 80, v.porcentaje < pctAntes {
+                notificar(titulo: "quartermaster · \(corto(p.nombre))",
+                          cuerpo: "\(v.nombre) se reinició: estabas \(pctAntes) % y ahora vas \(v.porcentaje) %")
+            }
+        }
+        guardarPrevios()
+    }
+
     func revisarAvisos(_ p: PerfilVista, _ visibles: [Ventana]) {
         for v in visibles {
             // La clave incluye el reinicio: una ventana avisa una vez, y la

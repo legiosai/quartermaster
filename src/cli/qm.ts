@@ -18,7 +18,7 @@ import { estadoCredencial } from '../adapters/credenciales.ts';
 import { consumoDesde, transcripciones } from '../adapters/transcripciones.ts';
 import { cuotaEnCache } from '../adapters/cache-cuota.ts';
 import { anotar, claveBarra, muestras, type Lectura } from '../adapters/historial.ts';
-import { proyectar, type Proyeccion } from '../core/proyeccion.ts';
+import { proyectar, VENTANA_AJUSTE_MS, type Proyeccion } from '../core/proyeccion.ts';
 import { consultarCuota } from '../adapters/cuota.ts';
 import {
   codexEnCache,
@@ -492,6 +492,18 @@ function pintarBreve(filas: readonly FilaPerfil[]): void {
   console.log(partes.length === 0 ? 'sin cuota en cache' : partes.join(tenue(' · ')));
 }
 
+/** Las muestras recientes de la barra que frena, ya recortadas a la ventana de ajuste. */
+function historiaDe(f: FilaPerfil): { t: number; porcentaje: number }[] {
+  if (f.cuota.estado !== 'ok') return [];
+  const v = peor(paraMostrar(f.cuota.ventanas));
+  if (v === null) return [];
+  const ahora = Date.now();
+  return muestras(f.perfil.nombre, claveBarra(v.clave, v.alcance))
+    .filter((m) => ahora - m.t <= VENTANA_AJUSTE_MS && m.t <= ahora)
+    .sort((a, b) => a.t - b.t)
+    .map((m) => ({ t: m.t, porcentaje: m.porcentaje }));
+}
+
 function ventanaJson(v: VentanaCuota): Record<string, unknown> {
   return {
     clave: v.clave,
@@ -538,6 +550,11 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
               frena: ventanaJson0(peor(paraMostrar(f.cuota.ventanas))),
               sesion: ventanaJson0(sesion(paraMostrar(f.cuota.ventanas))),
               semanal: ventanaJson0(semanal(paraMostrar(f.cuota.ventanas))),
+              // La serie de la barra que frena, para que se pueda DIBUJAR el
+              // ritmo en vez de sólo afirmarlo. «100 % en 21m» pide creerle a
+              // un número sin nada atrás; la curva se mira y se entiende sola,
+              // y además muestra las mesetas, que es cuando la recta no aplica.
+              historia: historiaDe(f),
             }
           : {
               estado: f.cuota.estado,
