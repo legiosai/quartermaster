@@ -44,7 +44,7 @@ multi-perfil en un cálculo, no en una heurística.
 | **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ⏳ | [`numeros/h4-linux.md`](numeros/h4-linux.md) |
 | **H8** Codex en la misma tabla | ✅ mecanismo | cuota del disco (rollouts) + refresco por app-server + consumo local; `src/adapters/codex.ts` |
 | **H5** cuota sin red ni credencial | ✅ **número** | [`numeros/h5-cuota.md`](numeros/h5-cuota.md) · [`h5-cuota.json`](numeros/h5-cuota.json) |
-| **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `make web` en el navegador · `qm --breve` en la statusline de Claude Code |
+| **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `make tray` en Windows · `make web` en el navegador · `qm --breve` en la statusline de Claude Code |
 | **H7** que te avise antes de chocar | ✅ mecanismo | proyección por mínimos cuadrados + avisos al 80/95 % y al detectar choque |
 
 **Advertencias, para que el README no mienta:**
@@ -633,6 +633,93 @@ Necesita el soporte de AppIndicator en GNOME —la extensión
 sobre Wayland. Para sacarlo: «Salir» en su propio menú, y
 `rm ~/.config/autostart/quartermaster.desktop`.
 
+## En la bandeja de Windows
+
+```bash
+make tray            # lo arranca ahora (desde WSL)
+make tray-autostart  # y que arranque solo al iniciar sesión de Windows
+```
+
+El menú es el mismo dibujo que `VistaCuenta` en `bin/qm-barra.swift`: glifo del
+producto, cuenta y plan, medidores redondeados con la paleta de estado,
+porcentaje alineado a la derecha y un pie con el reinicio y la edad del cache.
+En WinForms no se puede pintar un item de menú sin subclasear, así que cada
+perfil se dibuja a un `Bitmap` y el `Bitmap` va adentro de un `PictureBox`
+hosteado en el menú. El efecto es el mismo; el camino, no.
+
+**El ícono es un anillo, no un número.** La primera versión dibujaba el
+porcentaje adentro del ícono, como los medidores de batería. Se renderizó a
+16×16 —el tamaño real de la bandeja a 96 dpi— y se miró: **un dígito se lee, dos
+son una mancha.** Así que el número se fue al tooltip y al menú, y el ícono hace
+lo que la barra de macOS ya hacía en su lugar: un medidor. El arco dice cuánto
+va, el color dice cuánto importa, y las dos cosas sobreviven a 16 píxeles. La
+pista del anillo es gris translúcido porque la barra de tareas puede ser clara u
+oscura y el ícono no se entera.
+
+**Y calienta el endpoint, como la barra de macOS.** Esto no es un detalle de
+adorno: fue el bug. La primera versión sólo leía el disco, y en la máquina donde
+se escribió esto el perfil por defecto **no tiene `cachedUsageUtilization` en su
+`.claude.json`** — ni viejo ni nuevo: no está. Mientras tanto el endpoint
+contestaba `weekly_scoped (Fable)` al **100 %**, `critical`. Una bandeja que sólo
+mira el disco mostraba, con toda honestidad, «todavía no dejó cuota para este
+perfil» al lado de un ícono verde, en una cuenta que estaba frenada. Es
+exactamente el silencio del que habla la primera sección de este README, con
+otra causa.
+
+Así que `qm --calentar` se dispara con la misma cadencia adaptativa que
+`cadencia()` en Swift —300 s de base, 240 desde 50 %, 120 desde 75 %, 60 desde
+90 %, y 60 si la proyección dice que faltan menos de 30 minutos para el techo— y
+sólo para las cuentas que se mueven (≥ 40 %), porque refrescar una que va al 9 %
+es gastar un pedido para confirmar que no pasó nada. Con `-SinCalentar` no se le
+pide nada a la red y se vuelve al comportamiento de sólo-disco.
+
+Hay una diferencia con macOS que es de Windows y no se puede evitar: el timer
+corre en el hilo de la interfaz, así que el calentado **se dispara y se suelta**,
+y el número que trae lo levanta el tick siguiente (30 s). Esperarlo ahí
+congelaría el menú veinte segundos, que es peor que un número medio minuto
+tarde.
+
+Lo demás es igual a las otras dos: avisa al cruzar 80 % y 95 % y cuando la
+proyección dice que tocás el techo antes del reinicio, y no repite —la clave del
+aviso incluye el minuto de reinicio, así que una ventana avisa una vez y vuelve
+a avisar recién en la siguiente—. La memoria de avisos vive en
+`%LOCALAPPDATA%\quartermaster\avisados.json`.
+
+Vale la misma regla que las otras dos: **sólo dibuja**. `bin/qm-tray.ps1` le
+pide el JSON a `qm` por stdout y no sabe qué es una credencial ni un endpoint.
+La regla de cuál barra manda no se reimplementa acá: llega resuelta en
+`mostrar`, `frena`, `sesion` y `semanal`.
+
+No necesita instalar nada: PowerShell y WinForms ya están en cualquier Windows.
+`bin/qm-tray` es el lanzador del lado de WSL —traduce la ruta con `wslpath` y
+lanza `powershell.exe`—; el proceso vive del lado de Windows, así que si cerrás
+la terminal el tray sigue. Para sacarlo: «Salir» en su propio menú, o
+`make tray-quitar`, que además borra el atajo del arranque automático.
+
+**Lo que está verificado y lo que no**, para que esta sección no mienta:
+
+- Verificado en Windows 11 con Windows PowerShell 5.1: arranca, dibuja el menú
+  contra los perfiles reales de esta máquina, sobrevive los ticks, sale por
+  `make tray-quitar`, y el atajo de arranque lanza un tray que anda.
+- **El menú y el ícono se miraron, no se supusieron.** Los dos se renderizaron a
+  PNG con los datos reales y se abrieron. Ahí se vio que los dígitos a 16×16 no
+  servían.
+- **Los avisos están probados en la lógica, no en pantalla.** Ningún perfil pasó
+  de 80 % cuando se probó, así que se ejercitaron con una barra sintética al
+  96 % y un `NotifyIcon` de mentira que anota los globos en vez de dibujarlos:
+  dispara 80 y 95 con la severidad correcta, dispara el choque, **no repite** en
+  la segunda pasada, y **vuelve a avisar** cuando cambia el minuto de reinicio.
+  Lo que sigue sin verse es el globo de Windows en la pantalla.
+- **Handles medidos, no supuestos.** `GetHicon()` entrega un handle que el GC no
+  libera, así que se destruye a mano. Medido sobre el proceso vivo, en tres
+  muestras a lo largo de 300 s: 639, 589, 615. Fluctúa sin subir.
+- El `.ps1` está guardado **UTF-8 con BOM a propósito**: sin BOM, PowerShell 5.1
+  lo lee como Windows-1252 y los acentos y las flechas salen rotos.
+- **Dos colisiones de nombre, las dos del mismo tipo.** PowerShell no distingue
+  mayúsculas, así que `$script:Mono` y el parámetro `$mono` eran la misma
+  variable, y `$PALETA` empezó llamándose `$NIVEL` y la tapaba la local
+  `$nivel`. Las dos aparecieron corriendo el código, no leyéndolo.
+
 ## En la statusline de Claude Code
 
 Es donde la herramienta cumple su misión: el número deja de ser algo que te
@@ -675,9 +762,10 @@ src/adapters/     credenciales (llavero / archivo), transcripciones (JSONL),
 src/cli/          qm (el comando) y las demos de cada hito.
 src/render/       barras y formato para la terminal, y tablero.html para el
                   navegador. Sin dependencias.
-bin/              el lanzador que encuentra un Node, el indicador de GNOME y el
-                  servidor del tablero. Los tres dibujan y nada más: le piden el
-                  JSON a qm y no saben de credenciales ni de HTTP.
+bin/              el lanzador que encuentra un Node, el indicador de GNOME, la
+                  bandeja de Windows, la barra de macOS y el servidor del
+                  tablero. Todos dibujan y nada más: le piden el JSON a qm y no
+                  saben de credenciales ni de HTTP.
 ```
 
 La regla es la de siempre: si un nombre de vendor o una ruta de sistema

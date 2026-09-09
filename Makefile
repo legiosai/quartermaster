@@ -24,6 +24,7 @@ instalar:  ## enlaza bin/qm en ~/.local/bin
 	@ln -sf "$(CURDIR)/bin/qm" "$(HOME)/.local/bin/qm"
 	@ln -sf "$(CURDIR)/bin/qm-web" "$(HOME)/.local/bin/qm-web"
 	@[ "$$(uname -s)" = "Darwin" ] && ln -sf "$(CURDIR)/bin/qm-barra" "$(HOME)/.local/bin/qm-barra" || true
+	@grep -qi microsoft /proc/version 2>/dev/null && ln -sf "$(CURDIR)/bin/qm-tray" "$(HOME)/.local/bin/qm-tray" || true
 	@echo "qm -> $(HOME)/.local/bin/qm"
 	@echo "qm-web -> $(HOME)/.local/bin/qm-web"
 	@command -v qm >/dev/null || echo "ojo: ~/.local/bin no está en tu PATH"
@@ -60,6 +61,34 @@ barra-quitar:  ## saca la barra del arranque automático y la cierra
 	@rm -f $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist
 	@pkill -f "quartermaster/qm-barra" 2>/dev/null || true
 	@echo "barra sacada"
+
+.PHONY: tray
+tray:  ## arranca el item en la bandeja de Windows (desde WSL)
+	@setsid nohup "$(CURDIR)/bin/qm-tray" >/dev/null 2>&1 < /dev/null & \
+	 sleep 3; echo "tray arrancado · se sale desde su propio menú"
+
+.PHONY: tray-autostart
+tray-autostart:  ## que la bandeja arranque sola al iniciar sesión de Windows
+	@GUION="$$(wslpath -w '$(CURDIR)/bin/qm-tray.ps1')"; \
+	 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \
+	  "\$$s = (New-Object -ComObject WScript.Shell); \
+	   \$$l = \$$s.CreateShortcut((Join-Path \$$s.SpecialFolders('Startup') 'quartermaster.lnk')); \
+	   \$$l.TargetPath = 'powershell.exe'; \
+	   \$$l.Arguments = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"'+'$$GUION'+'\" -QmLinux $(CURDIR)/bin/qm'; \
+	   \$$l.WindowStyle = 7; \
+	   \$$l.Description = 'quartermaster · cuota en la bandeja'; \
+	   \$$l.Save(); \
+	   'escrito: ' + \$$l.FullName" | tr -d '\r'
+
+.PHONY: tray-quitar
+tray-quitar:  ## saca la bandeja del arranque automático y la cierra
+	@powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \
+	  "\$$s = (New-Object -ComObject WScript.Shell); \
+	   Remove-Item (Join-Path \$$s.SpecialFolders('Startup') 'quartermaster.lnk') -ErrorAction SilentlyContinue; \
+	   Get-CimInstance Win32_Process -Filter \"Name='powershell.exe'\" | \
+	     Where-Object { \$$_.ProcessId -ne \$$PID -and \$$_.CommandLine -like '*qm-tray.ps1*' } | \
+	     ForEach-Object { Stop-Process -Id \$$_.ProcessId -Force }" 2>/dev/null | tr -d '\r'
+	@echo "bandeja sacada"
 
 .PHONY: indicador
 indicador:  ## arranca el item de la barra de GNOME (necesita appindicatorsupport)

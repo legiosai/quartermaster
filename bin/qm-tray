@@ -1,0 +1,41 @@
+#!/bin/sh
+# Lanzador del item de la bandeja de Windows, para correr desde WSL.
+#
+# Es el equivalente de bin/qm-barra: el mismo "arrancá la cosa gráfica de esta
+# plataforma". La diferencia es que acá no hay nada que compilar —PowerShell y
+# WinForms ya están en cualquier Windows— así que sólo traduce rutas y lanza.
+#
+# El proceso vive del lado de Windows: si cerrás esta terminal el tray sigue,
+# y se sale desde su propio menú.
+
+set -e
+
+if ! grep -qi microsoft /proc/version 2>/dev/null; then
+  echo "qm-tray es la bandeja de Windows y necesita WSL." >&2
+  echo "En macOS el equivalente es:  make barra" >&2
+  echo "En GNOME:                    make indicador" >&2
+  echo "En cualquier otro lado:      make web" >&2
+  exit 1
+fi
+
+if ! command -v powershell.exe >/dev/null 2>&1; then
+  echo "no encuentro powershell.exe: la interoperabilidad de WSL con Windows está apagada." >&2
+  echo "" >&2
+  echo "  revisá que /etc/wsl.conf no tenga [interop] enabled=false" >&2
+  echo "" >&2
+  echo "Mientras tanto el tablero no necesita nada de esto: make web" >&2
+  exit 1
+fi
+
+AQUI=$(cd "$(dirname "$0")" && pwd)
+GUION=$(wslpath -w "$AQUI/qm-tray.ps1")
+
+# Dónde está qm ADENTRO de WSL. En el PATH si se corrió `make instalar`; si no,
+# el hermano de este archivo — igual que buscar_qm() en bin/qm-indicator, y por
+# la misma razón: el arranque automático no pasa por el .bashrc del usuario.
+QM=$(command -v qm 2>/dev/null || echo "$AQUI/qm")
+
+# -WindowStyle Hidden deja una consola parpadeando un instante al arrancar.
+# Es el precio de no empaquetar un .exe, y pasa una sola vez por sesión.
+exec powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden \
+  -File "$GUION" -QmLinux "$QM" "$@"

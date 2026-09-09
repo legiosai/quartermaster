@@ -41,10 +41,11 @@ stops measuring what the tool does.
   went blank. It has one now (`consumoCodex`, off the same rollouts). A locked
   non-goal that a new adapter is allowed to skip is not locked.
 - **CLI first.** A panel indicator is a rendering decision, not a product. It
-  comes after the numbers are right — and now they are, so there are three of
-  them: `bin/qm-indicator` (GNOME), `bin/qm-barra` (the macOS menu bar) and
-  `bin/qm-web` (the browser). All three shell out to `qm --json` and draw;
-  none of them knows what a credential is.
+  comes after the numbers are right — and now they are, so there are four of
+  them: `bin/qm-indicator` (GNOME), `bin/qm-barra` (the macOS menu bar),
+  `bin/qm-tray.ps1` (the Windows notification area) and `bin/qm-web` (the
+  browser). All four shell out to `qm --json` and draw; none of them knows what
+  a credential is.
 
   Three renderers turned out to be how this rule gets broken rather than how it
   gets kept: `peor()` and `paraMostrar()` — the rule that stops a 75 % warning
@@ -54,11 +55,22 @@ stops measuring what the tool does.
   `frena`, `sesion`, `semanal`) and the drawers read fields. **A renderer that
   needs to reimplement a rule is a signal the CLI is not emitting enough.**
 
+  The Windows one is the first renderer written after that fix, and it is the
+  evidence the fix holds: it draws the same meters as the macOS view without a
+  single line deciding which bar wins. It reads `mostrar` and `frena`.
+
   This line used to end with "and only macOS can show live text in a menu bar
   anyway." That was wrong, and it was wrong in the direction that costs users:
   GNOME shows live text through StatusNotifierItem, and the indicator was ~150
   lines. An assumption about what a platform can't do is exactly the kind of
   claim this file should not carry without having tried it.
+
+  The Windows tray repeated the lesson in the other direction, cheaply. Its
+  icon was going to carry the percentage as digits, the way a battery meter
+  does. Rendering it at the 16x16 the tray actually uses and *looking at it*
+  settled it in one pass: one digit reads, two are a smudge. It draws an arc
+  now. Assumptions about a platform are testable in minutes; this one was
+  tested before it was written down.
 
 ---
 
