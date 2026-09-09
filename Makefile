@@ -25,6 +25,26 @@ instalar:  ## enlaza bin/qm en ~/.local/bin
 	@echo "qm -> $(HOME)/.local/bin/qm"
 	@command -v qm >/dev/null || echo "ojo: ~/.local/bin no está en tu PATH"
 
+.PHONY: indicador
+indicador:  ## arranca el item de la barra de GNOME (necesita appindicatorsupport)
+	@setsid nohup "$(CURDIR)/bin/qm-indicator" >/dev/null 2>&1 < /dev/null & \
+	 sleep 2; echo "indicador arrancado"
+
+.PHONY: autostart
+autostart:  ## que el indicador arranque solo al iniciar sesión
+	@mkdir -p $(HOME)/.config/autostart
+	@printf '%s\n' \
+	  '[Desktop Entry]' \
+	  'Type=Application' \
+	  'Name=quartermaster' \
+	  'Comment=Cuota de Claude Code en la barra de arriba' \
+	  'Exec=$(CURDIR)/bin/qm-indicator' \
+	  'Icon=utilities-system-monitor-symbolic' \
+	  'Terminal=false' \
+	  'X-GNOME-Autostart-enabled=true' \
+	  > $(HOME)/.config/autostart/quartermaster.desktop
+	@echo "$(HOME)/.config/autostart/quartermaster.desktop escrito"
+
 .PHONY: test
 test:  ## los tests
 	@npm run --silent test

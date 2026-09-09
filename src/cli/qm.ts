@@ -324,13 +324,17 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
               estado: f.cuota.estado,
               frase: redactar(o, frase(f.cuota, f.perfil.directorio)),
             },
-      local: {
-        tokens: f.tokens,
-        tokensVentana: f.tokensVentana,
-        requests: f.requests,
-        transcripciones: f.archivos,
-        porModelo: Object.fromEntries(f.porModelo),
-      },
+      // En --breve no se leyeron las transcripciones. Informar 0 sería decir
+      // "no consumiste nada" cuando lo que pasa es "no lo medí".
+      local: o.breve
+        ? null
+        : {
+            tokens: f.tokens,
+            tokensVentana: f.tokensVentana,
+            requests: f.requests,
+            transcripciones: f.archivos,
+            porModelo: Object.fromEntries(f.porModelo),
+          },
     })),
   };
 }

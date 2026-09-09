@@ -22,9 +22,16 @@ default credential and nothing else. On the machine this was written on, that is
 - **The transcript adapter is never optional.** The polled endpoint is
   undocumented and can disappear without notice. Local transcripts are the
   floor: there is always a number, even with every token expired.
-- **CLI first.** A tray icon is a rendering decision, not a product. It comes
-  after the numbers are right, and only macOS can show live text in a menu bar
-  anyway.
+- **CLI first.** A panel indicator is a rendering decision, not a product. It
+  comes after the numbers are right — and now they are, so `bin/qm-indicator`
+  exists: it shells out to `qm --json --breve` and draws, it does not know what
+  a credential is.
+
+  This line used to end with "and only macOS can show live text in a menu bar
+  anyway." That was wrong, and it was wrong in the direction that costs users:
+  GNOME shows live text through StatusNotifierItem, and the indicator was ~150
+  lines. An assumption about what a platform can't do is exactly the kind of
+  claim this file should not carry without having tried it.
 
 ---
 

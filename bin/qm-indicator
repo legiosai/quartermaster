@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""qm en la barra de arriba de GNOME.
+
+Es la parte de "renderizado" que SOUL.md dejaba para después de tener los
+números bien. Ahora los hay, así que existe — y de paso corrige una afirmación
+del propio SOUL: GNOME sí puede mostrar texto vivo en la barra, no sólo macOS.
+
+Cómo funciona: cada N segundos corre `qm --json --breve` y repinta la etiqueta
+y el menú. `--breve` no lee transcripciones, así que la corrida cuesta ~85 ms y
+se puede repetir sin que se note.
+
+No habla con ninguna API ni lee credenciales: todo eso vive del otro lado de
+qm. Acá sólo se dibuja.
+
+Requiere el soporte de AppIndicator en GNOME (la extensión
+appindicatorsupport@rgcjonas.gmail.com), que es lo que convierte un
+KStatusNotifierItem en un item de la barra.
+"""
+
+import json
+import shutil
+import subprocess
+import sys
+
+import gi
+
+gi.require_version("Gtk", "3.0")
+gi.require_version("AyatanaAppIndicator3", "0.1")
+from gi.repository import AyatanaAppIndicator3 as AppIndicator  # noqa: E402
+from gi.repository import GLib, Gtk  # noqa: E402
+
+ID = "quartermaster"
+# Cada cuánto repintar. El dato de fondo es un cache que refresca Claude Code
+# al usarse, así que mirarlo más seguido que esto no muestra nada nuevo.
+SEGUNDOS = 60
+
+
+def corto(nombre: str) -> str:
+    """`.claude-teams` -> `teams`; el perfil por defecto -> `main`."""
+    sin = nombre.removeprefix(".claude").lstrip("-")
+    return sin or "main"
+
+
+def edad(segundos: int) -> str:
+    if segundos < 60:
+        return f"{segundos}s"
+    if segundos < 3600:
+        return f"{segundos // 60}m"
+    return f"{segundos // 3600}h{(segundos % 3600) // 60:02d}m"
+
+
+def falta(iso: str | None) -> str:
+    """Cuánto queda hasta un instante ISO, en texto corto."""
+    if not iso:
+        return ""
+    from datetime import datetime, timezone
+
+    try:
+        cuando = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    seg = int((cuando - datetime.now(timezone.utc)).total_seconds())
+    return "ya" if seg <= 0 else f"reinicia en {edad(seg)}"
+
+
+def peor(ventanas: list[dict]) -> dict | None:
+    """La que frena primero: la más alta; la activa desempata."""
+    if not ventanas:
+        return None
+    alta = max(ventanas, key=lambda v: v["porcentaje"])
+    activa = next((v for v in ventanas if v.get("activa")), None)
+    if activa and activa["porcentaje"] >= alta["porcentaje"]:
+        return activa
+    return alta
+
+
+def mostrables(ventanas: list[dict]) -> list[dict]:
+    """Las mismas que muestra `qm`: se van las internas en cero."""
+    return [
+        v
+        for v in ventanas
+        if v.get("activa") or v["porcentaje"] > 0 or v.get("severidad") != "normal"
+    ]
+
+
+def nombre_ventana(v: dict) -> str:
+    return v["clave"] if not v.get("alcance") else f"{v['clave']} ({v['alcance']})"
+
+
+class Indicador:
+    def __init__(self, qm: str):
+        self.qm = qm
+        self.menu = Gtk.Menu()
+        self.ind = AppIndicator.Indicator.new(
+            ID,
+            "utilities-system-monitor-symbolic",
+            AppIndicator.IndicatorCategory.SYSTEM_SERVICES,
+        )
+        self.ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
+        self.ind.set_title("quartermaster")
+        self.ind.set_menu(self.menu)
+        self.refrescar()
+        GLib.timeout_add_seconds(SEGUNDOS, self.refrescar)
+
+    # ── datos ────────────────────────────────────────────────────────────
+    def leer(self) -> dict | str:
+        try:
+            salida = subprocess.run(
+                [self.qm, "--json", "--breve"],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as e:
+            return f"no pude correr qm: {e}"
+        if salida.returncode not in (0, 3):
+            primera = (salida.stderr or salida.stdout or "").strip().splitlines()
+            return f"qm salió {salida.returncode}: {primera[0] if primera else 'sin detalle'}"
+        try:
+            return json.loads(salida.stdout)
+        except json.JSONDecodeError:
+            return "qm no devolvió JSON"
+
+    # ── dibujo ───────────────────────────────────────────────────────────
+    def refrescar(self) -> bool:
+        datos = self.leer()
+        for hijo in self.menu.get_children():
+            self.menu.remove(hijo)
+
+        if isinstance(datos, str):
+            # Un estado que no produce número tiene que producir una frase.
+            self.ind.set_label("qm ?", "qm")
+            self.item(datos, activo=False)
+        else:
+            self.pintar(datos)
+
+        self.menu.append(Gtk.SeparatorMenuItem())
+        actualizar = Gtk.MenuItem(label="Actualizar ahora")
+        actualizar.connect("activate", lambda _: self.refrescar())
+        self.menu.append(actualizar)
+        salir = Gtk.MenuItem(label="Salir")
+        salir.connect("activate", lambda _: Gtk.main_quit())
+        self.menu.append(salir)
+        self.menu.show_all()
+        return True  # que el timeout siga vivo
+
+    def item(self, texto: str, activo: bool = False) -> None:
+        it = Gtk.MenuItem(label=texto)
+        it.set_sensitive(activo)
+        self.menu.append(it)
+
+    def pintar(self, datos: dict) -> None:
+        etiquetas = []
+        for p in datos.get("perfiles", []):
+            cuota = p.get("cuota", {})
+            nombre = corto(p["perfil"])
+
+            if cuota.get("estado") != "ok":
+                # Los perfiles sin número igual aparecen en el menú, con el
+                # motivo. Lo que no hacen es ocupar lugar en la barra.
+                self.item(f"{nombre}: {cuota.get('frase', 'sin cuota')}")
+                self.menu.append(Gtk.SeparatorMenuItem())
+                continue
+
+            ventanas = mostrables(cuota.get("ventanas", []))
+            p_ = peor(ventanas)
+            if p_ is not None:
+                aviso = "!" if p_.get("severidad") != "normal" else ""
+                viejo = "~" if cuota.get("edadSegundos", 0) > 6 * 3600 else ""
+                etiquetas.append(f"{nombre} {viejo}{p_['porcentaje']:.0f}%{aviso}")
+
+            cabecera = f"{nombre} · {p.get('cuenta') or 'sin cuenta'}"
+            if cuota.get("origen") == "cache":
+                cabecera += f"  (cache, hace {edad(cuota.get('edadSegundos', 0))})"
+            self.item(cabecera)
+            for v in ventanas:
+                marca = "▸" if p_ is not None and v is p_ else " "
+                sev = f"  {v['severidad']}" if v.get("severidad") != "normal" else ""
+                resto = falta(v.get("reinicia"))
+                self.item(
+                    f"  {marca} {nombre_ventana(v):<22} {v['porcentaje']:>3.0f}%{sev}"
+                    + (f"   {resto}" if resto else "")
+                )
+            self.menu.append(Gtk.SeparatorMenuItem())
+
+        self.ind.set_label(" · ".join(etiquetas) if etiquetas else "sin cuota", "qm 100%")
+
+
+def buscar_qm() -> str | None:
+    """qm en el PATH; si no, el hermano de este archivo.
+
+    El arranque automático de la sesión no pasa por el .zshrc del usuario, así
+    que ~/.local/bin puede no estar en el PATH ahí aunque sí lo esté en una
+    terminal. El hermano siempre está donde este script.
+    """
+    encontrado = shutil.which("qm")
+    if encontrado:
+        return encontrado
+    from pathlib import Path
+
+    vecino = Path(__file__).resolve().parent / "qm"
+    return str(vecino) if vecino.is_file() else None
+
+
+def main() -> int:
+    qm = buscar_qm()
+    if qm is None:
+        print("qm no está en el PATH. Corré `make instalar` en el repo.", file=sys.stderr)
+        return 1
+    Indicador(qm)
+    Gtk.main()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

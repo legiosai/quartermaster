@@ -42,6 +42,7 @@ multi-perfil en un cálculo, no en una heurística.
 | **H3** `--watch` y `--json` | ✅ mecanismo | `make qm`, `qm --json`, `qm --watch`, `qm --umbral=N` |
 | **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ⏳ | [`numeros/h4-linux.md`](numeros/h4-linux.md) |
 | **H5** cuota sin red ni credencial | ✅ **número** | [`numeros/h5-cuota.md`](numeros/h5-cuota.md) · [`h5-cuota.json`](numeros/h5-cuota.json) |
+| **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `qm --breve` en la statusline de Claude Code |
 
 **Advertencias, para que el README no mienta:**
 
@@ -146,6 +147,33 @@ make numero-h5         # regenera numeros/h5-cuota.json, ya redactado
 
 Requiere **Node ≥ 22.6** (lee TypeScript directamente, no hay paso de build).
 
+## En la barra de arriba de GNOME
+
+```bash
+make indicador     # lo arranca ahora
+make autostart     # y que arranque solo al iniciar sesión
+```
+
+Queda un item en la barra que dice, por ejemplo:
+
+```
+main 75%! · teams 40%
+```
+
+y que al desplegarlo muestra cada perfil con todas sus barras, la edad del
+cache, y el motivo cuando un perfil no tiene número. `!` es una barra que el
+servidor marcó con aviso; `~` es un cache de más de 6 horas.
+
+Repinta cada 60 s corriendo `qm --json --breve`, que cuesta ~85 ms porque no
+lee transcripciones. `bin/qm-indicator` no sabe qué es una credencial: le pide
+el JSON a `qm` y dibuja.
+
+Necesita el soporte de AppIndicator en GNOME —la extensión
+`appindicatorsupport@rgcjonas.gmail.com`—, que es lo que convierte un
+`StatusNotifierItem` en un item de la barra. Verificado en GNOME Shell 48.7
+sobre Wayland. Para sacarlo: «Salir» en su propio menú, y
+`rm ~/.config/autostart/quartermaster.desktop`.
+
 ## En la statusline de Claude Code
 
 Es donde la herramienta cumple su misión: el número deja de ser algo que te
@@ -181,6 +209,9 @@ src/adapters/     credenciales (llavero / archivo), transcripciones (JSONL),
                   parser de la forma de utilización que comparten los dos.
 src/render/       barras y formato. Sin dependencias.
 src/cli/          qm (el comando) y las demos de cada hito.
+bin/              el lanzador que encuentra un Node, y el indicador de GNOME.
+                  El indicador dibuja: le pide el JSON a qm y no sabe de
+                  credenciales ni de HTTP.
 ```
 
 La regla es la de siempre: si un nombre de vendor o una ruta de sistema
