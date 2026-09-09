@@ -1,6 +1,7 @@
 # quartermaster
 
-Cuánta cuota te queda, en todos tus perfiles de Claude Code.
+Cuánta cuota te queda, en todas tus cuentas de agentes: cada perfil de Claude
+Code y, si está instalado, Codex.
 
 > **Misión.** Que nadie se entere de que se quedó sin cuota chocándose contra el
 > límite.
@@ -38,19 +39,27 @@ multi-perfil en un cálculo, no en una heurística.
 |---|---|---|
 | **H0** perfiles y preflight | ✅ mecanismo | `make demo-h0` — descubre perfiles y dice cuáles autentican, no sólo cuáles existen |
 | **H1** consumo local real | ✅ **número** | [`numeros/h1.json`](numeros/h1.json) — 9 340 requests deduplicados, 2,8 G de tokens en 7 días, 946 ms |
-| **H2** poll de cuota en vivo | ⚠️ escrito, **nunca ejecutado** | quedó como *refresco* opcional: H5 da el número sin él |
+| **H2** poll de cuota en vivo | ✅ **número** | [`numeros/h2-endpoint.md`](numeros/h2-endpoint.md) — ejecutado por fin: con 95 min de cache, la sesión estaba **11 puntos** abajo y las semanales 0-2 |
 | **H3** `--watch` y `--json` | ✅ mecanismo | `make qm`, `qm --json`, `qm --watch`, `qm --umbral=N` |
 | **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ⏳ | [`numeros/h4-linux.md`](numeros/h4-linux.md) |
 | **H5** cuota sin red ni credencial | ✅ **número** | [`numeros/h5-cuota.md`](numeros/h5-cuota.md) · [`h5-cuota.json`](numeros/h5-cuota.json) |
-| **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `qm --breve` en la statusline de Claude Code |
+| **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `make web` en el navegador · `qm --breve` en la statusline de Claude Code |
 | **H7** que te avise antes de chocar | ✅ mecanismo | proyección por mínimos cuadrados + avisos al 80/95 % y al detectar choque |
 
 **Advertencias, para que el README no mienta:**
 
-- **El endpoint de cuota sigue sin llamarse ni una vez.** Después de H5 importa
-  mucho menos —el número sale del disco— pero `qm --refrescar` no está probado.
-- **El número del cache puede estar viejo.** Se refresca sólo cuando ese perfil
-  corre Claude Code. `qm` imprime la edad siempre y la marca a partir de 6 h.
+- **El cache se equivoca en la sesión, no en las semanales.** Medido en
+  [`numeros/h2-endpoint.md`](numeros/h2-endpoint.md): con 95 minutos de cache,
+  las semanales estaban 0-2 puntos abajo y la **sesión 10 y 11**. La ventana de
+  5 h se llena veinte veces más rápido que la de 7 días, así que la misma vejez
+  duele veinte veces más. Para la pregunta urgente —«¿puedo seguir ahora?»— el
+  disco solo no alcanza: hay que refrescar.
+- **Las ramas de error del endpoint siguen sin ejecutarse.** Contestó bien en
+  todos los perfiles; token vencido a mitad de camino y endpoint caído siguen
+  sin probarse.
+- **El número del cache puede estar viejo.** Claude Code lo refresca cuando
+  quiere —medido: reescribió `.claude.json` 19 s antes y el bloque de cuota
+  seguía siendo de hacía 83 minutos—. `qm` imprime la edad siempre.
 - **Windows no está verificado.** El adaptador asume
   `<directorio>/.credentials.json` igual que Linux. Es posible que Claude Code
   use DPAPI o el Credential Manager. Hay que probarlo antes de afirmar nada.
@@ -115,12 +124,62 @@ leído mal las fechas.
 Corolario operativo: **el endpoint puede desaparecer sin aviso**, y por eso ni
 las transcripciones ni el cache son un fallback opcional (ver `SOUL.md`).
 
+## La otra cuenta: Codex
+
+Un asiento de trabajo, una suscripción personal y **una cuenta de Codex** en la
+misma laptop es tan normal como lo anterior, y la pregunta es la misma: ¿me
+queda cuota? Desde `src/adapters/codex.ts`, `qm` la contesta para las dos
+herramientas en la misma tabla.
+
+Pero Codex invierte la regla que hizo barato todo lo de arriba:
+
+> **Codex no deja la cuota en el disco.** No hay ningún `cachedUsageUtilization`
+> que leer. Verificado en codex-cli 0.153.4: en `~/.codex` no hay un solo número
+> de cuota, y los `rate_limits` que aparecen en los rollouts viejos vienen
+> `null`. Su propio TUI la pide en cada arranque por JSON-RPC contra el
+> app-server que levanta él mismo.
+
+Así que acá **el cache lo escribimos nosotros**. `qm` le habla al app-server
+igual que Codex, guarda la respuesta en `~/.cache/quartermaster/codex.json` y
+muestra la edad, exactamente como hace con la cuota de Claude. Un número viejo
+presentado como actual es la misma mentira de los dos lados.
+
+```
+codex              vos@ejemplo.com             · plus
+                   credencial: la pone codex · 2 reset(s) sin usar
+                   endpoint · ahora
+                   session                  ███████░░░░░░░░  49% reinicia en 2h53m
+                 ▸ weekly_all               █████████░░░░░░  59% reinicia en 141h30m
+```
+
+Tres decisiones que valen la pena:
+
+- **No tocamos su credencial.** Se le pide a `codex`, que usa la suya. Es el
+  mismo trato que el indicador y el tablero tienen con `qm`: pedir, no
+  manipular. El mail y el plan salen de los claims del `id_token` que Codex ya
+  guardó — se leen, no se copian, y el token no sale nunca de ese archivo.
+- **Los nombres de las ventanas se igualan.** El servidor manda `primary` y
+  `secondary`, que no dicen nada; 300 minutos es la misma pregunta que la
+  `session` de Claude aunque se llame distinto, y 10 080 es la semanal. El
+  nombre sale de la duración. Igualarlos es lo que deja comparar las dos cuentas
+  en la misma columna.
+- **El consumo local de Codex no se mide, y se dice.** No hay adaptador de
+  transcripciones para sus rollouts todavía, así que la fila informa `null` y no
+  `0`: decir cero sería afirmar que no consumiste nada cuando lo cierto es que
+  no lo miramos.
+
+`--breve` nunca habla con el app-server —tiene que seguir tardando
+milisegundos—, así que lee el cache y nada más. Quien lo mantiene fresco es
+`qm --calentar-codex`, que es lo que corre el item de la barra en su sondeo
+lento. Con `--sin-codex` no se mira nada de esto.
+
 ## Instalación
 
 ```bash
 npm install
-make instalar        # enlaza bin/qm en ~/.local/bin
+make instalar        # enlaza bin/qm y bin/qm-web en ~/.local/bin
 qm                   # ya anda desde cualquier lado
+qm-web               # y el tablero también
 ```
 
 `bin/qm` **busca solo un Node ≥ 22.6**: mira `$QM_NODE`, después el del `PATH`,
@@ -140,6 +199,9 @@ qm --refrescar         # además pide el número al endpoint (token vigente)
 qm --json              # para scripts
 qm --watch 60          # se redibuja cada 60 s
 qm --umbral=80         # código de salida 3 si alguna barra pasa el 80 %
+qm --sin-codex         # no mirar la cuenta de Codex
+qm --calentar-codex    # refresca sólo el cache de Codex, sin imprimir nada
+qm-web                 # el tablero en el navegador, se redibuja cada 30 s
 
 make demo-h0           # ¿qué perfiles hay y cuáles autentican?
 make demo-h1           # consumo de los últimos 7 días, por perfil
@@ -176,6 +238,183 @@ no se distingue de un redondeo.
 La serie vive en `~/.cache/quartermaster/historial.jsonl` y se indexa por el
 `medidoEn` de la cuota, no por el momento en que qm miró: leer diez veces el
 mismo cache deja **una** muestra.
+
+## En el navegador
+
+El indicador de GNOME es la respuesta para GNOME. `qm-web` es la misma idea
+donde no hay barra de GNOME —macOS, Windows, un Linux con otro escritorio—: un
+tablero que se abre en el navegador y se redibuja solo cada 30 s.
+
+```bash
+make web              # levanta el tablero y abre el navegador
+qm-web --puerto=8080  # en otro puerto (por defecto 7391)
+qm-web --sin-abrir    # sólo imprime la URL
+```
+
+Muestra, de arriba abajo: **lo primero que te frena** —la peor barra de toda la
+máquina, con su cuenta regresiva al reinicio corriendo en vivo y la proyección
+si la hay—, y después una tarjeta por perfil con todas sus barras, la edad del
+cache, el consumo local de la ventana y el desglose por modelo. Un perfil sin
+número muestra la frase que dice por qué, igual que en la terminal.
+
+Vale la misma regla que el indicador: **sólo dibuja**. `bin/qm-web` le pide el
+JSON a `qm` por stdout y no sabe qué es una credencial ni habla HTTP con nadie.
+Escucha únicamente en `127.0.0.1` — el tablero muestra mails y planes, y
+`SOUL.md` dice que nada sale de la máquina.
+
+Es JavaScript común, no TypeScript, a propósito: corre con cualquier Node ≥ 18 y
+el requisito de 22.6 queda donde de verdad hace falta, adentro de `qm`.
+
+## En la barra de menú de macOS
+
+```bash
+make barra             # lo compila la primera vez y lo arranca
+make barra-autostart   # y que arranque solo al iniciar sesión, vía launchd
+make barra-quitar      # para sacarlo
+```
+
+Queda un item arriba a la derecha que **se dibuja**: por cada cuenta, un par de
+medidores —a la izquierda la sesión, en tono neutro; a la derecha la barra que
+la frena antes, con el color del estado— y al lado **el porcentaje de la sesión
+de 5 h de esa cuenta**.
+
+```
+▍▍ 23    ▍▍ 9    ▍▍ 93
+```
+
+El número es el de la sesión y no el de la semanal a propósito: es el que
+contesta la pregunta que se hace uno cuando mira la barra —«¿puedo seguir
+trabajando ahora?»—. La semanal no desaparece, es el medidor de la derecha con
+su color; simplemente no gasta ancho en dígitos.
+
+Dos preguntas, dos marcas. Meterlas en un solo medidor lo parte al medio y se
+lee como si fueran dos. Y el color va siempre en la marca, nunca en el número:
+ese se queda con el `labelColor` del sistema, que se adapta solo a la barra
+clara y a la oscura.
+
+**Las dos banderas no son la misma cosa y no van al mismo lado.** `~` califica
+al número —este 23 es de hace rato— así que va pegado a él: `~23`. El aviso, en
+cambio, es de la cuenta, y **no** se escribe al lado de la sesión: el aviso
+suele ser de la barra semanal, y un `23!` diría que lo alarmante es la sesión,
+que es falso. Eso lo lleva el color del medidor de la derecha, que es
+exactamente el de esa barra.
+
+Es lo que se hace en una barra de menú de macOS —una marca chica y callada, no
+un renglón de texto— y además es lo único que entra: **91 puntos contra los 192
+del renglón horizontal**, medido. Esa diferencia es la que decide si el sistema
+lo muestra o lo esconde.
+
+El item y que al desplegarlo muestra cada
+cuenta con su ícono (asterisco para Claude, chevrones para Codex; SF Symbols no
+trae los logos y estos dos se distinguen de un vistazo), con todas sus barras con todas sus barras, la edad del
+cache, la proyección y el motivo cuando un perfil no tiene número. `!` es una
+barra que el servidor marcó con aviso; `~` es un cache de más de 6 horas. Vale
+la misma regla que el indicador de GNOME: **sólo dibuja**, le pide el JSON a
+`qm --json --breve` (~150 ms, no toca las transcripciones) y no sabe qué es una
+credencial.
+
+Se compila con `swiftc`, que viene con las Command Line Tools: no hace falta
+Xcode entero, ni empaquetar una `.app`, ni instalar SwiftBar ni nada. El binario
+queda en `~/.cache/quartermaster/`, no en el repo. Se recompila solo cuando el
+fuente cambia.
+
+Al desplegarlo, cada cuenta es una fila **dibujada** —`VistaCuenta`, no un
+renglón de texto—: ícono del producto, cuenta y plan, y después cada barra con
+su medidor, su porcentaje, cuándo se reinicia, la edad del cache sobre la que
+manda, y el ritmo en rojo cuando la proyección dice que chocás. Los bloques
+`█░` de antes eran una tabla ASCII adentro de una app nativa.
+
+Hace lo mismo que en GNOME: se entera solo (vigila el `.claude.json` de cada
+perfil con `DispatchSource`, y se re-arma cuando Claude Code reescribe el
+archivo por rename, que mata el descriptor), avisa al cruzar 80 % y 95 % y
+cuando la proyección dice que chocás antes del reinicio, y no repite.
+
+### Llegar tarde es la otra forma de mentir
+
+Codex subió del 23 % al 100 % en cuarenta minutos y la barra mostró 93 %
+durante siete de ellos. Mostraba la edad, así que no mentía — pero un número
+que llega tarde a esa velocidad no sirve para nada. Fueron **tres** bugs
+apilados, y ninguno hacía ruido:
+
+- **App Nap.** Una app sin ventanas es el candidato perfecto, y macOS le corre
+  los timers: un sondeo de 5 minutos no disparó en 7. Se arregla con
+  `ProcessInfo.beginActivity` y timers con `tolerance = 0` en `.common`.
+- **Cadencia fija.** Cinco minutos es inservible para una barra que sube 1,6
+  puntos por minuto: se llega al 100 % adentro de una sola espera. Ahora la
+  cadencia sale de lo que ya sabemos —cuán alto está y cuánto falta para el
+  techo según la proyección—: 20 s arriba del 90 %, 45 s arriba del 75 %, 120 s
+  arriba del 50 %, 5 min si no pasa nada. Y se recalcula **al terminar de
+  dibujar**, que es cuando se conoce el estado; programarla en el arranque, con
+  el estado todavía vacío, la dejaba clavada en 5 minutos.
+- **El PATH de launchd.** `PATH=/usr/bin:/bin:/usr/sbin:/sbin`, y `codex` vive
+  en `/opt/homebrew/bin`. `spawn('codex')` fallaba **en silencio** justo en la
+  instalación que importa —la que arranca sola— mientras andaba perfecto desde
+  una terminal. Es el mismo bug que `bin/qm` ya resolvía para Node, y estaba sin
+  resolver para Codex: ahora hay un `rutaCodex()` que busca en el PATH y en los
+  lugares de siempre, y `QM_CODEX` para forzarlo.
+
+Medido después: refrescos cada 21 s con la sesión al 100 %.
+
+### Y Claude también llegaba tarde, por otro motivo
+
+Codex era el que se veía, pero Claude tenía el mismo problema con otra causa:
+**Claude Code refresca su propio `cachedUsageUtilization` cuando quiere.**
+Medido: reescribió `.claude.json` 19 s antes y el bloque de cuota seguía siendo
+de hacía 83 minutos, con la sesión 11 puntos abajo de la realidad. Mirar el
+disco más seguido no arregla nada — el número del disco no se mueve.
+
+Lo que lo arregla es H2, que por fin se ejecutó: `qm --calentar` le pide el
+número al endpoint de cada perfil y al app-server de Codex, y lo guarda. Con
+Claude hay un detalle que no es opcional: **la lectura fresca no se puede
+guardar donde Claude Code guarda la suya**. `.claude.json` es de él; este repo
+lee credenciales y configuración, no las escribe. Así que va a un cache propio
+(`~/.cache/quartermaster/endpoint.json`) y `qm` usa **la más nueva de las dos**,
+la de Claude Code o la nuestra, mostrando siempre la edad de la que ganó.
+
+El resultado es que `--breve` sigue tardando milisegundos y ya no lee un número
+de hace hora y media: la barra calienta el cache en su sondeo adaptativo y las
+lecturas rápidas encuentran algo de hace segundos.
+
+### El título se mide, no se elige
+
+La barra de menú de una Mac con muesca tiene mucho menos lugar del que aparenta.
+Los items se acomodan de derecha a izquierda y **el sistema esconde, sin decir
+nada y con `isVisible` en `true`, al que caería abajo de la muesca**. Medido en
+la máquina donde se escribió esto: `NSScreen.auxiliaryTopRightArea` daba 645
+puntos a la derecha de la muesca, ya ocupados, y
+`personal ~50% · teams 42%` necesita 192.
+
+Por eso el texto no se elige: hay una **escalera** —el porcentaje con su marca,
+el porcentaje pelado, y nada— y se prueba uno, se mide dónde quedó, y si no
+entró se sigue con el siguiente. Los medidores no se negocian: son 30 puntos y
+dicen lo esencial aunque el número se caiga. En una Mac sin muesca o en un
+monitor externo entra el primero y se ve una cuenta por renglón.
+
+### Diseñar a ciegas fue el error
+
+Nada de esto se podía ver: `screencapture` no sirve para mirar la barra —con
+varias pantallas se muda a la que tiene el foco, y encima el sistema esconde el
+item sin avisar—, así que las tres primeras versiones se dibujaron sin verlas y
+las tres estuvieron mal. La última, la de dos renglones, salía **recortada por
+arriba** y nadie se enteró hasta que hubo con qué mirarla.
+
+Por eso existe `qm-barra --captura ruta.png`: el item se renderiza a sí mismo
+sobre los dos fondos que puede tocarle y escribe dos PNG. No depende de qué
+pantalla mire nadie. Cualquier cambio al dibujo se mira ahí antes de creerle.
+
+```bash
+qm-barra --captura /tmp/barra.png   # escribe barra-claro.png y barra-oscuro.png
+```
+
+Otro detalle que costó una tarde: el test de «no entró» **no puede ser
+`frame.minX < 0`**. En una pantalla ubicada a la izquierda de la principal las
+coordenadas globales son negativas y el item se ve perfecto; hay que comparar
+contra el `frame` de su propia pantalla.
+
+Y si ni el compacto entra, **lo dice**: notifica una vez, porque un número que
+no se ve es el mismo bug que el silencio. La salida en ese caso es la de macOS:
+**cmd-arrastrar** el item a un hueco de la barra (queda guardado, el item tiene
+`autosaveName`), liberar algún ícono, o mirar el tablero con `make web`.
 
 ## En la barra de arriba de GNOME
 
@@ -234,8 +473,13 @@ Sale así, con `!` para la barra que el servidor marcó con aviso y `~` para un
 cache de más de 6 horas:
 
 ```
-main 75%! · teams 40%
+personal 23/75%! · teams 9/42% · codex 49/59%
 ```
+
+Son **dos números por cuenta a propósito**: el primero es la sesión y el segundo
+la barra que te frena antes. Contestan preguntas distintas —«¿puedo seguir
+ahora?» y «¿llego al final de la semana?»— y una sola de las dos deja media
+respuesta. Cuando la que frena ES la sesión, se muestra un número solo.
 
 Ojo con lo que **no** hace: el cache se refresca cuando ese perfil corre Claude
 Code, así que la statusline de un perfil se actualiza usándolo. Es suficiente
@@ -247,13 +491,15 @@ y no para vigilar un perfil que no estás usando.
 ```
 src/core/         perfiles, tipos. No sabe de llaveros ni de HTTP.
 src/adapters/     credenciales (llavero / archivo), transcripciones (JSONL),
-                  cuota del cache (.claude.json) y del endpoint (HTTP), y el
-                  parser de la forma de utilización que comparten los dos.
-src/render/       barras y formato. Sin dependencias.
+                  cuota del cache (.claude.json) y del endpoint (HTTP), el
+                  parser de la forma de utilización que comparten los dos, y
+                  codex (JSON-RPC contra su app-server, con cache propio).
 src/cli/          qm (el comando) y las demos de cada hito.
-bin/              el lanzador que encuentra un Node, y el indicador de GNOME.
-                  El indicador dibuja: le pide el JSON a qm y no sabe de
-                  credenciales ni de HTTP.
+src/render/       barras y formato para la terminal, y tablero.html para el
+                  navegador. Sin dependencias.
+bin/              el lanzador que encuentra un Node, el indicador de GNOME y el
+                  servidor del tablero. Los tres dibujan y nada más: le piden el
+                  JSON a qm y no saben de credenciales ni de HTTP.
 ```
 
 La regla es la de siempre: si un nombre de vendor o una ruta de sistema

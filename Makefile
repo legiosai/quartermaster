@@ -22,8 +22,44 @@ numero-h5:  ## H5 · comitea la cuota leída del cache, sin mails ni rutas de ca
 instalar:  ## enlaza bin/qm en ~/.local/bin
 	@mkdir -p $(HOME)/.local/bin
 	@ln -sf "$(CURDIR)/bin/qm" "$(HOME)/.local/bin/qm"
+	@ln -sf "$(CURDIR)/bin/qm-web" "$(HOME)/.local/bin/qm-web"
+	@[ "$$(uname -s)" = "Darwin" ] && ln -sf "$(CURDIR)/bin/qm-barra" "$(HOME)/.local/bin/qm-barra" || true
 	@echo "qm -> $(HOME)/.local/bin/qm"
+	@echo "qm-web -> $(HOME)/.local/bin/qm-web"
 	@command -v qm >/dev/null || echo "ojo: ~/.local/bin no está en tu PATH"
+
+.PHONY: web
+web:  ## el tablero en el navegador (macOS, Windows, y Linux sin GNOME)
+	@./bin/qm-web $(ARGS)
+
+.PHONY: barra
+barra:  ## el item en la barra de menú de macOS (compila si hace falta)
+	@./bin/qm-barra
+
+.PHONY: barra-autostart
+barra-autostart:  ## que la barra arranque sola al iniciar sesión, vía launchd
+	@mkdir -p $(HOME)/Library/LaunchAgents
+	@printf '%s\n' \
+	  '<?xml version="1.0" encoding="UTF-8"?>' \
+	  '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+	  '<plist version="1.0"><dict>' \
+	  '  <key>Label</key><string>com.legios.quartermaster.barra</string>' \
+	  '  <key>ProgramArguments</key><array><string>$(CURDIR)/bin/qm-barra</string></array>' \
+	  '  <key>RunAtLoad</key><true/>' \
+	  '  <key>KeepAlive</key><false/>' \
+	  '</dict></plist>' \
+	  > $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist
+	@launchctl unload $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist 2>/dev/null || true
+	@launchctl load  $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist
+	@echo "barra cargada en launchd · arranca sola al iniciar sesión"
+	@echo "para sacarla: make barra-quitar"
+
+.PHONY: barra-quitar
+barra-quitar:  ## saca la barra del arranque automático y la cierra
+	@launchctl unload $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist 2>/dev/null || true
+	@rm -f $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist
+	@pkill -f "quartermaster/qm-barra" 2>/dev/null || true
+	@echo "barra sacada"
 
 .PHONY: indicador
 indicador:  ## arranca el item de la barra de GNOME (necesita appindicatorsupport)

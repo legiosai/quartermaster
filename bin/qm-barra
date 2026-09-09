@@ -1,0 +1,63 @@
+#!/bin/sh
+# Lanzador del item de la barra de menú de macOS.
+#
+# Compila bin/qm-barra.swift la primera vez y cada vez que el fuente cambia, y
+# después lo corre. El binario vive en ~/.cache/quartermaster, no en el repo:
+# es un artefacto de esta máquina y de este arco, no algo para comitear.
+#
+# swiftc viene con las Command Line Tools de Xcode, que en una Mac de trabajo ya
+# están: no hace falta Xcode entero ni empaquetar una .app.
+
+set -e
+
+if [ "$(uname -s)" != "Darwin" ]; then
+  echo "qm-barra es la barra de menú de macOS." >&2
+  echo "En GNOME el equivalente es: make indicador" >&2
+  echo "En cualquier otro lado:     make web" >&2
+  exit 1
+fi
+
+if ! command -v swiftc >/dev/null 2>&1; then
+  echo "no encuentro swiftc, que es lo único que hace falta para compilar esto." >&2
+  echo "" >&2
+  echo "  xcode-select --install" >&2
+  echo "" >&2
+  echo "Mientras tanto el tablero no necesita nada: make web" >&2
+  exit 1
+fi
+
+# La ruta real de este script, siguiendo symlinks: se instala enlazado desde
+# ~/.local/bin y necesita encontrar el fuente igual.
+AQUI=$0
+while [ -L "$AQUI" ]; do
+  DESTINO=$(readlink "$AQUI")
+  case $DESTINO in
+    /*) AQUI=$DESTINO ;;
+    *) AQUI=$(dirname "$AQUI")/$DESTINO ;;
+  esac
+done
+RAIZ=$(cd "$(dirname "$AQUI")/.." && pwd)
+
+FUENTE="$RAIZ/bin/qm-barra.swift"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/quartermaster"
+BINARIO="$CACHE/qm-barra"
+
+mkdir -p "$CACHE"
+if [ ! -x "$BINARIO" ] || [ "$FUENTE" -nt "$BINARIO" ]; then
+  echo "compilando qm-barra…" >&2
+  swiftc -O "$FUENTE" -o "$BINARIO"
+fi
+
+# Uno solo: dos items iguales en la barra no le sirven a nadie.
+if pgrep -f "$BINARIO" >/dev/null 2>&1; then
+  echo "qm-barra ya está andando (mirá arriba a la derecha)." >&2
+  echo "Para reiniciarlo: pkill -f qm-barra && qm-barra" >&2
+  exit 0
+fi
+
+# El binario vive en ~/.cache y no tiene cómo saber de dónde salió: se lo
+# decimos, que es lo que le permite encontrar bin/qm y bin/qm-web.
+QM_RAIZ="$RAIZ"
+export QM_RAIZ
+
+exec "$BINARIO" "$@"
