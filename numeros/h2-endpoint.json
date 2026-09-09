@@ -1,0 +1,53 @@
+{
+  "medidoEn": "2026-09-09T14:49:27.424848Z",
+  "perfiles": [
+    {
+      "perfil": ".claude-personal",
+      "edadCacheSegundos": 5722,
+      "barras": [
+        {
+          "barra": "session",
+          "cache": 23,
+          "endpoint": 34,
+          "diferencia": 11
+        },
+        {
+          "barra": "weekly_all",
+          "cache": 64,
+          "endpoint": 66,
+          "diferencia": 2
+        },
+        {
+          "barra": "weekly_scoped (Fable)",
+          "cache": 75,
+          "endpoint": 75,
+          "diferencia": 0
+        }
+      ]
+    },
+    {
+      "perfil": ".claude-teams",
+      "edadCacheSegundos": 5688,
+      "barras": [
+        {
+          "barra": "session",
+          "cache": 9,
+          "endpoint": 19,
+          "diferencia": 10
+        },
+        {
+          "barra": "weekly_all",
+          "cache": 42,
+          "endpoint": 43,
+          "diferencia": 1
+        },
+        {
+          "barra": "weekly_scoped (Fable)",
+          "cache": 41,
+          "endpoint": 41,
+          "diferencia": 0
+        }
+      ]
+    }
+  ]
+}

@@ -20,6 +20,8 @@ import { cuotaEnCache } from '../adapters/cache-cuota.ts';
 import { anotar, claveBarra, muestras, type Lectura } from '../adapters/historial.ts';
 import { proyectar, type Proyeccion } from '../core/proyeccion.ts';
 import { consultarCuota } from '../adapters/cuota.ts';
+import { codexEnCache, consultarCodex, duenoCodex, hayCodex, DIRECTORIO_CODEX } from '../adapters/codex.ts';
+import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import {
   frase,
   nombreVentana,
@@ -51,7 +53,15 @@ interface Opciones {
   umbral: number | null;
   redactado: boolean;
   breve: boolean;
+  codex: boolean;
 }
+
+/**
+ * Cuánto vale el cache de Codex antes de volver a preguntar. Codex no deja la
+ * cuota en el disco, así que el cache es nuestro: si está viejo se refresca
+ * solo, salvo en --breve, que tiene que seguir tardando milisegundos.
+ */
+const CODEX_FRESCO_MS = 5 * 60_000;
 
 const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Code
 
@@ -65,6 +75,10 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --redactado      con --json, saca mails y rutas de casa: para comitear
   qm --breve          un renglón y nada más. No lee transcripciones, así que
                       tarda milisegundos: es lo que va en una statusline
+  qm --sin-codex      no mira la cuenta de Codex
+  qm --calentar       refresca el endpoint de cada perfil y el de Codex, guarda
+                      lo que vuelve y no imprime nada. Es lo que corre la barra
+  qm --calentar-codex igual pero sólo Codex, sin tocar el llavero
 
 Nunca refresca un token. Si una credencial venció, lo dice y sigue con el
 resto de los perfiles — la cuota igual se lee, porque sale del disco.`;
@@ -79,12 +93,14 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     umbral: null,
     redactado: false,
     breve: false,
+    codex: true,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]!;
     if (a === '--json') o.json = true;
     else if (a === '--redactado') o.redactado = true;
     else if (a === '--breve') o.breve = true;
+    else if (a === '--sin-codex') o.codex = false;
     else if (a === '--refrescar' || a === '--red') o.refrescar = true;
     // --sin-red era el nombre viejo de lo que ahora es el comportamiento por
     // defecto. Se acepta sin decir nada para no romper a quien ya lo escribió.
@@ -110,6 +126,8 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
 }
 
 interface FilaPerfil {
+  /** De qué producto es esta fila. Lo único que distingue una cuenta de otra. */
+  producto: 'claude' | 'codex';
   perfil: Perfil;
   veredicto: string;
   cuota: ResultadoCuota;
@@ -122,6 +140,83 @@ interface FilaPerfil {
   tokens: number;
   tokensVentana: number;
   porModelo: [string, number][];
+  /** false cuando no hay de dónde medirlo: informar 0 sería mentir. */
+  localMedido: boolean;
+}
+
+/**
+ * La cuenta de Codex como una fila más.
+ *
+ * Se le da forma de Perfil para que el render, el JSON y la proyección no
+ * tengan que saber que existen dos productos: lo único que cambia es de dónde
+ * salió el número, y eso ya lo dice `origen`.
+ */
+async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
+  if (!hayCodex()) return null;
+
+  // El cache primero, como siempre. La diferencia con Claude es que este cache
+  // lo escribimos nosotros, porque Codex no deja ninguno.
+  let { cuota, info } = codexEnCache();
+  const edad =
+    cuota.estado === 'ok' ? Date.now() - cuota.medidoEn.getTime() : Number.POSITIVE_INFINITY;
+  // --breve no habla con nadie: tiene que seguir tardando milisegundos.
+  const conviene = o.refrescar || (!o.breve && edad > CODEX_FRESCO_MS);
+  let notaRefresco: string | null = null;
+  if (conviene) {
+    const fresca = await consultarCodex();
+    if (fresca.cuota.estado === 'ok') ({ cuota, info } = fresca);
+    else if (cuota.estado !== 'ok') cuota = fresca.cuota;
+    else notaRefresco = frase(fresca.cuota, 'codex');
+  }
+
+  const dueno = duenoCodex();
+  const perfil: Perfil = {
+    directorio: DIRECTORIO_CODEX,
+    nombre: 'codex',
+    porDefecto: false,
+    cuenta: {
+      email: dueno?.email ?? info?.accountId ?? null,
+      organizacion: null,
+      plan: info?.plan ?? dueno?.plan ?? null,
+    },
+  };
+
+  let proyeccion: Proyeccion | null = null;
+  if (cuota.estado === 'ok') {
+    try {
+      anotar(
+        cuota.ventanas.map((v) => ({
+          perfil: 'codex',
+          barra: claveBarra(v.clave, v.alcance),
+          medidoEn: (cuota as { medidoEn: Date }).medidoEn,
+          porcentaje: v.porcentaje,
+        })),
+      );
+    } catch {
+      // Igual que con Claude: sin historial se pierde la proyección, nada más.
+    }
+    const p = peor(paraMostrar(cuota.ventanas));
+    if (p !== null) {
+      proyeccion = proyectar(muestras('codex', claveBarra(p.clave, p.alcance)), p.porcentaje, p.reinicia);
+    }
+  }
+
+  return {
+    producto: 'codex',
+    // No hay adaptador de transcripciones para Codex: decir 0 sería afirmar
+    // que no consumiste nada, y lo cierto es que no lo medimos.
+    localMedido: false,
+    perfil,
+    veredicto: info === null ? 'la pone codex' : `la pone codex · ${info.creditosReset} reset(s) sin usar`,
+    cuota,
+    notaRefresco,
+    proyeccion,
+    archivos: 0,
+    requests: 0,
+    tokens: 0,
+    tokensVentana: 0,
+    porModelo: [],
+  };
 }
 
 async function medir(o: Opciones): Promise<FilaPerfil[]> {
@@ -129,7 +224,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
   const desde = new Date(Date.now() - o.dias * 24 * 3600_000);
   const desdeVentana = new Date(Date.now() - o.ventanaH * 3600_000);
 
-  return Promise.all(
+  const claude = await Promise.all(
     perfiles.map(async (perfil): Promise<FilaPerfil> => {
       const cred = estadoCredencial(perfil);
       const veredicto =
@@ -141,13 +236,17 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
               ? 'vencida'
               : `vigente (${duracion((cred.expiraEn?.getTime() ?? 0) - Date.now())})`;
 
-      // El cache primero: es gratis y no necesita credencial.
-      let cuota = cuotaEnCache(perfil);
+      // El cache primero: es gratis y no necesita credencial. Se toma la más
+      // nueva entre la que dejó Claude Code y la que dejamos nosotros la última
+      // vez que se consultó el endpoint.
+      let cuota = masNueva(cuotaEnCache(perfil), endpointEnCache(perfil.nombre));
       let notaRefresco: string | null = null;
       if (o.refrescar) {
         const fresca = await consultarCuota(perfil);
-        if (fresca.estado === 'ok') cuota = fresca;
-        else notaRefresco = frase(fresca, perfil.directorio);
+        if (fresca.estado === 'ok') {
+          cuota = fresca;
+          guardarEndpoint(perfil.nombre, fresca);
+        } else notaRefresco = frase(fresca, perfil.directorio);
       }
 
       // Cada lectura alimenta la serie que hace posible la proyección. Se
@@ -181,6 +280,8 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
       // segundo entero, y una statusline se dibuja todo el tiempo.
       if (o.breve) {
         return {
+          producto: 'claude',
+          localMedido: false,
           perfil,
           veredicto,
           cuota,
@@ -198,6 +299,8 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
       const v = await consumoDesde(perfil, desdeVentana);
 
       return {
+        producto: 'claude',
+        localMedido: true,
         perfil,
         veredicto,
         cuota,
@@ -211,6 +314,9 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
       };
     }),
   );
+
+  const codex = o.codex ? await filaCodex(o) : null;
+  return codex === null ? claude : [...claude, codex];
 }
 
 const colorPct = (p: number): ((t: string) => string) => (p >= 90 ? rojo : p >= 70 ? amarillo : verde);
@@ -261,11 +367,13 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
   for (const f of filas) {
     const cuenta = f.perfil.cuenta?.email ?? 'sin cuenta';
     const plan = f.perfil.cuenta?.plan ? tenue(` · ${f.perfil.cuenta.plan}`) : '';
-    const colorCred = f.veredicto.startsWith('vigente')
-      ? verde
-      : f.veredicto === 'vencida'
-        ? amarillo
-        : rojo;
+    const colorCred = f.producto === 'codex'
+      ? tenue
+      : f.veredicto.startsWith('vigente')
+        ? verde
+        : f.veredicto === 'vencida'
+          ? amarillo
+          : rojo;
     console.log(`  ${negrita(relleno(f.perfil.nombre, 18))} ${relleno(cuenta, 30)}${plan}`);
     console.log(`  ${relleno('', 18)} ${tenue('credencial: ')}${colorCred(f.veredicto)}`);
 
@@ -285,9 +393,11 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
       console.log(`  ${relleno('', 18)} ${tenue(`--refrescar no sirvió: ${f.notaRefresco}`)}`);
     }
 
-    console.log(
-      `  ${relleno('', 18)} ${tenue(`local: ${tokens(f.tokens)} en ${o.dias}d · ${tokens(f.tokensVentana)} en ${o.ventanaH}h · ${f.requests} requests`)}`,
-    );
+    if (f.localMedido) {
+      console.log(
+        `  ${relleno('', 18)} ${tenue(`local: ${tokens(f.tokens)} en ${o.dias}d · ${tokens(f.tokensVentana)} en ${o.ventanaH}h · ${f.requests} requests`)}`,
+      );
+    }
     console.log();
   }
 
@@ -342,8 +452,16 @@ function pintarBreve(filas: readonly FilaPerfil[]): void {
     // techo antes de que la ventana se reinicie, que es lo que duele.
     const chocas = f.proyeccion?.estado === 'sube' && f.proyeccion.chocas;
     const aviso = v.severidad !== 'normal' || chocas ? '!' : '';
+    // Dos números, dos preguntas: la sesión dice si podés seguir AHORA, y la
+    // barra que frena antes dice si llegás al final de la ventana larga. Una
+    // sola de las dos deja media respuesta.
+    const sesion = paraMostrar(f.cuota.ventanas).find((w) => w.grupo === 'session' || w.clave === 'session');
+    const cifra =
+      sesion === undefined || sesion.clave === v.clave
+        ? `${v.porcentaje.toFixed(0)}%`
+        : `${sesion.porcentaje.toFixed(0)}/${v.porcentaje.toFixed(0)}%`;
     partes.push(
-      `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${v.porcentaje.toFixed(0)}%${aviso}`)}`,
+      `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${cifra}${aviso}`)}`,
     );
   }
   console.log(partes.length === 0 ? 'sin cuota en cache' : partes.join(tenue(' · ')));
@@ -355,6 +473,7 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
     plataforma: process.platform,
     ventanaDias: o.dias,
     perfiles: filas.map((f) => ({
+      producto: f.producto,
       perfil: f.perfil.nombre,
       directorio: redactar(o, f.perfil.directorio),
       cuenta: redactar(o, f.perfil.cuenta?.email ?? null),
@@ -397,7 +516,7 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
               : { estado: 'sin-datos', motivo: f.proyeccion.motivo },
       // En --breve no se leyeron las transcripciones. Informar 0 sería decir
       // "no consumiste nada" cuando lo que pasa es "no lo medí".
-      local: o.breve
+      local: o.breve || !f.localMedido
         ? null
         : {
             tokens: f.tokens,
@@ -420,6 +539,26 @@ function maximo(filas: readonly FilaPerfil[]): number {
   return m;
 }
 
+// --calentar sale antes que nada: es lo que corre el item de la barra en su
+// sondeo, para que las lecturas rápidas (--breve) encuentren números frescos
+// sin tener que hablar con nadie. Refresca las dos puntas —el endpoint de cada
+// perfil de Claude y Codex— y no imprime nada.
+if (process.argv.includes('--calentar') || process.argv.includes('--calentar-codex')) {
+  const soloCodex = !process.argv.includes('--calentar');
+  let bien = false;
+  if (!soloCodex) {
+    for (const perfil of descubrirPerfiles()) {
+      const r = await consultarCuota(perfil);
+      if (r.estado === 'ok') {
+        guardarEndpoint(perfil.nombre, r);
+        bien = true;
+      }
+    }
+  }
+  const c = await consultarCodex();
+  process.exit(c.cuota.estado === 'ok' || bien ? 0 : 1);
+}
+
 const opciones = parsearArgs(process.argv.slice(2));
 if (typeof opciones === 'string') {
   console.log(opciones);
@@ -429,7 +568,7 @@ if (typeof opciones === 'string') {
 const unaVuelta = async (): Promise<number> => {
   const filas = await medir(opciones);
   if (filas.length === 0) {
-    console.log('No se encontró ningún perfil de Claude Code en esta máquina.');
+    console.log('No se encontró ninguna cuenta de Claude Code ni de Codex en esta máquina.');
     return 1;
   }
   if (opciones.json) console.log(JSON.stringify(comoJson(filas, opciones), null, 2));
