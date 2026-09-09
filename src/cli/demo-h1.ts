@@ -7,6 +7,17 @@ import { consumoDesde, transcripciones } from '../adapters/transcripciones.ts';
 import { totalTokens } from '../core/tipos.ts';
 import { negrita, tenue, tokens, relleno } from '../render/barras.ts';
 
+/**
+ * numeros/h1.json se comitea. La terminal puede mostrar la dirección completa
+ * —es la máquina del dueño— pero el archivo versionado no: alcanza con el
+ * dominio para sostener la afirmación que importa, que son cuentas distintas.
+ */
+function redactar(email: string | null): string | null {
+  if (email === null) return null;
+  const arroba = email.lastIndexOf('@');
+  return arroba < 0 ? '***' : `***${email.slice(arroba)}`;
+}
+
 const VENTANA_H = 5;
 const DIAS = 7;
 
@@ -32,7 +43,7 @@ for (const p of perfiles) {
 
   reporte.push({
     perfil: p.nombre,
-    cuenta: p.cuenta?.email ?? null,
+    cuenta: redactar(p.cuenta?.email ?? null),
     plan: p.cuenta?.plan ?? null,
     transcripciones: archivos,
     requests: c.requests,

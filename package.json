@@ -4,17 +4,17 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.6"
   },
   "bin": {
     "qm": "src/cli/qm.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test test/*.test.ts",
-    "qm": "node --experimental-strip-types src/cli/qm.ts",
-    "demo-h0": "node --experimental-strip-types src/cli/preflight.ts",
-    "demo-h1": "node --experimental-strip-types src/cli/demo-h1.ts"
+    "typecheck": "node scripts/nodo.cjs && tsc --noEmit",
+    "test": "node scripts/nodo.cjs && node --experimental-strip-types --test test/*.test.ts",
+    "qm": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/qm.ts",
+    "demo-h0": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/preflight.ts",
+    "demo-h1": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/demo-h1.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

@@ -61,3 +61,51 @@ export const CONSUMO_VACIO: Consumo = {
 export function totalTokens(c: Consumo): number {
   return c.entrada + c.creacionCache + c.lecturaCache + c.salida;
 }
+
+// ─── Cuota ────────────────────────────────────────────────────────────────
+// Lo que las transcripciones NO pueden decir: cuál es el límite y cuándo se
+// reinicia la ventana. Sólo el endpoint lo sabe.
+
+/** Una ventana de límite: 5 horas, 7 días, o lo que el servidor mande. */
+export interface VentanaCuota {
+  /** Clave tal cual la manda el servidor: five_hour, seven_day, seven_day_opus… */
+  readonly clave: string;
+  /** 0..100. El servidor la manda como porcentaje, no como fracción. */
+  readonly porcentaje: number;
+  /** Cuándo se reinicia esta ventana. null si el servidor no lo mandó. */
+  readonly reinicia: Date | null;
+}
+
+/**
+ * El resultado de pedir la cuota. Es una unión, no un objeto con campos
+ * opcionales, porque cada estado que no produce número TIENE que producir una
+ * frase: un monitor mudo es el bug que originó esta herramienta.
+ */
+export type ResultadoCuota =
+  | { readonly estado: 'ok'; readonly ventanas: readonly VentanaCuota[] }
+  | { readonly estado: 'sin-credencial' }
+  | { readonly estado: 'vencida' }
+  | { readonly estado: 'sin-suscripcion' }
+  | { readonly estado: 'no-consultada' }
+  | { readonly estado: 'ilegible'; readonly detalle: string }
+  | { readonly estado: 'error'; readonly detalle: string };
+
+/** La frase que se le muestra al usuario para cada estado. Nunca vacía. */
+export function frase(r: ResultadoCuota, perfil: string): string {
+  switch (r.estado) {
+    case 'ok':
+      return `${r.ventanas.length} ventana(s) de cuota`;
+    case 'sin-credencial':
+      return `sin credencial — corré: CLAUDE_CONFIG_DIR=${perfil} claude auth login`;
+    case 'vencida':
+      return `credencial vencida — corré: CLAUDE_CONFIG_DIR=${perfil} claude auth login`;
+    case 'no-consultada':
+      return 'no se consultó el endpoint (--sin-red)';
+    case 'sin-suscripcion':
+      return 'la cuenta no tiene límites de suscripción que reportar (API key o enterprise)';
+    case 'ilegible':
+      return `el endpoint respondió algo que no sé leer: ${r.detalle}`;
+    case 'error':
+      return `no se pudo consultar la cuota: ${r.detalle}`;
+  }
+}

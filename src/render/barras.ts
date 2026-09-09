@@ -9,6 +9,16 @@ export const verde = (t: string): string => c('32', t);
 export const amarillo = (t: string): string => c('33', t);
 export const rojo = (t: string): string => c('31', t);
 
+// Las secuencias de color ocupan bytes pero no columnas. Medir con .length
+// desalinea cualquier tabla que pinte una celda, y sólo se ve cuando alguien
+// mira la salida en una terminal de verdad.
+const ANSI = /\x1b\[[0-9;]*m/g;
+
+/** Ancho en columnas de terminal: el texto sin las secuencias de color. */
+export function anchoVisible(texto: string): number {
+  return texto.replace(ANSI, '').length;
+}
+
 /** Barra de bloques. `fraccion` fuera de [0,1] se recorta. */
 export function barra(fraccion: number, ancho = 15): string {
   const f = Math.min(1, Math.max(0, Number.isFinite(fraccion) ? fraccion : 0));
@@ -38,6 +48,8 @@ export function duracion(ms: number): string {
   return `${s}s`;
 }
 
+/** Rellena a `ancho` COLUMNAS, no a `ancho` bytes: el color no cuenta. */
 export function relleno(texto: string, ancho: number): string {
-  return texto.length >= ancho ? texto : texto + ' '.repeat(ancho - texto.length);
+  const visible = anchoVisible(texto);
+  return visible >= ancho ? texto : texto + ' '.repeat(ancho - visible);
 }

@@ -1,0 +1,66 @@
+{
+  "generado": "2026-09-09T01:20:22.456Z",
+  "plataforma": "linux",
+  "ventanaDias": 7,
+  "duracionMs": 946,
+  "perfiles": [
+    {
+      "perfil": ".claude",
+      "cuenta": "***@hotmail.com",
+      "plan": "claude_max",
+      "transcripciones": 71,
+      "requests": 4297,
+      "tokens7d": 1189131488,
+      "tokens5h": 14516864,
+      "porModelo": {
+        "claude-opus-5": 934947247,
+        "claude-fable-5-1": 216114619,
+        "claude-sonnet-5": 38069622,
+        "<synthetic>": 0
+      },
+      "primero": "2026-09-02T02:13:11.467Z",
+      "ultimo": "2026-09-09T01:20:10.121Z"
+    },
+    {
+      "perfil": ".claude-bedrock",
+      "cuenta": null,
+      "plan": null,
+      "transcripciones": 8,
+      "requests": 0,
+      "tokens7d": 0,
+      "tokens5h": 0,
+      "porModelo": {},
+      "primero": null,
+      "ultimo": null
+    },
+    {
+      "perfil": ".claude-personal",
+      "cuenta": "***@hotmail.com",
+      "plan": null,
+      "transcripciones": 5,
+      "requests": 0,
+      "tokens7d": 0,
+      "tokens5h": 0,
+      "porModelo": {},
+      "primero": null,
+      "ultimo": null
+    },
+    {
+      "perfil": ".claude-teams",
+      "cuenta": "***@teramot.com",
+      "plan": "team_tier_1",
+      "transcripciones": 44,
+      "requests": 5043,
+      "tokens7d": 1655814707,
+      "tokens5h": 59822117,
+      "porModelo": {
+        "claude-opus-5": 1491018448,
+        "<synthetic>": 0,
+        "claude-fable-5-1": 154895123,
+        "claude-opus-4-8": 9901136
+      },
+      "primero": "2026-09-02T02:13:47.743Z",
+      "ultimo": "2026-09-09T01:19:07.820Z"
+    }
+  ]
+}

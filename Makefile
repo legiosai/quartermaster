@@ -9,6 +9,10 @@ demo-h0:  ## H0 · perfiles: cuáles existen y cuáles AUTENTICAN
 demo-h1:  ## H1 · consumo real leído de transcripciones locales, sin credenciales
 	@npm run --silent demo-h1
 
+.PHONY: qm
+qm:  ## el comando: cuota + consumo de todos los perfiles
+	@npm run --silent qm -- $(ARGS)
+
 .PHONY: test
 test:  ## los tests
 	@npm run --silent test
