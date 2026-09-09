@@ -42,6 +42,7 @@ multi-perfil en un cálculo, no en una heurística.
 | **H2** poll de cuota en vivo | ✅ **número** | [`numeros/h2-endpoint.md`](numeros/h2-endpoint.md) — ejecutado por fin: con 95 min de cache, la sesión estaba **11 puntos** abajo y las semanales 0-2 |
 | **H3** `--watch` y `--json` | ✅ mecanismo | `make qm`, `qm --json`, `qm --watch`, `qm --umbral=N` |
 | **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ⏳ | [`numeros/h4-linux.md`](numeros/h4-linux.md) |
+| **H8** Codex en la misma tabla | ✅ mecanismo | cuota del disco (rollouts) + refresco por app-server + consumo local; `src/adapters/codex.ts` |
 | **H5** cuota sin red ni credencial | ✅ **número** | [`numeros/h5-cuota.md`](numeros/h5-cuota.md) · [`h5-cuota.json`](numeros/h5-cuota.json) |
 | **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `make web` en el navegador · `qm --breve` en la statusline de Claude Code |
 | **H7** que te avise antes de chocar | ✅ mecanismo | proyección por mínimos cuadrados + avisos al 80/95 % y al detectar choque |
@@ -131,47 +132,60 @@ misma laptop es tan normal como lo anterior, y la pregunta es la misma: ¿me
 queda cuota? Desde `src/adapters/codex.ts`, `qm` la contesta para las dos
 herramientas en la misma tabla.
 
-Pero Codex invierte la regla que hizo barato todo lo de arriba:
-
-> **Codex no deja la cuota en el disco.** No hay ningún `cachedUsageUtilization`
-> que leer. Verificado en codex-cli 0.153.4: en `~/.codex` no hay un solo número
-> de cuota, y los `rate_limits` que aparecen en los rollouts viejos vienen
-> `null`. Su propio TUI la pide en cada arranque por JSON-RPC contra el
-> app-server que levanta él mismo.
-
-Así que acá **el cache lo escribimos nosotros**. `qm` le habla al app-server
-igual que Codex, guarda la respuesta en `~/.cache/quartermaster/codex.json` y
-muestra la edad, exactamente como hace con la cuota de Claude. Un número viejo
-presentado como actual es la misma mentira de los dos lados.
-
 ```
-codex              vos@ejemplo.com             · plus
+codex              vos@ejemplo.com                · plus
                    credencial: la pone codex · 2 reset(s) sin usar
-                   endpoint · ahora
-                   session                  ███████░░░░░░░░  49% reinicia en 2h53m
-                 ▸ weekly_all               █████████░░░░░░  59% reinicia en 141h30m
+                   cache · hace 1m
+                 ▸ session                  ███████████████ 100% warning reinicia en 27m
+                   weekly_all               ██████████░░░░░  67% reinicia en 139h04m
+                   local: 13,0M en 7d · 5,3M en 5h · 443 requests
 ```
 
-Tres decisiones que valen la pena:
+### Una corrección
 
-- **No tocamos su credencial.** Se le pide a `codex`, que usa la suya. Es el
-  mismo trato que el indicador y el tablero tienen con `qm`: pedir, no
-  manipular. El mail y el plan salen de los claims del `id_token` que Codex ya
-  guardó — se leen, no se copian, y el token no sale nunca de ese archivo.
-- **Los nombres de las ventanas se igualan.** El servidor manda `primary` y
-  `secondary`, que no dicen nada; 300 minutos es la misma pregunta que la
-  `session` de Claude aunque se llame distinto, y 10 080 es la semanal. El
-  nombre sale de la duración. Igualarlos es lo que deja comparar las dos cuentas
-  en la misma columna.
-- **El consumo local de Codex no se mide, y se dice.** No hay adaptador de
-  transcripciones para sus rollouts todavía, así que la fila informa `null` y no
-  `0`: decir cero sería afirmar que no consumiste nada cuando lo cierto es que
-  no lo miramos.
+La primera versión de este README decía, en negrita, que **Codex no deja la
+cuota en el disco**. Era falso. Se habían mirado tres rollouts de junio, que
+traían `rate_limits: null`, y se generalizó a partir de ahí — el mismo error de
+método que el repo le critica a los monitores que leen una sola credencial.
 
-`--breve` nunca habla con el app-server —tiene que seguir tardando
-milisegundos—, así que lee el cache y nada más. Quien lo mantiene fresco es
-`qm --calentar-codex`, que es lo que corre el item de la barra en su sondeo
-lento. Con `--sin-codex` no se mira nada de esto.
+Los rollouts nuevos (codex-cli 0.153.4) **sí la traen**, adentro de los eventos
+`token_count`, con el timestamp al lado. Así que Codex no es la excepción a H5:
+es otro caso de H5. **El camino por defecto es el disco**, sin red y sin
+credencial, y el app-server queda como refresco — lo que `--refrescar` es para
+Claude. Medido: 212 ms para encontrar la lectura más nueva entre 138 rollouts.
+
+Dos trampas que costaron un rato y que están cubiertas por tests:
+
+- **Codex escribe varios baldes de límites.** Después del bueno
+  (`limit_id: "codex"`) manda uno de `limit_id: "premium"` con `primary: null`.
+  Quedarse con el último devolvía ese, y descartarlo descartaba el archivo
+  entero — con el número bueno adentro, unos milisegundos antes.
+- **Las dos puntas escriben distinto.** El rollout usa `snake_case`
+  (`used_percent`, `rate_limit_reached_type`) y el app-server `camelCase`. Se
+  normaliza en un solo lugar, y hay un test que exige que las dos den
+  exactamente lo mismo: si divergen, el número cambia según de dónde salió, que
+  es peor que no tener número. Ese test encontró que `rate_limit_reached_type`
+  no se leía del disco, así que «ya te frenó» no marcaba nada.
+
+### Y el piso, que también estaba
+
+Los mismos rollouts tienen `total_token_usage`, así que Codex tiene el consumo
+local que pide `SOUL.md`: aunque el app-server se caiga **y** el disco no traiga
+barras, sigue habiendo un número. Se suma el último acumulado de cada sesión, no
+los parciales, para no contar dos veces.
+
+Tres decisiones más:
+
+- **No tocamos su credencial.** Al app-server se le habla por el binario
+  `codex`, que usa la suya. El mail y el plan salen de los claims del `id_token`
+  que Codex ya guardó — se leen, no se copian.
+- **Los nombres de las ventanas se igualan por duración.** El servidor manda
+  `primary` y `secondary`, que no dicen nada; 300 minutos es la misma pregunta
+  que la `session` de Claude, y 10 080 es la semanal. Igualarlos es lo que deja
+  comparar las dos cuentas en la misma columna.
+- **`codex` no se busca en el PATH y ya.** launchd arranca con
+  `PATH=/usr/bin:/bin:/usr/sbin:/sbin`; hay un `rutaCodex()` que mira también
+  los lugares de siempre, y `QM_CODEX` para forzarlo.
 
 ## Instalación
 

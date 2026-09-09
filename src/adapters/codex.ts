@@ -1,27 +1,28 @@
 // Codex, el otro asiento de la misma máquina.
 //
-// La diferencia con Claude Code es la que importa para todo lo que sigue:
-// **Codex no deja la cuota en el disco.** No hay un `cachedUsageUtilization`
-// que leer. Su propio TUI la pide en cada arranque por JSON-RPC contra el
-// app-server que él mismo levanta (`account/rateLimits/read`), y muestra lo que
-// vuelve. Verificado en codex-cli 0.153.4: en `~/.codex` no hay ni un número de
-// cuota, y los `rate_limits` que aparecen en los rollouts viejos vienen `null`.
+// **Corrección.** La primera versión de este archivo decía que Codex no deja la
+// cuota en el disco, y estaba mal. Se había mirado `rate_limits` en tres
+// rollouts de junio, que venían `null`, y se generalizó. Los rollouts nuevos
+// (codex-cli 0.153.4) sí la traen: adentro de los eventos `token_count`, con la
+// forma `{limit_id, primary:{used_percent, window_minutes, resets_at}, secondary}`
+// y con el timestamp del evento al lado. Verificado contra ocho rollouts y
+// contra el número en vivo.
 //
-// Eso invierte la regla de H5. Para Claude el camino barato es el disco y la
-// red es el refresco; acá la red es el único camino, así que **el cache lo
-// escribimos nosotros**: se guarda cada lectura en ~/.cache/quartermaster y se
-// muestra la edad, exactamente como se hace con la de Claude. Un número viejo
-// presentado como actual es la misma mentira en los dos lados.
+// Eso alinea a Codex con H5 en vez de convertirlo en la excepción: **el camino
+// por defecto es el disco**, gratis y sin red, y el app-server queda como
+// refresco —lo que `--refrescar` es para Claude—. El número del disco es tan
+// viejo como la última vez que Codex corrió, igual que el de Claude Code, así
+// que se muestra la edad y listo.
 //
-// No tocamos la credencial de Codex ni sabemos dónde vive: se le habla al
-// binario `codex`, que usa la suya. Es el mismo trato que tenemos con `qm` en
-// el indicador y en el tablero — pedir, no manipular.
+// No tocamos su credencial: al app-server se le habla por el binario `codex`,
+// que usa la suya. Es el mismo trato que el indicador y el tablero tienen con
+// `qm`: pedir, no manipular.
 
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
+import type { OrigenCuota, ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
 
 export const DIRECTORIO_CODEX = join(homedir(), '.codex');
 
@@ -98,6 +99,168 @@ export interface CuentaCodex {
   readonly creditosReset: number;
 }
 
+/** Los rollouts, del más nuevo al más viejo. Es donde Codex deja todo. */
+function rollouts(desde?: Date): string[] {
+  const raiz = join(DIRECTORIO_CODEX, 'sessions');
+  if (!existsSync(raiz)) return [];
+  const encontrados: { ruta: string; mtime: number }[] = [];
+  const caminar = (dir: string, hondo: number): void => {
+    if (hondo > 4) return;
+    let entradas;
+    try {
+      entradas = readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entradas) {
+      const ruta = join(dir, e.name);
+      if (e.isDirectory()) caminar(ruta, hondo + 1);
+      else if (e.name.endsWith('.jsonl')) {
+        try {
+          const m = statSync(ruta).mtimeMs;
+          if (desde === undefined || m >= desde.getTime()) encontrados.push({ ruta, mtime: m });
+        } catch {
+          /* un archivo que se fue mientras mirábamos no es motivo de nada */
+        }
+      }
+    }
+  };
+  caminar(raiz, 0);
+  return encontrados.sort((a, b) => b.mtime - a.mtime).map((e) => e.ruta);
+}
+
+/**
+ * Recorre un rollout buscando un campo, y devuelve la última aparición.
+ *
+ * Se filtra por el CAMPO y no por el nombre del evento a propósito: Codex
+ * escribe las mismas barras en `event_msg/token_count` y en
+ * `token_usage_record`, y filtrar por uno de los dos se pierde las del otro.
+ *
+ * Y hace falta un `valido` además de que el campo exista, porque Codex escribe
+ * **varios baldes de límites**: después del bueno (`limit_id: "codex"`) manda
+ * uno de `limit_id: "premium"` con `primary: null`. Quedarse con el último a
+ * secas devolvía ese, y descartar el evento descartaba el archivo entero — con
+ * el número bueno adentro, unos milisegundos antes.
+ */
+function ultimoConCampo(
+  ruta: string,
+  campo: string,
+  valido: (v: Record<string, unknown>) => boolean = () => true,
+): { evento: Record<string, unknown> | null; veces: number } {
+  let texto: string;
+  try {
+    texto = readFileSync(ruta, 'utf8');
+  } catch {
+    return { evento: null, veces: 0 };
+  }
+  const marca = `"${campo}"`;
+  let evento: Record<string, unknown> | null = null;
+  let veces = 0;
+  for (const linea of texto.split('\n')) {
+    // El chequeo de string primero: parsear cada línea de 138 archivos cuesta,
+    // y la enorme mayoría no tiene nada que ver.
+    if (!linea.includes(marca)) continue;
+    try {
+      const d = JSON.parse(linea) as Record<string, unknown>;
+      const p = (d['payload'] as Record<string, unknown>) ?? d;
+      const dentro = (p[campo] ?? d[campo]) as unknown;
+      if (typeof dentro !== 'object' || dentro === null) continue;
+      if (!valido(dentro as Record<string, unknown>)) continue;
+      veces += 1;
+      evento = { ...p, [campo]: dentro, timestamp: d['timestamp'] ?? p['timestamp'] };
+    } catch {
+      /* una línea cortada al final del archivo es normal */
+    }
+  }
+  return { evento, veces };
+}
+
+/** ¿Este balde de límites trae un porcentaje de verdad, o vino vacío? */
+export function tieneBarras(rl: Record<string, unknown>): boolean {
+  const p = rl['primary'];
+  if (typeof p !== 'object' || p === null) return false;
+  const o = p as Record<string, unknown>;
+  return typeof (o['used_percent'] ?? o['usedPercent']) === 'number';
+}
+
+/**
+ * La cuota que Codex ya dejó en el disco. Sin red y sin credencial.
+ *
+ * Se mira el rollout más nuevo primero y se corta apenas aparece una lectura:
+ * el resto son sesiones viejas con números peores.
+ */
+export function codexEnDisco(): LecturaCodex {
+  if (!hayCodex()) return { cuota: { estado: 'sin-cache' }, info: null };
+  // Se miran varios y gana el evento MÁS NUEVO, no el primer archivo que traiga
+  // barras: el mtime del rollout y la fecha del último token_count no siempre
+  // coinciden —una sesión vieja puede reescribirse— y quedarse con el primero
+  // devolvía un número de hace horas teniendo uno de hace minutos al lado.
+  let mejor: { rl: Record<string, unknown>; medidoEn: Date } | null = null;
+  for (const ruta of rollouts().slice(0, 12)) {
+    const { evento } = ultimoConCampo(ruta, 'rate_limits', tieneBarras);
+    const rl = evento?.['rate_limits'] as Record<string, unknown> | undefined;
+    if (rl === undefined) continue;
+    const ts = typeof evento?.['timestamp'] === 'string' ? new Date(evento['timestamp'] as string) : null;
+    const medidoEn = ts !== null && !Number.isNaN(ts.getTime()) ? ts : new Date(statSync(ruta).mtimeMs);
+    if (mejor === null || medidoEn.getTime() > mejor.medidoEn.getTime()) mejor = { rl, medidoEn };
+  }
+  if (mejor === null) return { cuota: { estado: 'sin-cache' }, info: null };
+  return parsear(normalizar(mejor.rl), mejor.medidoEn, 'cache');
+}
+
+/**
+ * El rollout usa snake_case (`used_percent`, `window_minutes`) y el app-server
+ * camelCase (`usedPercent`, `windowDurationMins`). Es la misma respuesta con
+ * dos vestidos, así que se normaliza acá y `parsear` no se entera.
+ */
+function normalizar(rl: Record<string, unknown>): Record<string, unknown> {
+  const ventana = (v: unknown): unknown => {
+    if (typeof v !== 'object' || v === null) return v;
+    const o = v as Record<string, unknown>;
+    return {
+      usedPercent: o['usedPercent'] ?? o['used_percent'],
+      windowDurationMins: o['windowDurationMins'] ?? o['window_minutes'],
+      resetsAt: o['resetsAt'] ?? o['resets_at'],
+    };
+  };
+  return {
+    ...rl,
+    primary: ventana(rl['primary']),
+    secondary: ventana(rl['secondary']),
+    planType: rl['planType'] ?? rl['plan_type'],
+    // Esta faltaba, y el test la encontró: leído del disco, «ya te frenó» no
+    // marcaba nada porque sólo se miraba la forma camelCase del app-server.
+    rateLimitReachedType: rl['rateLimitReachedType'] ?? rl['rate_limit_reached_type'],
+    rateLimitResetCredits: rl['rateLimitResetCredits'] ?? rl['rate_limit_reset_credits'],
+    accountId: rl['accountId'] ?? rl['account_id'],
+  };
+}
+
+/**
+ * Consumo local de Codex, leído de los mismos rollouts. Es el PISO que SOUL
+ * pide y que a esta cuenta le faltaba: si el app-server se cae y el disco no
+ * trae barras, igual hay un número.
+ *
+ * Se suma el ÚLTIMO `total_token_usage` de cada rollout, que es acumulado por
+ * sesión: sumar los `last_token_usage` contaría cada turno además de estar ya
+ * incluido en el acumulado.
+ */
+export function consumoCodex(desde: Date): { tokens: number; requests: number; archivos: number } {
+  let tokens = 0;
+  let requests = 0;
+  const archivos = rollouts(desde);
+  for (const ruta of archivos) {
+    const { evento, veces } = ultimoConCampo(ruta, 'info', (i) => i['total_token_usage'] !== undefined);
+    const info = evento?.['info'] as Record<string, unknown> | undefined;
+    const total = info?.['total_token_usage'] as Record<string, unknown> | undefined;
+    if (total === undefined) continue;
+    const n = (k: string): number => (typeof total[k] === 'number' ? (total[k] as number) : 0);
+    tokens += n('input_tokens') + n('cache_write_input_tokens') + n('output_tokens');
+    requests += veces;
+  }
+  return { tokens, requests, archivos: archivos.length };
+}
+
 export interface LecturaCodex {
   readonly cuota: ResultadoCuota;
   readonly info: CuentaCodex | null;
@@ -134,7 +297,23 @@ function ventana(crudo: Record<string, unknown>, alcanzado: boolean): VentanaCuo
   };
 }
 
-function parsear(rateLimits: Record<string, unknown>, medidoEn: Date): LecturaCodex {
+/**
+ * Un balde de límites de Codex -> la forma que entiende el núcleo.
+ *
+ * Exportada para poder probarla: es donde viven las dos decisiones que se
+ * pueden romper sin que nadie se entere —el nombre de la ventana sale de su
+ * duración, y las dos puntas (rollout en snake_case, app-server en camelCase)
+ * tienen que dar exactamente lo mismo—.
+ */
+export function parsearRateLimits(
+  rateLimits: Record<string, unknown>,
+  medidoEn: Date,
+  origen: OrigenCuota = 'endpoint',
+): LecturaCodex {
+  return parsear(normalizar(rateLimits), medidoEn, origen);
+}
+
+function parsear(rateLimits: Record<string, unknown>, medidoEn: Date, origen: OrigenCuota = 'endpoint'): LecturaCodex {
   const alcanzado = rateLimits['rateLimitReachedType'] != null;
   const ventanas: VentanaCuota[] = [];
   for (const clave of ['primary', 'secondary']) {
@@ -145,15 +324,16 @@ function parsear(rateLimits: Record<string, unknown>, medidoEn: Date): LecturaCo
     }
   }
   const creditos = (rateLimits['rateLimitResetCredits'] as Record<string, unknown>) ?? {};
+  const disponibles = creditos['availableCount'] ?? creditos['available_count'];
   const info: CuentaCodex = {
     plan: (rateLimits['planType'] as string) ?? null,
     accountId: (rateLimits['accountId'] as string) ?? null,
-    creditosReset: (creditos['availableCount'] as number) ?? 0,
+    creditosReset: typeof disponibles === 'number' ? disponibles : 0,
   };
   if (ventanas.length === 0) {
     return { cuota: { estado: 'sin-suscripcion' }, info };
   }
-  return { cuota: { estado: 'ok', origen: 'endpoint', medidoEn, ventanas }, info };
+  return { cuota: { estado: 'ok', origen, medidoEn, ventanas }, info };
 }
 
 // ── el cache, que acá lo escribimos nosotros ─────────────────────────────
@@ -267,7 +447,7 @@ export async function consultarCodex(): Promise<LecturaCodex> {
           return;
         }
         // El accountId y los créditos viven un nivel más arriba que las barras.
-        const plano = { ...rl, accountId: res?.['accountId'], rateLimitResetCredits: res?.['rateLimitResetCredits'] };
+        const plano = normalizar({ ...rl, accountId: res?.['accountId'], rateLimitResetCredits: res?.['rateLimitResetCredits'] });
         const ahora = Date.now();
         escribirCache({ fetchedAtMs: ahora, rateLimits: plano });
         terminar(parsear(plano, new Date(ahora)));
