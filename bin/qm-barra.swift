@@ -344,6 +344,87 @@ func notificar(titulo: String, cuerpo: String) {
 /// Es una NSView y no un NSMenuItem con texto porque el menú es donde se
 /// contesta la pregunta completa —qué barra, cuánto, cuándo se reinicia, a qué
 /// ritmo— y eso pide una grilla, no un renglón.
+/// La cabecera del menú: la respuesta de una línea.
+///
+/// Es la misma pregunta que contesta el héroe del tablero —«qué me frena
+/// primero, en toda la máquina»— y faltaba acá: había que leer las tres
+/// cuentas y compararlas uno mismo. Cuando esa barra está llena, además dice
+/// **cuándo te liberás**, que es lo único que importa una vez que te frenaste.
+final class VistaResumen: NSView {
+    private let cuenta: String
+    private let barra: String
+    private let pct: Int
+    private let nivel: Nivel
+    private let reinicia: Date?
+
+    init?(_ perfiles: [PerfilVista]) {
+        var mejor: (PerfilVista, Ventana, Int)? = nil
+        var i = 0
+        for p in perfiles where p.hayNumero {
+            if let v = p.frena, mejor == nil || v.porcentaje > mejor!.1.porcentaje {
+                mejor = (p, v, i)
+            }
+            i += 1
+        }
+        guard let (p, v, _) = mejor else { return nil }
+        cuenta = corto(p.nombre)
+        barra = v.nombre
+        pct = v.porcentaje
+        nivel = nivelDe(v.porcentaje, preocupa: v.preocupa || (p.proyeccion?.chocas ?? false))
+        reinicia = v.reinicia
+        super.init(frame: NSRect(x: 0, y: 0, width: 340, height: 74))
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        let m: CGFloat = 15
+        // El anillo, igual que el del tablero.
+        let lado: CGFloat = 44
+        let centro = NSPoint(x: m + lado / 2, y: bounds.height / 2)
+        let radio = lado / 2 - 3
+        let pista = NSBezierPath()
+        pista.appendArc(withCenter: centro, radius: radio, startAngle: 0, endAngle: 360)
+        pista.lineWidth = 5
+        nivel.color.withAlphaComponent(0.18).setStroke()
+        pista.stroke()
+
+        let arco = NSBezierPath()
+        arco.appendArc(withCenter: centro, radius: radio, startAngle: 90,
+                       endAngle: 90 - 360 * CGFloat(min(100, max(0, pct))) / 100, clockwise: true)
+        arco.lineWidth = 5
+        arco.lineCapStyle = .round
+        nivel.color.setStroke()
+        arco.stroke()
+
+        let x = m + lado + 14
+        let esc = { (t: String, y: CGFloat, f: NSFont, c: NSColor) in
+            NSAttributedString(string: t, attributes: [.font: f, .foregroundColor: c])
+                .draw(at: NSPoint(x: x, y: y))
+        }
+        esc("LO PRIMERO QUE TE FRENA", bounds.height - 22, .systemFont(ofSize: 9, weight: .semibold),
+            .tertiaryLabelColor)
+        let cifra = NSAttributedString(string: "\(pct)%", attributes: [
+            .font: NSFont.systemFont(ofSize: 20, weight: .semibold), .foregroundColor: NSColor.labelColor,
+        ])
+        cifra.draw(at: NSPoint(x: x, y: bounds.height - 44))
+        // El nombre va a la derecha de la cifra, en su línea de base.
+        NSAttributedString(string: "  \(cuenta) · \(barra)", attributes: [
+            .font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: NSColor.secondaryLabelColor,
+        ]).draw(at: NSPoint(x: x + cifra.size().width, y: bounds.height - 40))
+
+        // Cuando ya te frenó, lo que importa no es cuándo "reinicia": es cuándo
+        // volvés a poder trabajar. Es la misma fecha y una pregunta distinta.
+        let falta = reinicia.map { Int($0.timeIntervalSinceNow) }
+        let texto: String
+        if pct >= 95, let f = falta { texto = "libre en \(duracion(f))" }
+        else if let f = falta { texto = "reinicia en \(duracion(f))" }
+        else { texto = "sin reinicio informado" }
+        esc(texto, 12, .systemFont(ofSize: 11, weight: pct >= 95 ? .medium : .regular),
+            pct >= 95 ? nivel.color : .tertiaryLabelColor)
+    }
+}
+
 /// La clave de la barra que frena, para saber a cuál pegarle la curva.
 private func peor_clave(_ p: PerfilVista) -> String? { p.frena?.nombre }
 
@@ -725,6 +806,13 @@ final class Barra: NSObject, NSApplicationDelegate {
             var piezas: [Trozo] = []
             var iCuenta = 0
             var peorPct = 0
+
+            if let resumen = VistaResumen(perfiles) {
+                let fila = NSMenuItem()
+                fila.view = resumen
+                menu.addItem(fila)
+                menu.addItem(.separator())
+            }
 
             for p in perfiles {
                 let visibles = p.mostrar

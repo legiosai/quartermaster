@@ -101,6 +101,7 @@ button.chip:focus-visible { outline: 2px solid var(--acento); outline-offset: 2p
 }
 .heroe .medidor-anillo { flex: none; }
 .heroe .texto { min-width: 240px; flex: 1; }
+.heroe .curva { margin-top: 14px; max-width: 420px; }
 .rotulo {
   font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
   color: var(--tinta-3); font-weight: 600; margin-bottom: 8px;
@@ -544,7 +545,7 @@ function heroe() {
               stroke-dashoffset="${off.toFixed(1)}" transform="rotate(-90 66 66)"/>
     </svg>
     <div class="texto">
-      <div class="rotulo">lo primero que te frena</div>
+      <div class="rotulo">${v.porcentaje >= 95 ? 'te frenaste' : 'lo primero que te frena'}</div>
       <div class="cifra">${v.porcentaje}<span class="signo">%</span></div>
       <div class="cual" style="margin-top:10px">
         <span class="perfil-nom">${esc(corto(p.perfil))}</span>
@@ -552,9 +553,10 @@ function heroe() {
       </div>
       <div class="detalle">
         ${insignia(n)}
-        <span class="sep">·</span>${reloj(v.reinicia)}
+        <span class="sep">·</span>${reloj(v.reinicia, v.porcentaje >= 95 ? 'libre en ' : 'reinicia en ')}
         ${proy ? `<span class="sep">·</span><span class="${proy.chocasAntesDelReinicio ? 'choque' : ''}">${esc(fraseProy(proy))}</span>` : ''}
       </div>
+      ${curva(p.cuota.historia, n)}
     </div>
   </div>`;
 }

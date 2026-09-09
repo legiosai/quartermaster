@@ -83,6 +83,9 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --watch [seg]    se redibuja cada N segundos (mínimo 30, por defecto 60)
   qm --dias=N         ventana del consumo local (por defecto 7)
   qm --umbral=N       sale con código 3 si alguna barra pasa el N %
+  qm --esperar        no vuelve hasta que la cuota baje del umbral (80 por
+                      defecto). Para encadenar: qm --esperar && codex ...
+  qm --cuenta=NOMBRE  con --esperar: mirar sólo esa cuenta (codex, personal…)
   qm --redactado      con --json, saca mails y rutas de casa: para comitear
   qm --breve          un renglón y nada más. No lee transcripciones, así que
                       tarda milisegundos: es lo que va en una statusline
@@ -624,6 +627,54 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
     ? { cuota: { estado: 'no-consultada' as const } }
     : await consultarCodex();
   process.exit(c.cuota.estado === 'ok' || bien ? 0 : 1);
+}
+
+/**
+ * `--esperar`: no volver hasta que se pueda trabajar.
+ *
+ * Es la otra mitad de `--umbral`. Ese contesta «¿estoy pasado?» y sirve para
+ * abortar; este contesta «avisame cuándo pueda» y sirve para encadenar:
+ *
+ *     qm --esperar --cuenta=codex && codex exec "seguí donde quedaste"
+ *
+ * Duerme hasta el reinicio de la barra que frena —no hace polling ciego— con
+ * un piso de 60 s, que es el mismo piso que tiene todo lo que sale a la red.
+ */
+if (process.argv.includes('--esperar')) {
+  const arg = (n: string): string | null =>
+    process.argv.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3) ?? null;
+  const cuenta = arg('cuenta');
+  const umbral = Number(arg('umbral') ?? 80);
+  const opts = { ...(parsearArgs([]) as Opciones), breve: true };
+  for (;;) {
+    const filas = (await medir(opts)).filter((f) => cuenta === null || f.perfil.nombre.includes(cuenta));
+    if (filas.length === 0) {
+      console.error(cuenta === null ? 'no hay ninguna cuenta' : `no encontré la cuenta "${cuenta}"`);
+      process.exit(2);
+    }
+    let peorPct = 0;
+    let cuando: Date | null = null;
+    for (const f of filas) {
+      if (f.cuota.estado !== 'ok') continue;
+      const v = peor(paraMostrar(f.cuota.ventanas));
+      if (v === null) continue;
+      if (v.porcentaje > peorPct) {
+        peorPct = v.porcentaje;
+        cuando = v.reinicia;
+      }
+    }
+    if (peorPct < umbral) {
+      console.log(`libre: la barra que más apremia va ${peorPct} % (umbral ${umbral} %)`);
+      process.exit(0);
+    }
+    // Dormir hasta el reinicio, no sondear a ciegas.
+    const faltan = cuando === null ? 60_000 : Math.max(60_000, cuando.getTime() - Date.now() + 5_000);
+    console.error(
+      `${peorPct} % · esperando ${duracion(faltan)}` +
+        (cuando === null ? '' : ` (reinicia ${cuando.toLocaleTimeString()})`),
+    );
+    await new Promise((r) => setTimeout(r, faltan));
+  }
 }
 
 const opciones = parsearArgs(process.argv.slice(2));
