@@ -163,3 +163,36 @@ test('el relleno cuenta columnas, no bytes de color', () => {
 test('tenue() sigue siendo medible por anchoVisible, pinte o no pinte', () => {
   assert.equal(anchoVisible(tenue('hola')), 4);
 });
+
+// ── paraMostrar · un cero que sí importa ────────────────────────────────
+{
+  const v = (clave: string, porcentaje: number, grupo: string | null) => ({
+    clave,
+    alcance: null,
+    grupo,
+    porcentaje,
+    severidad: 'normal',
+    activa: false,
+    reinicia: null,
+  });
+
+  test('paraMostrar: una sesión recién reiniciada se sigue viendo', () => {
+    // El caso real: la ventana de 5 h se reinicia varias veces por día y queda
+    // en 0. Con el filtro viejo la fila desaparecía entera y el número de la
+    // sesión con ella, justo cuando la buena noticia es que tenés el tanque
+    // lleno.
+    const salida = paraMostrar([v('session', 0, 'session'), v('weekly_all', 70, 'weekly')]);
+    assert.deepStrictEqual(salida.map((x) => x.clave), ['session', 'weekly_all']);
+  });
+
+  test('paraMostrar: las barras internas del servidor se siguen escondiendo', () => {
+    // `nimbus_quill` y compañía vienen en 0 y SIN grupo: no son de esta cuenta.
+    const salida = paraMostrar([v('session', 0, 'session'), v('nimbus_quill', 0, null)]);
+    assert.deepStrictEqual(salida.map((x) => x.clave), ['session']);
+  });
+
+  test('paraMostrar: una interna deja de esconderse si el servidor la marca', () => {
+    const marcada = { ...v('cinder_cove', 0, null), severidad: 'warning' };
+    assert.strictEqual(paraMostrar([marcada]).length, 1);
+  });
+}

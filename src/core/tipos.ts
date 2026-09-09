@@ -141,11 +141,22 @@ export function peor(ventanas: readonly VentanaCuota[]): VentanaCuota | null {
 
 /**
  * Las que vale la pena mostrar. El servidor manda barras que no aplican a la
- * cuenta (nombres internos, en 0 % y sin severidad); listarlas llena la tabla
- * de ruido y hace que las tres que importan se lean peor.
+ * cuenta (nombres internos como `nimbus_quill`, en 0 % y sin severidad);
+ * listarlas llena la tabla de ruido y hace que las que importan se lean peor.
+ *
+ * El filtro NO puede ser «tiene que estar arriba de cero». Con eso, apenas la
+ * sesión de 5 h se reinicia —que es varias veces por día— la fila desaparecía
+ * entera, y el número de la sesión con ella. Un 0 % en una ventana que la
+ * cuenta SÍ tiene es información: querés ver el tanque lleno, sobre todo justo
+ * después de haber estado frenado.
+ *
+ * Lo que separa una cosa de la otra lo dice el propio servidor: las ventanas
+ * reales vienen con `grupo` (session, weekly) y las internas vienen sin él.
  */
 export function paraMostrar(ventanas: readonly VentanaCuota[]): VentanaCuota[] {
-  return ventanas.filter((v) => v.activa || v.porcentaje > 0 || v.severidad !== 'normal');
+  return ventanas.filter(
+    (v) => v.grupo !== null || v.activa || v.porcentaje > 0 || v.severidad !== 'normal',
+  );
 }
 
 /**
