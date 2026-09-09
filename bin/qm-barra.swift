@@ -451,7 +451,34 @@ final class Barra: NSObject, NSApplicationDelegate {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     var vigias: [DispatchSourceFileSystemObject] = []
     var vigilando: Set<String> = []
-    var avisados: Set<String> = []
+    /// Los avisos ya dados. **Se persisten**: eran de memoria nomás, así que
+    /// cada arranque volvía a notificar todo lo que ya estaba cruzado — y
+    /// arrancar pasa seguido (reinstalar, actualizar, reiniciar sesión). Un
+    /// aviso marca un cruce; repetirlo en cada arranque es ruido y enseña a
+    /// ignorarlos, que es lo contrario de lo que tienen que hacer.
+    var avisados: Set<String> = Barra.leerAvisados()
+
+    static var rutaAvisados: String {
+        let base = ProcessInfo.processInfo.environment["XDG_CACHE_HOME"]
+            ?? (NSHomeDirectory() as NSString).appendingPathComponent(".cache")
+        return (base as NSString).appendingPathComponent("quartermaster/avisados.json")
+    }
+
+    static func leerAvisados() -> Set<String> {
+        guard let d = FileManager.default.contents(atPath: rutaAvisados),
+              let a = try? JSONDecoder().decode([String].self, from: d) else { return [] }
+        return Set(a)
+    }
+
+    func guardarAvisados() {
+        // Las claves llevan el minuto de reinicio, así que envejecen solas; se
+        // recorta igual para que el archivo no crezca para siempre.
+        let recorte = Array(avisados.suffix(300))
+        let url = URL(fileURLWithPath: Barra.rutaAvisados)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                 withIntermediateDirectories: true)
+        try? JSONEncoder().encode(recorte).write(to: url)
+    }
     var pendiente: DispatchWorkItem?
     var reloj: Timer?
     /// Sin esto macOS le aplica App Nap —es una app sin ventanas— y los timers
@@ -459,6 +486,7 @@ final class Barra: NSObject, NSApplicationDelegate {
     var actividad: NSObjectProtocol?
     /// Lo último que se vio, para decidir cada cuánto volver a mirar.
     var ultimas: [Trozo] = []
+    var avisoBarraLlena = false
 
     func applicationDidFinishLaunching(_ n: Notification) {
         // Con autosaveName el sistema recuerda dónde lo dejó el usuario: en una
@@ -647,7 +675,12 @@ final class Barra: NSObject, NSApplicationDelegate {
             }.min()
             item.button?.imagePosition = piezas.isEmpty ? .noImage : .imageOnly
             item.button?.attributedTitle = NSAttributedString(string: "")
-            probarCaras(piezas.isEmpty ? [] : [true, false], piezas)
+            // El número de la sesión es lo que se viene a mirar, así que es lo
+            // ÚLTIMO que se cae. Antes la escalera lo tiraba primero y el item
+            // quedaba mudo justo en la parte que importa; la identidad se
+            // recupera del orden y del menú, el número no se recupera de nada.
+            probarCaras(piezas.isEmpty ? []
+                        : [(true, true), (false, true), (true, false)], piezas)
         }
 
         if let i = CommandLine.arguments.firstIndex(of: "--captura"),
@@ -685,15 +718,14 @@ final class Barra: NSObject, NSApplicationDelegate {
     /// de la muesca. Medido acá: quedaban ~137 puntos, y el item con glifos,
     /// medidores y números pedía 158.
     ///
-    /// Por eso la cara no se elige, se mide: se prueba con números, y si no
-    /// entró se cae a sólo los medidores. Esos no se negocian — dicen lo
-    /// esencial aunque los números se caigan.
-    func probarCaras(_ conNumeros: [Bool], _ piezas: [Trozo]) {
-        guard let boton = item.button, !conNumeros.isEmpty else { return }
+    /// Por eso la cara no se elige, se mide: entero, después sin glifos, y
+    /// recién al final sin números.
+    func probarCaras(_ caras: [(glifos: Bool, numeros: Bool)], _ piezas: [Trozo]) {
+        guard let boton = item.button, !caras.isEmpty else { return }
         func intentar(_ i: Int) {
-            boton.image = medidores(piezas, numeros: conNumeros[i])
+            boton.image = medidores(piezas, glifos: caras[i].glifos, numeros: caras[i].numeros)
             DispatchQueue.main.async {
-                if self.tapadoPorLaMuesca(), i + 1 < conNumeros.count { intentar(i + 1) }
+                if self.tapadoPorLaMuesca(), i + 1 < caras.count { intentar(i + 1) }
                 else { self.revisarSiSeVe() }
             }
         }
@@ -718,14 +750,14 @@ final class Barra: NSObject, NSApplicationDelegate {
              + "ancho=\(v.frame.width) x=\(v.frame.minX)..\(v.frame.maxX) "
              + "muescaDerechaMinX=\(pant?.auxiliaryTopRightArea?.minX ?? -1) "
              + "pantalla=\(pant?.frame.width ?? -1) escondido=\(escondido)\n").data(using: .utf8)!)
-        if escondido, !avisados.contains("barra-llena") {
-            avisados.insert("barra-llena")
+        // Una sola vez por corrida. Antes se re-armaba al volver a entrar, así
+        // que un item que oscila entre visible y tapado avisaba en cada vuelta.
+        if escondido, !avisoBarraLlena {
+            avisoBarraLlena = true
             notificar(titulo: "quartermaster",
                       cuerpo: "el número está, pero macOS no tiene lugar en la barra: "
                             + "cmd-arrastrá el item a un hueco, o mirá el tablero con qm-web")
         }
-        // Si después entró, se puede volver a avisar la próxima vez.
-        if !escondido { avisados.remove("barra-llena") }
     }
 
     func tapadoPorLaMuesca() -> Bool {
@@ -756,10 +788,11 @@ final class Barra: NSObject, NSApplicationDelegate {
     /// Adentro de cada medidor, una muesca más clara marca dónde va la sesión:
     /// así el mismo dibujo contesta «¿puedo seguir ahora?» y «¿llego al final
     /// de la semana?» sin ocupar el doble.
-    func medidores(_ piezas: [Trozo], numeros: Bool) -> NSImage {
+    func medidores(_ piezas: [Trozo], glifos: Bool, numeros: Bool) -> NSImage {
         let alto: CGFloat = 22, altoBarra: CGFloat = 15
-        let ancho: CGFloat = 3, entreGrupos: CGFloat = 7
-        let ladoGlifo: CGFloat = 10, aireGlifo: CGFloat = 3, aireNumero: CGFloat = 4
+        let ancho: CGFloat = 3, entreGrupos: CGFloat = 5
+        let ladoGlifo: CGFloat = glifos ? 9 : 0, aireGlifo: CGFloat = glifos ? 2 : 0
+        let aireNumero: CGFloat = 3
         // Un solo medidor por cuenta, no dos. Con el glifo adentro, el par no
         // entraba (158 pt contra los ~137 que deja la muesca) y la escalera
         // terminaba tirando los números — justo lo que hay que mostrar. Y la
@@ -768,7 +801,7 @@ final class Barra: NSObject, NSApplicationDelegate {
         // número y necesita alguna forma de verse.
         let par = ancho
 
-        let fuente = NSFont.monospacedDigitSystemFont(ofSize: 10.5, weight: .medium)
+        let fuente = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
         // El número de cada cuenta es el de la SESIÓN de 5 h: es el que
         // contesta «¿puedo seguir trabajando ahora?». La semanal se sigue
         // viendo —es la barra de la derecha, con su color— sin gastar dígitos.
@@ -810,8 +843,10 @@ final class Barra: NSObject, NSApplicationDelegate {
                 // El glifo dice QUÉ suscripción es: la forma, el producto; el
                 // color, cuál de ellas. La identidad va acá y nunca en los
                 // medidores, que están reservados para el estado.
-                glifoProducto(t.producto, colorCuenta(t.indice), ladoGlifo)
-                    .draw(in: NSRect(x: x, y: (alto - ladoGlifo) / 2, width: ladoGlifo, height: ladoGlifo))
+                if glifos {
+                    glifoProducto(t.producto, colorCuenta(t.indice), ladoGlifo)
+                        .draw(in: NSRect(x: x, y: (alto - ladoGlifo) / 2, width: ladoGlifo, height: ladoGlifo))
+                }
                 let xb = x + ladoGlifo + aireGlifo
                 // El medidor es SIEMPRE la semanal. Si la cuenta no informa
                 // ninguna, queda la pista vacía: mejor un hueco honesto que
@@ -864,6 +899,7 @@ final class Barra: NSObject, NSApplicationDelegate {
             for u in UMBRALES where v.porcentaje >= u {
                 let clave = "\(p.nombre)|\(v.nombre)|\(ventana)|\(u)"
                 if avisados.insert(clave).inserted {
+                    guardarAvisados()
                     notificar(titulo: "quartermaster · \(corto(p.nombre))",
                               cuerpo: "\(v.nombre) al \(v.porcentaje) %"
                                       + (v.reinicia.map { " · reinicia en \(duracion(Int($0.timeIntervalSinceNow)))" } ?? ""))
@@ -875,6 +911,7 @@ final class Barra: NSObject, NSApplicationDelegate {
             let ventana = cual.reinicia.map { String(Int($0.timeIntervalSince1970 / 60)) } ?? "sin-reinicio"
             let clave = "\(p.nombre)|\(cual.nombre)|\(ventana)|choque"
             if avisados.insert(clave).inserted {
+                guardarAvisados()
                 notificar(titulo: "quartermaster · \(corto(p.nombre))",
                           cuerpo: "vas a tocar el techo de \(cual.nombre) en "
                                   + "\(duracion(Int(pr.techo.timeIntervalSinceNow))), antes del reinicio")

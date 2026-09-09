@@ -298,6 +298,11 @@ un vistazo, que es lo único que hace la barra de menú.
 `~` va pegado al número, porque califica a *ese* número: `~37` es «esta sesión
 es de hace rato».
 
+Cuando no entra, la escalera saca primero los glifos y **el número es lo último
+que se cae**. Antes era al revés y el item quedaba mudo justo en la parte que se
+viene a mirar: la identidad se recupera del orden y del menú, el número no se
+recupera de nada.
+
 Es lo que se hace en una barra de menú de macOS —una marca chica y callada, no
 un renglón de texto— y además es lo único que entra: **91 puntos contra los 192
 del renglón horizontal**, medido. Esa diferencia es la que decide si el sistema
@@ -353,6 +358,21 @@ apilados, y ninguno hacía ruido:
   lugares de siempre, y `QM_CODEX` para forzarlo.
 
 Medido después: refrescos cada 21 s con la sesión al 100 %.
+
+### Y avisar de más es no avisar
+
+Los avisos se recordaban **en memoria**, así que cada arranque volvía a
+notificar todo lo que ya estaba cruzado — y arrancar pasa seguido: reinstalar,
+actualizar, reiniciar sesión. Con Codex al 100 % eso son tres notificaciones
+por arranque, siempre las mismas. Un aviso marca un *cruce*; repetirlo en cada
+arranque es ruido, y el ruido enseña a ignorarlos, que es exactamente lo
+contrario de lo que tienen que lograr.
+
+Ahora se persisten en `~/.cache/quartermaster/avisados.json`, con la misma clave
+de siempre (perfil, barra, minuto de reinicio, umbral), así que sobreviven al
+reinicio y la ventana siguiente vuelve a avisar sola. El aviso de «no entro en
+la barra» tampoco se re-arma: se re-armaba al volver a entrar, y un item que
+oscila entre visible y tapado avisaba en cada vuelta.
 
 ### Y Claude también llegaba tarde, por otro motivo
 
