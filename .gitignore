@@ -1,6 +1,3 @@
 node_modules/
 *.log
 .DS_Store
-
-# CI: falta pushearlo. El token de este equipo no tiene scope `workflow`.
-.github/workflows/

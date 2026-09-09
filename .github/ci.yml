@@ -1,0 +1,16 @@
+# CI: este archivo va en .github/workflows/ci.yml. Vive acá porque el token de
+# la máquina donde se creó el repo no tenía scope `workflow` y GitHub rechaza
+# el push. Para activarlo: git mv .github/ci.yml .github/workflows/ci.yml
+name: ci
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
