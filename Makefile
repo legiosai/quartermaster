@@ -13,6 +13,11 @@ demo-h1:  ## H1 · consumo real leído de transcripciones locales, sin credencia
 qm:  ## el comando: cuota + consumo de todos los perfiles
 	@npm run --silent qm -- $(ARGS)
 
+.PHONY: numero-h5
+numero-h5:  ## H5 · comitea la cuota leída del cache, sin mails ni rutas de casa
+	@npm run --silent qm -- --json --redactado > numeros/h5-cuota.json
+	@echo "numeros/h5-cuota.json escrito"
+
 .PHONY: test
 test:  ## los tests
 	@npm run --silent test

@@ -1,35 +1,87 @@
 #!/usr/bin/env node
 // qm · cuánta cuota te queda, en todos tus perfiles.
 //
-// Dos fuentes, en este orden:
-//   1. el endpoint de cuota, que sabe el LÍMITE y cuándo se reinicia (H2);
-//   2. las transcripciones locales, que saben el CONSUMO y no fallan nunca.
+// Tres fuentes, de la más barata a la más cara:
 //
-// La segunda no es un fallback opcional: es el piso. Si el endpoint no
-// contesta, o el token venció, o la cuenta no tiene suscripción, igual hay un
-// número — y además una frase que dice por qué falta el otro.
+//   1. `cachedUsageUtilization` en .claude.json — la última respuesta de cuota
+//      que recibió Claude Code. Sin red, sin credencial, y funciona aunque el
+//      token esté vencido. Es el camino por defecto.
+//   2. el endpoint, sólo con --refrescar, para el perfil cuyo cache quedó viejo.
+//   3. las transcripciones locales, que no dicen el límite pero no fallan nunca.
+//
+// La 3 no es un fallback opcional: es el piso. Si no hay número de cuota, igual
+// hay consumo — y además una frase que dice por qué falta el otro.
 
+import { homedir } from 'node:os';
 import { descubrirPerfiles } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
 import { consumoDesde, transcripciones } from '../adapters/transcripciones.ts';
+import { cuotaEnCache } from '../adapters/cache-cuota.ts';
 import { consultarCuota } from '../adapters/cuota.ts';
-import { frase, totalTokens, type Perfil, type ResultadoCuota } from '../core/tipos.ts';
-import { barra, duracion, negrita, relleno, rojo, tenue, tokens, verde, amarillo } from '../render/barras.ts';
+import {
+  frase,
+  nombreVentana,
+  paraMostrar,
+  peor,
+  totalTokens,
+  type Perfil,
+  type ResultadoCuota,
+  type VentanaCuota,
+} from '../core/tipos.ts';
+import {
+  barra,
+  duracion,
+  negrita,
+  relleno,
+  rojo,
+  tenue,
+  tokens,
+  verde,
+  amarillo,
+} from '../render/barras.ts';
 
 interface Opciones {
   json: boolean;
   watch: number | null;
-  red: boolean;
+  refrescar: boolean;
   dias: number;
   ventanaH: number;
+  umbral: number | null;
+  redactado: boolean;
 }
 
+const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Code
+
+  qm                  cuota y consumo de cada perfil. Sin red y sin credencial:
+                      lee la cuota que Claude Code ya dejó en .claude.json
+  qm --refrescar      además pide el número al endpoint (necesita token vigente)
+  qm --json           lo mismo, para scripts y statuslines
+  qm --watch [seg]    se redibuja cada N segundos (mínimo 30, por defecto 60)
+  qm --dias=N         ventana del consumo local (por defecto 7)
+  qm --umbral=N       sale con código 3 si alguna barra pasa el N %
+  qm --redactado      con --json, saca mails y rutas de casa: para comitear
+
+Nunca refresca un token. Si una credencial venció, lo dice y sigue con el
+resto de los perfiles — la cuota igual se lee, porque sale del disco.`;
+
 function parsearArgs(argv: readonly string[]): Opciones | string {
-  const o: Opciones = { json: false, watch: null, red: true, dias: 7, ventanaH: 5 };
+  const o: Opciones = {
+    json: false,
+    watch: null,
+    refrescar: false,
+    dias: 7,
+    ventanaH: 5,
+    umbral: null,
+    redactado: false,
+  };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]!;
     if (a === '--json') o.json = true;
-    else if (a === '--sin-red' || a === '--offline') o.red = false;
+    else if (a === '--redactado') o.redactado = true;
+    else if (a === '--refrescar' || a === '--red') o.refrescar = true;
+    // --sin-red era el nombre viejo de lo que ahora es el comportamiento por
+    // defecto. Se acepta sin decir nada para no romper a quien ya lo escribió.
+    else if (a === '--sin-red' || a === '--offline') o.refrescar = false;
     else if (a === '--watch' || a.startsWith('--watch=')) {
       const crudo = a.includes('=') ? a.split('=')[1]! : argv[++i];
       const n = crudo === undefined ? 60 : Number(crudo);
@@ -38,30 +90,24 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
       o.watch = Math.max(30, n);
     } else if (a.startsWith('--dias=')) {
       const n = Number(a.split('=')[1]);
-      if (!Number.isFinite(n) || n <= 0) return `--dias espera un número de días`;
+      if (!Number.isFinite(n) || n <= 0) return '--dias espera un número de días';
       o.dias = n;
+    } else if (a.startsWith('--umbral=')) {
+      const n = Number(a.split('=')[1]);
+      if (!Number.isFinite(n) || n < 0 || n > 100) return '--umbral espera un porcentaje 0..100';
+      o.umbral = n;
     } else if (a === '-h' || a === '--help') return AYUDA;
     else return `opción desconocida: ${a}\n\n${AYUDA}`;
   }
   return o;
 }
 
-const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Code
-
-  qm                  una foto: cuota (si hay) y consumo local de cada perfil
-  qm --json           lo mismo, para scripts y statuslines
-  qm --watch [seg]    se redibuja cada N segundos (mínimo 30, por defecto 60)
-  qm --sin-red        no consulta el endpoint: sólo transcripciones locales
-  qm --dias=N         ventana del consumo local (por defecto 7)
-
-Nunca refresca un token. Si una credencial venció, lo dice y sigue con el
-resto de los perfiles.`;
-
 interface FilaPerfil {
   perfil: Perfil;
-  ubicacion: string;
   veredicto: string;
   cuota: ResultadoCuota;
+  /** Por qué no se usó el número del endpoint, cuando se pidió y no salió. */
+  notaRefresco: string | null;
   archivos: number;
   requests: number;
   tokens: number;
@@ -86,18 +132,23 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
               ? 'vencida'
               : `vigente (${duracion((cred.expiraEn?.getTime() ?? 0) - Date.now())})`;
 
-      const cuota: ResultadoCuota = o.red
-        ? await consultarCuota(perfil)
-        : { estado: 'no-consultada' };
+      // El cache primero: es gratis y no necesita credencial.
+      let cuota = cuotaEnCache(perfil);
+      let notaRefresco: string | null = null;
+      if (o.refrescar) {
+        const fresca = await consultarCuota(perfil);
+        if (fresca.estado === 'ok') cuota = fresca;
+        else notaRefresco = frase(fresca, perfil.directorio);
+      }
 
       const c = await consumoDesde(perfil, desde);
       const v = await consumoDesde(perfil, desdeVentana);
 
       return {
         perfil,
-        ubicacion: cred.ubicacion,
         veredicto,
         cuota,
+        notaRefresco,
         archivos: transcripciones(perfil).length,
         requests: c.requests,
         tokens: totalTokens(c),
@@ -108,31 +159,90 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
   );
 }
 
+const colorPct = (p: number): ((t: string) => string) => (p >= 90 ? rojo : p >= 70 ? amarillo : verde);
+
+/** «cache · hace 25m». Que la edad viaje pegada al número es la mitad del punto. */
+function sello(r: Extract<ResultadoCuota, { estado: 'ok' }>): string {
+  const edadMs = Date.now() - r.medidoEn.getTime();
+  if (r.origen === 'endpoint') return tenue('endpoint · ahora');
+  const texto = `cache · hace ${duracion(edadMs)}`;
+  // Seis horas es más que cualquier ventana de 5 h: a esa altura el número
+  // puede describir una ventana que ya se reinició.
+  return edadMs > 6 * 3600_000 ? amarillo(`${texto} — viejo`) : tenue(texto);
+}
+
+function pintarVentana(v: VentanaCuota, marca: boolean): void {
+  const pct = `${v.porcentaje.toFixed(0)}%`.padStart(4);
+  const resta = v.reinicia
+    ? tenue(` reinicia en ${duracion(v.reinicia.getTime() - Date.now())}`)
+    : '';
+  const aviso = v.severidad !== 'normal' ? ` ${amarillo(v.severidad)}` : '';
+  const flecha = marca ? negrita('▸ ') : '  ';
+  console.log(
+    `  ${relleno('', 17)}${flecha}${relleno(nombreVentana(v), 24)} ${barra(v.porcentaje / 100)} ${colorPct(v.porcentaje)(pct)}${aviso}${resta}`,
+  );
+}
+
 function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
   console.log(negrita(`\nqm · ${process.platform} · consumo de ${o.dias}d\n`));
+
   for (const f of filas) {
     const cuenta = f.perfil.cuenta?.email ?? 'sin cuenta';
     const plan = f.perfil.cuenta?.plan ? tenue(` · ${f.perfil.cuenta.plan}`) : '';
-    const color = f.veredicto.startsWith('vigente') ? verde : f.veredicto === 'vencida' ? amarillo : rojo;
+    const colorCred = f.veredicto.startsWith('vigente')
+      ? verde
+      : f.veredicto === 'vencida'
+        ? amarillo
+        : rojo;
     console.log(`  ${negrita(relleno(f.perfil.nombre, 18))} ${relleno(cuenta, 30)}${plan}`);
-    console.log(`  ${relleno('', 18)} ${color(f.veredicto)}`);
+    console.log(`  ${relleno('', 18)} ${tenue('credencial: ')}${colorCred(f.veredicto)}`);
 
     if (f.cuota.estado === 'ok') {
-      for (const v of f.cuota.ventanas) {
-        const resta = v.reinicia ? tenue(` reinicia en ${duracion(v.reinicia.getTime() - Date.now())}`) : '';
-        const pct = `${v.porcentaje.toFixed(0)}%`.padStart(4);
-        console.log(`  ${relleno('', 18)} ${relleno(v.clave, 12)} ${barra(v.porcentaje / 100)} ${pct}${resta}`);
-      }
+      const mostrar = paraMostrar(f.cuota.ventanas);
+      const p = peor(mostrar);
+      console.log(`  ${relleno('', 18)} ${sello(f.cuota)}`);
+      for (const v of mostrar) pintarVentana(v, p !== null && v.clave === p.clave);
     } else {
       // Sin número de cuota, una frase. Nunca un renglón en blanco.
       console.log(`  ${relleno('', 18)} ${tenue(`cuota: ${frase(f.cuota, f.perfil.directorio)}`)}`);
     }
+    if (f.notaRefresco !== null) {
+      console.log(`  ${relleno('', 18)} ${tenue(`--refrescar no sirvió: ${f.notaRefresco}`)}`);
+    }
 
     console.log(
-      `  ${relleno('', 18)} ${tenue(`local: ${tokens(f.tokens)} en ${o.dias}d · ${tokens(f.tokensVentana)} en ${o.ventanaH}h · ${f.requests} requests · ${f.archivos} transcripciones`)}`,
+      `  ${relleno('', 18)} ${tenue(`local: ${tokens(f.tokens)} en ${o.dias}d · ${tokens(f.tokensVentana)} en ${o.ventanaH}h · ${f.requests} requests`)}`,
     );
     console.log();
   }
+
+  // El renglón que sirve cuando no querés leer la tabla entera.
+  const peores: { f: FilaPerfil; v: VentanaCuota }[] = [];
+  for (const f of filas) {
+    if (f.cuota.estado !== 'ok') continue;
+    const v = peor(paraMostrar(f.cuota.ventanas));
+    if (v !== null) peores.push({ f, v });
+  }
+  peores.sort((a, b) => b.v.porcentaje - a.v.porcentaje);
+  const top = peores[0];
+  if (top) {
+    console.log(
+      `  ${negrita('lo primero que te frena:')} ${top.f.perfil.nombre} · ${nombreVentana(top.v)} ${colorPct(top.v.porcentaje)(`${top.v.porcentaje.toFixed(0)}%`)}` +
+        (top.v.reinicia ? tenue(` · reinicia en ${duracion(top.v.reinicia.getTime() - Date.now())}`) : ''),
+    );
+    console.log();
+  }
+}
+
+/**
+ * Los artefactos que se comitean no llevan direcciones de mail ni la ruta de
+ * casa de nadie. En la terminal se muestran enteros: es la máquina del dueño.
+ */
+function redactar(o: Opciones, texto: string | null): string | null {
+  if (!o.redactado || texto === null) return texto;
+  const arroba = texto.lastIndexOf('@');
+  if (arroba >= 0 && !texto.includes('/')) return `***${texto.slice(arroba)}`;
+  return texto.replace(homedir(), '~');
 }
 
 function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
@@ -142,21 +252,31 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
     ventanaDias: o.dias,
     perfiles: filas.map((f) => ({
       perfil: f.perfil.nombre,
-      directorio: f.perfil.directorio,
-      cuenta: f.perfil.cuenta?.email ?? null,
+      directorio: redactar(o, f.perfil.directorio),
+      cuenta: redactar(o, f.perfil.cuenta?.email ?? null),
       plan: f.perfil.cuenta?.plan ?? null,
       credencial: f.veredicto,
       cuota:
         f.cuota.estado === 'ok'
           ? {
               estado: 'ok',
+              origen: f.cuota.origen,
+              medidoEn: f.cuota.medidoEn.toISOString(),
+              edadSegundos: Math.round((Date.now() - f.cuota.medidoEn.getTime()) / 1000),
               ventanas: f.cuota.ventanas.map((v) => ({
                 clave: v.clave,
+                alcance: v.alcance,
+                grupo: v.grupo,
                 porcentaje: v.porcentaje,
+                severidad: v.severidad,
+                activa: v.activa,
                 reinicia: v.reinicia?.toISOString() ?? null,
               })),
             }
-          : { estado: f.cuota.estado, frase: frase(f.cuota, f.perfil.directorio) },
+          : {
+              estado: f.cuota.estado,
+              frase: redactar(o, frase(f.cuota, f.perfil.directorio)),
+            },
       local: {
         tokens: f.tokens,
         tokensVentana: f.tokensVentana,
@@ -166,6 +286,16 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
       },
     })),
   };
+}
+
+/** El porcentaje más alto visto en cualquier perfil, para --umbral. */
+function maximo(filas: readonly FilaPerfil[]): number {
+  let m = 0;
+  for (const f of filas) {
+    if (f.cuota.estado !== 'ok') continue;
+    for (const v of f.cuota.ventanas) m = Math.max(m, v.porcentaje);
+  }
+  return m;
 }
 
 const opciones = parsearArgs(process.argv.slice(2));
@@ -182,6 +312,7 @@ const unaVuelta = async (): Promise<number> => {
   }
   if (opciones.json) console.log(JSON.stringify(comoJson(filas, opciones), null, 2));
   else pintar(filas, opciones);
+  if (opciones.umbral !== null && maximo(filas) >= opciones.umbral) return 3;
   return 0;
 };
 

@@ -39,6 +39,18 @@ default credential and nothing else. On the machine this was written on, that is
   and `Claude Code-credentials-<sha256(abs path)[:8]>` for every other. This was
   verified against live keychain items, and it is the whole reason multi-profile
   is cheap rather than heuristic.
+- **Prefer the number that needs no permission.** The quota is on disk:
+  Claude Code stores the last utilization response it got in each profile's
+  `.claude.json`. Reading it needs no network and no credential, so it works on
+  a profile whose token expired — the exact state the motivating monitor died
+  in. A path that needs a live token is a path that can go silent, so it is the
+  refresher, never the only way to a number.
+- **Read every bar the server sends, not the two with famous names.** On the
+  account this was measured on, `five_hour` said 8 % and `seven_day` said 59 %
+  while the bar actually about to stop the account was a `weekly_scoped` one at
+  75 % with severity `warning` — reachable only through `limits[]`. Showing the
+  well-known keys is not a simplification, it is a 67-point error that looks
+  calm.
 - **Silence is the bug.** The failure that motivated this tool was a monitor
   that polled every 120 seconds for hours, logged `credential expired — gating
   poll`, and displayed nothing at all. Any state that produces no number must

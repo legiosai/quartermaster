@@ -34,24 +34,37 @@ export function servicioLlavero(directorio: string): string {
  * oauthAccount en .claude.json; en instalaciones viejas ese archivo vive un
  * nivel más arriba (~/.claude.json) en vez de adentro del directorio.
  */
-export function leerCuenta(directorio: string): Cuenta | null {
-  const candidatos = [join(directorio, '.claude.json'), `${directorio}.json`];
-  for (const ruta of candidatos) {
-    if (!existsSync(ruta)) continue;
-    try {
-      const json = JSON.parse(readFileSync(ruta, 'utf8')) as Record<string, unknown>;
-      const oauth = json['oauthAccount'] as Record<string, unknown> | undefined;
-      if (!oauth) continue;
-      return {
-        email: (oauth['emailAddress'] as string) ?? null,
-        organizacion: (oauth['organizationName'] as string) ?? null,
-        plan: (oauth['seatTier'] as string) ?? (oauth['organizationType'] as string) ?? null,
-      };
-    } catch {
-      // Un .claude.json corrupto no debería tumbar el descubrimiento entero.
-    }
+export function rutaConfig(directorio: string): string | null {
+  // El perfil por defecto guarda su config en ~/.claude.json, al lado del
+  // directorio y no adentro. Los demás la tienen adentro. Se prueban las dos.
+  for (const ruta of [join(directorio, '.claude.json'), `${directorio}.json`]) {
+    if (existsSync(ruta)) return ruta;
   }
   return null;
+}
+
+/** El .claude.json de un perfil, ya parseado. null si no hay o no se puede leer. */
+export function leerConfig(directorio: string): Record<string, unknown> | null {
+  const ruta = rutaConfig(directorio);
+  if (ruta === null) return null;
+  try {
+    return JSON.parse(readFileSync(ruta, 'utf8')) as Record<string, unknown>;
+  } catch {
+    // Un .claude.json corrupto no debería tumbar el descubrimiento entero.
+    return null;
+  }
+}
+
+export function leerCuenta(directorio: string): Cuenta | null {
+  const json = leerConfig(directorio);
+  if (json === null) return null;
+  const oauth = json['oauthAccount'] as Record<string, unknown> | undefined;
+  if (!oauth) return null;
+  return {
+    email: (oauth['emailAddress'] as string) ?? null,
+    organizacion: (oauth['organizationName'] as string) ?? null,
+    plan: (oauth['seatTier'] as string) ?? (oauth['organizationType'] as string) ?? null,
+  };
 }
 
 /**

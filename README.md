@@ -20,7 +20,7 @@ que está vacío, mientras las dos cuentas reales viven en `~/.claude-personal`
 polleando cada 120 segundos durante horas, escribiendo `credential expired —
 gating poll` en su log, y mostrando nada.
 
-## El hallazgo
+## Primer hallazgo: dónde está la credencial
 
 En macOS el servicio del llavero de un perfil es **determinista**:
 
@@ -38,31 +38,51 @@ multi-perfil en un cálculo, no en una heurística.
 |---|---|---|
 | **H0** perfiles y preflight | ✅ mecanismo | `make demo-h0` — descubre perfiles y dice cuáles autentican, no sólo cuáles existen |
 | **H1** consumo local real | ✅ **número** | [`numeros/h1.json`](numeros/h1.json) — 9 340 requests deduplicados, 2,8 G de tokens en 7 días, 946 ms |
-| **H2** poll de cuota en vivo | ⚠️ escrito, **nunca ejecutado** | endpoint y forma localizados (abajo); falta una corrida contra un token vigente |
-| **H3** `--watch` y `--json` | ✅ mecanismo | `make qm`, `qm --json`, `qm --watch` |
-| **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ⏳ | [`numeros/h4-linux.md`](numeros/h4-linux.md) — primera corrida real fuera de macOS |
+| **H2** poll de cuota en vivo | ⚠️ escrito, **nunca ejecutado** | quedó como *refresco* opcional: H5 da el número sin él |
+| **H3** `--watch` y `--json` | ✅ mecanismo | `make qm`, `qm --json`, `qm --watch`, `qm --umbral=N` |
+| **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ⏳ | [`numeros/h4-linux.md`](numeros/h4-linux.md) |
+| **H5** cuota sin red ni credencial | ✅ **número** | [`numeros/h5-cuota.md`](numeros/h5-cuota.md) · [`h5-cuota.json`](numeros/h5-cuota.json) |
 
 **Advertencias, para que el README no mienta:**
 
-- **El endpoint de cuota todavía no se llamó ni una vez.** El código de H2 está
-  escrito y tiene tests, pero esos tests corren contra respuestas *construidas a
-  partir de la documentación embebida en el binario de Claude Code*, no contra
-  una respuesta real. Hasta que alguien corra `make qm` con un token vigente y
-  comitee lo que volvió, H2 no está hecho. Todo número que hoy muestra la
-  herramienta sale de transcripciones locales, que dicen *cuánto consumiste*
-  pero no *cuál es tu límite* ni *cuándo se reinicia la ventana*.
+- **El endpoint de cuota sigue sin llamarse ni una vez.** Después de H5 importa
+  mucho menos —el número sale del disco— pero `qm --refrescar` no está probado.
+- **El número del cache puede estar viejo.** Se refresca sólo cuando ese perfil
+  corre Claude Code. `qm` imprime la edad siempre y la marca a partir de 6 h.
 - **Windows no está verificado.** El adaptador asume
   `<directorio>/.credentials.json` igual que Linux. Es posible que Claude Code
-  use DPAPI o el Credential Manager. Hay que probarlo en una máquina Windows
-  antes de afirmar nada.
-- **macOS va a abrir un prompt del llavero por perfil** la primera vez. Es
-  esperado y no hay forma de evitarlo sin firmar la app.
+  use DPAPI o el Credential Manager. Hay que probarlo antes de afirmar nada.
+- **macOS va a abrir un prompt del llavero por perfil** si se usa `--refrescar`.
+  El camino por defecto ya no toca el llavero.
+
+## Segundo hallazgo: la cuota ya está en el disco
+
+Claude Code guarda en el `.claude.json` de cada perfil la última respuesta de
+cuota que recibió, bajo `cachedUsageUtilization`. El número de cuota **es un
+dato de disco**: no hace falta red, y sobre todo **no hace falta credencial**,
+así que se lee igual en un perfil con el token vencido — que es exactamente el
+estado en el que la herramienta que motivó este repo se quedaba muda.
+
+Y trae un segundo silencio, este adentro de un mismo perfil. La respuesta
+incluye un array `limits[]` con barras que **no** tienen clave propia arriba:
+
+| Barra | % | Severidad | ¿activa? | Alcance |
+|---|---:|---|---|---|
+| `session` (= `five_hour`) | 8 | normal | no | — |
+| `weekly_all` (= `seven_day`) | 59 | normal | no | — |
+| **`weekly_scoped`** | **75** | **warning** | **sí** | modelo Fable |
+
+`seven_day_opus`, `seven_day_sonnet` y otras diez venían `null`. Un monitor que
+lea `five_hour` y `seven_day` —las dos que documenta la statusline— informa
+**8 %**, se ve cómodo, y esconde la única barra con aviso. En esa cuenta el
+error es de 67 puntos. Detalle y medición en
+[`numeros/h5-cuota.md`](numeros/h5-cuota.md).
 
 ## La misma falla en Linux, y peor
 
 `numeros/h4-linux.md` es la primera corrida fuera de macOS. Encontró 4 perfiles,
-y con ellos una versión del problema más difícil de notar que la original: acá
-el directorio por defecto **no** está vacío. Tiene 1,2 G de tokens y se ve
+y con ellos una versión del problema original más difícil de notar: acá el
+directorio por defecto **no** está vacío. Tiene 1,2 G de tokens y se ve
 perfectamente sano.
 
 > Un monitor que sólo lee `~/.claude` en esa máquina muestra un número
@@ -74,49 +94,39 @@ Un directorio vacío se nota. Un número que parece bien y está a la mitad, no.
 ## De dónde sale el endpoint de cuota
 
 No está documentado. Se leyó del binario que Claude Code instala
-(`node_modules/@anthropic-ai/claude-code/bin/claude.exe`), que contiene tanto el
-call site:
+(`node_modules/@anthropic-ai/claude-code/bin/claude.exe`), que contiene el call
+site:
 
 ```
 fetchUtilization: GET /api/oauth/usage (attempt
 fetchUtilization: 200 after
 ```
 
-como, en su documentación de *statusline* embebida, la forma de los datos que
-Claude Code publica a partir de esa respuesta:
+La **forma** de la respuesta ya no se adivina: `cachedUsageUtilization` guarda
+esa misma respuesta, y de ahí salieron las fixtures de `test/fixtures/`. Eso
+confirmó lo que este README sospechaba antes de tener con qué probarlo: la
+documentación de statusline embebida en el binario describe lo que Claude Code
+**republica** (`used_percentage`, epoch en segundos), no lo que **recibe**
+(`utilization`, ISO con offset). Un parser escrito sólo contra esa doc habría
+leído mal las fechas.
 
-```
-"rate_limits": {   // Only present for subscribers after first API response.
-  "five_hour": {   // Optional: 5-hour session limit (may be absent)
-    "used_percentage": number,   // Percentage of limit used (0-100)
-    "resets_at": number          // Unix epoch seconds when this window resets
-  },
-  "seven_day": { ... }           // Optional: 7-day weekly limit
-}
-```
-
-Cerca del call site aparecen además `utilization`, `percent`, `is_enabled` y
-`weekly_scoped`. Eso alcanza para escribir el parser, **no** para afirmar la
-forma exacta de `/api/oauth/usage`: la documentación describe lo que Claude Code
-*republica*, que puede no ser lo que *recibe*. Por eso el parser acepta varios
-nombres para lo mismo y, si no reconoce ninguno, devuelve `ilegible` con las
-claves que sí vinieron — nunca inventa un número. La primera corrida real
-resuelve la ambigüedad y sobra la mitad de ese código.
-
-Corolario operativo: **el endpoint puede desaparecer sin aviso**, y por eso las
-transcripciones locales no son un fallback opcional (ver `SOUL.md`).
+Corolario operativo: **el endpoint puede desaparecer sin aviso**, y por eso ni
+las transcripciones ni el cache son un fallback opcional (ver `SOUL.md`).
 
 ## Uso
 
 ```bash
 npm install
-make qm                    # cuota (si hay) + consumo local, todos los perfiles
-make qm ARGS=--json        # lo mismo, para scripts y statuslines
-make qm ARGS="--watch 60"  # se redibuja cada 60 s
-make qm ARGS=--sin-red     # sin tocar la red: sólo transcripciones
+make qm                       # cuota y consumo de todos los perfiles.
+                              # Sin red y sin credencial: la cuota sale del disco
+make qm ARGS=--refrescar      # además pide el número al endpoint (token vigente)
+make qm ARGS=--json           # para scripts y statuslines
+make qm ARGS="--watch 60"     # se redibuja cada 60 s
+make qm ARGS=--umbral=80      # código de salida 3 si alguna barra pasa el 80 %
 
-make demo-h0               # ¿qué perfiles hay y cuáles autentican?
-make demo-h1               # consumo de los últimos 7 días, por perfil
+make demo-h0                  # ¿qué perfiles hay y cuáles autentican?
+make demo-h1                  # consumo de los últimos 7 días, por perfil
+make numero-h5                # regenera numeros/h5-cuota.json, ya redactado
 ```
 
 Requiere **Node ≥ 22.6** (lee TypeScript directamente, no hay paso de build).
@@ -128,7 +138,9 @@ Con una versión menor todo comando moría con un `bad option:
 
 ```
 src/core/         perfiles, tipos. No sabe de llaveros ni de HTTP.
-src/adapters/     credenciales (llavero / archivo), transcripciones (JSONL), cuota (HTTP).
+src/adapters/     credenciales (llavero / archivo), transcripciones (JSONL),
+                  cuota del cache (.claude.json) y del endpoint (HTTP), y el
+                  parser de la forma de utilización que comparten los dos.
 src/render/       barras y formato. Sin dependencias.
 src/cli/          qm (el comando) y las demos de cada hito.
 ```

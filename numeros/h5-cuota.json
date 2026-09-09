@@ -1,0 +1,167 @@
+{
+  "generado": "2026-09-09T01:41:50.606Z",
+  "plataforma": "linux",
+  "ventanaDias": 7,
+  "perfiles": [
+    {
+      "perfil": ".claude",
+      "directorio": "~/.claude",
+      "cuenta": "***@hotmail.com",
+      "plan": "claude_max",
+      "credencial": "vigente (7h26m)",
+      "cuota": {
+        "estado": "ok",
+        "origen": "cache",
+        "medidoEn": "2026-09-09T01:08:09.239Z",
+        "edadSegundos": 2021,
+        "ventanas": [
+          {
+            "clave": "session",
+            "alcance": null,
+            "grupo": "session",
+            "porcentaje": 8,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": "2026-09-09T04:20:00.117Z"
+          },
+          {
+            "clave": "weekly_all",
+            "alcance": null,
+            "grupo": "weekly",
+            "porcentaje": 59,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": "2026-09-13T04:00:00.117Z"
+          },
+          {
+            "clave": "weekly_scoped",
+            "alcance": "Fable",
+            "grupo": "weekly",
+            "porcentaje": 75,
+            "severidad": "warning",
+            "activa": true,
+            "reinicia": "2026-09-13T04:00:00.118Z"
+          },
+          {
+            "clave": "nimbus_quill",
+            "alcance": null,
+            "grupo": null,
+            "porcentaje": 0,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": null
+          }
+        ]
+      },
+      "local": {
+        "tokens": 1205738107,
+        "tokensVentana": 31123483,
+        "requests": 4411,
+        "transcripciones": 71,
+        "porModelo": {
+          "claude-opus-5": 951553866,
+          "claude-fable-5-1": 216114619,
+          "claude-sonnet-5": 38069622
+        }
+      }
+    },
+    {
+      "perfil": ".claude-bedrock",
+      "directorio": "~/.claude-bedrock",
+      "cuenta": null,
+      "plan": null,
+      "credencial": "sin credencial",
+      "cuota": {
+        "estado": "sin-cache",
+        "frase": "Claude Code todavía no dejó cuota en .claude.json para este perfil (usalo una vez)"
+      },
+      "local": {
+        "tokens": 0,
+        "tokensVentana": 0,
+        "requests": 0,
+        "transcripciones": 8,
+        "porModelo": {}
+      }
+    },
+    {
+      "perfil": ".claude-personal",
+      "directorio": "~/.claude-personal",
+      "cuenta": "***@hotmail.com",
+      "plan": null,
+      "credencial": "vencida",
+      "cuota": {
+        "estado": "sin-cache",
+        "frase": "Claude Code todavía no dejó cuota en .claude.json para este perfil (usalo una vez)"
+      },
+      "local": {
+        "tokens": 0,
+        "tokensVentana": 0,
+        "requests": 0,
+        "transcripciones": 5,
+        "porModelo": {}
+      }
+    },
+    {
+      "perfil": ".claude-teams",
+      "directorio": "~/.claude-teams",
+      "cuenta": "***@teramot.com",
+      "plan": "team_tier_1",
+      "credencial": "vigente (6h27m)",
+      "cuota": {
+        "estado": "ok",
+        "origen": "cache",
+        "medidoEn": "2026-09-09T01:08:42.745Z",
+        "edadSegundos": 1988,
+        "ventanas": [
+          {
+            "clave": "session",
+            "alcance": null,
+            "grupo": "session",
+            "porcentaje": 22,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": "2026-09-09T04:59:59.619Z"
+          },
+          {
+            "clave": "weekly_all",
+            "alcance": null,
+            "grupo": "weekly",
+            "porcentaje": 40,
+            "severidad": "normal",
+            "activa": true,
+            "reinicia": "2026-09-13T10:59:59.619Z"
+          },
+          {
+            "clave": "weekly_scoped",
+            "alcance": "Fable",
+            "grupo": "weekly",
+            "porcentaje": 38,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": "2026-09-13T10:59:59.619Z"
+          },
+          {
+            "clave": "nimbus_quill",
+            "alcance": null,
+            "grupo": null,
+            "porcentaje": 0,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": null
+          }
+        ]
+      },
+      "local": {
+        "tokens": 1658457542,
+        "tokensVentana": 47638893,
+        "requests": 5061,
+        "transcripciones": 44,
+        "porModelo": {
+          "claude-opus-5": 1492593548,
+          "claude-fable-5-1": 155962858,
+          "claude-opus-4-8": 9901136
+        }
+      }
+    }
+  ]
+}

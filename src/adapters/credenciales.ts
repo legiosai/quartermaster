@@ -20,6 +20,7 @@ interface BlobOAuth {
 }
 
 const esMac = process.platform === 'darwin';
+const esWindows = process.platform === 'win32';
 
 function rutaArchivo(perfil: Perfil): string {
   return join(perfil.directorio, '.credentials.json');
@@ -54,6 +55,19 @@ export function estadoCredencial(perfil: Perfil): EstadoCredencial {
   try {
     const blob = leerBlob(perfil);
     if (!blob || !blob.accessToken) {
+      // En Windows «no está el archivo» NO significa «no estás logueado»: no
+      // sabemos si Claude Code guarda ahí la credencial o usa DPAPI / el
+      // Credential Manager. Decir «sin credencial» sería inventar un
+      // diagnóstico, y encima uno que manda al usuario a loguearse de nuevo.
+      if (esWindows) {
+        return {
+          presente: false,
+          ubicacion,
+          expiraEn: null,
+          vencida: false,
+          error: 'Windows sin verificar: no hay .credentials.json y puede que use DPAPI',
+        };
+      }
       return { presente: false, ubicacion, expiraEn: null, vencida: false, error: null };
     }
     const expiraEn = typeof blob.expiresAt === 'number' ? new Date(blob.expiresAt) : null;

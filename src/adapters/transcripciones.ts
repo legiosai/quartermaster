@@ -67,9 +67,13 @@ export function transcripciones(perfil: Perfil): string[] {
 }
 
 /**
- * Agrega el consumo de un perfil desde `desde` (inclusive). `vistos` se
- * comparte entre llamadas para que un requestId contado en una ventana no se
- * vuelva a contar en otra.
+ * Agrega el consumo de un perfil desde `desde` (inclusive).
+ *
+ * La deduplicación por `requestId` es POR LLAMADA, no entre llamadas: dos
+ * ventanas distintas (7 d y 5 h) son dos agregados independientes y el mismo
+ * request tiene que contarse en las dos. Lo que no puede pasar —y esto es lo
+ * que el set evita— es contarlo dos veces DENTRO de una, que es lo que ocurre
+ * cuando una sesión reanudada reescribe sus records en un archivo nuevo.
  */
 export async function consumoDesde(perfil: Perfil, desde: Date): Promise<Consumo> {
   const acc = nuevoAcumulador();
