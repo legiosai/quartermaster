@@ -113,26 +113,64 @@ leído mal las fechas.
 Corolario operativo: **el endpoint puede desaparecer sin aviso**, y por eso ni
 las transcripciones ni el cache son un fallback opcional (ver `SOUL.md`).
 
-## Uso
+## Instalación
 
 ```bash
 npm install
-make qm                       # cuota y consumo de todos los perfiles.
-                              # Sin red y sin credencial: la cuota sale del disco
-make qm ARGS=--refrescar      # además pide el número al endpoint (token vigente)
-make qm ARGS=--json           # para scripts y statuslines
-make qm ARGS="--watch 60"     # se redibuja cada 60 s
-make qm ARGS=--umbral=80      # código de salida 3 si alguna barra pasa el 80 %
+make instalar        # enlaza bin/qm en ~/.local/bin
+qm                   # ya anda desde cualquier lado
+```
 
-make demo-h0                  # ¿qué perfiles hay y cuáles autentican?
-make demo-h1                  # consumo de los últimos 7 días, por perfil
-make numero-h5                # regenera numeros/h5-cuota.json, ya redactado
+`bin/qm` **busca solo un Node ≥ 22.6**: mira `$QM_NODE`, después el del `PATH`,
+después las versiones de nvm de mayor a menor. Hace falta porque qm se lee
+directo del TypeScript, y en una máquina donde `node` es un 20 —lo normal si el
+sistema trae uno y las versiones nuevas viven en nvm, que sólo se carga en
+shells interactivos— un shebang común falla con un error de sintaxis que no le
+dice nada a nadie.
+
+## Uso
+
+```bash
+qm                     # cuota y consumo de todos los perfiles.
+                       # Sin red y sin credencial: la cuota sale del disco
+qm --breve             # un renglón, en milisegundos. Para una statusline
+qm --refrescar         # además pide el número al endpoint (token vigente)
+qm --json              # para scripts
+qm --watch 60          # se redibuja cada 60 s
+qm --umbral=80         # código de salida 3 si alguna barra pasa el 80 %
+
+make demo-h0           # ¿qué perfiles hay y cuáles autentican?
+make demo-h1           # consumo de los últimos 7 días, por perfil
+make numero-h5         # regenera numeros/h5-cuota.json, ya redactado
 ```
 
 Requiere **Node ≥ 22.6** (lee TypeScript directamente, no hay paso de build).
-Con una versión menor todo comando moría con un `bad option:
---experimental-strip-types` que no le dice nada a nadie; ahora
-`scripts/nodo.cjs` lo intercepta y dice qué hacer.
+
+## En la statusline de Claude Code
+
+Es donde la herramienta cumple su misión: el número deja de ser algo que te
+acordás de mirar y pasa a estar siempre a la vista. `--breve` no toca las
+transcripciones, así que tarda ~85 ms en vez de un segundo.
+
+En el `settings.json` del perfil:
+
+```json
+{
+  "statusLine": { "type": "command", "command": "qm --breve" }
+}
+```
+
+Sale así, con `!` para la barra que el servidor marcó con aviso y `~` para un
+cache de más de 6 horas:
+
+```
+main 75%! · teams 40%
+```
+
+Ojo con lo que **no** hace: el cache se refresca cuando ese perfil corre Claude
+Code, así que la statusline de un perfil se actualiza usándolo. Es suficiente
+para la mecánica que importa —enterarte de que vas al 75 % mientras trabajás—
+y no para vigilar un perfil que no estás usando.
 
 ## Diseño
 

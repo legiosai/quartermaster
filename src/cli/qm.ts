@@ -48,6 +48,7 @@ interface Opciones {
   ventanaH: number;
   umbral: number | null;
   redactado: boolean;
+  breve: boolean;
 }
 
 const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Code
@@ -60,6 +61,8 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --dias=N         ventana del consumo local (por defecto 7)
   qm --umbral=N       sale con código 3 si alguna barra pasa el N %
   qm --redactado      con --json, saca mails y rutas de casa: para comitear
+  qm --breve          un renglón y nada más. No lee transcripciones, así que
+                      tarda milisegundos: es lo que va en una statusline
 
 Nunca refresca un token. Si una credencial venció, lo dice y sigue con el
 resto de los perfiles — la cuota igual se lee, porque sale del disco.`;
@@ -73,11 +76,13 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     ventanaH: 5,
     umbral: null,
     redactado: false,
+    breve: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]!;
     if (a === '--json') o.json = true;
     else if (a === '--redactado') o.redactado = true;
+    else if (a === '--breve') o.breve = true;
     else if (a === '--refrescar' || a === '--red') o.refrescar = true;
     // --sin-red era el nombre viejo de lo que ahora es el comportamiento por
     // defecto. Se acepta sin decir nada para no romper a quien ya lo escribió.
@@ -139,6 +144,22 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
         const fresca = await consultarCuota(perfil);
         if (fresca.estado === 'ok') cuota = fresca;
         else notaRefresco = frase(fresca, perfil.directorio);
+      }
+
+      // En modo breve no se tocan las transcripciones: son 128 archivos y un
+      // segundo entero, y una statusline se dibuja todo el tiempo.
+      if (o.breve) {
+        return {
+          perfil,
+          veredicto,
+          cuota,
+          notaRefresco,
+          archivos: 0,
+          requests: 0,
+          tokens: 0,
+          tokensVentana: 0,
+          porModelo: [],
+        };
       }
 
       const c = await consumoDesde(perfil, desde);
@@ -245,6 +266,32 @@ function redactar(o: Opciones, texto: string | null): string | null {
   return texto.replace(homedir(), '~');
 }
 
+/** `.claude-teams` → `teams`; el por defecto → `main`. Para que entre en una línea. */
+function nombreCorto(n: string): string {
+  const sin = n.replace(/^\.claude-?/, '');
+  return sin.length === 0 ? 'main' : sin;
+}
+
+/**
+ * Un renglón, pensado para una statusline: sólo la barra que más apremia de
+ * cada perfil que tenga número. Los perfiles sin cuota no se listan — en una
+ * línea de 80 columnas, decir «no sé» de tres perfiles tapa el que sí sabés.
+ */
+function pintarBreve(filas: readonly FilaPerfil[]): void {
+  const partes: string[] = [];
+  for (const f of filas) {
+    if (f.cuota.estado !== 'ok') continue;
+    const v = peor(paraMostrar(f.cuota.ventanas));
+    if (v === null) continue;
+    const viejo = Date.now() - f.cuota.medidoEn.getTime() > 6 * 3600_000 ? '~' : '';
+    const aviso = v.severidad !== 'normal' ? '!' : '';
+    partes.push(
+      `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${v.porcentaje.toFixed(0)}%${aviso}`)}`,
+    );
+  }
+  console.log(partes.length === 0 ? 'sin cuota en cache' : partes.join(tenue(' · ')));
+}
+
 function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
   return {
     generado: new Date().toISOString(),
@@ -311,6 +358,7 @@ const unaVuelta = async (): Promise<number> => {
     return 1;
   }
   if (opciones.json) console.log(JSON.stringify(comoJson(filas, opciones), null, 2));
+  else if (opciones.breve) pintarBreve(filas);
   else pintar(filas, opciones);
   if (opciones.umbral !== null && maximo(filas) >= opciones.umbral) return 3;
   return 0;

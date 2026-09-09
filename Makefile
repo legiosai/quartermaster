@@ -18,6 +18,13 @@ numero-h5:  ## H5 · comitea la cuota leída del cache, sin mails ni rutas de ca
 	@npm run --silent qm -- --json --redactado > numeros/h5-cuota.json
 	@echo "numeros/h5-cuota.json escrito"
 
+.PHONY: instalar
+instalar:  ## enlaza bin/qm en ~/.local/bin
+	@mkdir -p $(HOME)/.local/bin
+	@ln -sf "$(CURDIR)/bin/qm" "$(HOME)/.local/bin/qm"
+	@echo "qm -> $(HOME)/.local/bin/qm"
+	@command -v qm >/dev/null || echo "ojo: ~/.local/bin no está en tu PATH"
+
 .PHONY: test
 test:  ## los tests
 	@npm run --silent test

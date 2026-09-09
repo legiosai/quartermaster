@@ -1,0 +1,57 @@
+#!/bin/sh
+# Lanzador de qm.
+#
+# Existe por una razón concreta: qm se lee directo del TypeScript, y eso pide
+# Node >= 22.6. En una máquina donde `node` es un 20 —lo normal si el sistema
+# trae uno y las versiones nuevas viven en nvm, que sólo se carga en shells
+# interactivos— el shebang de siempre falla con un error de sintaxis que no le
+# dice nada a nadie. Así que acá se busca un Node que sirva antes de arrancar.
+#
+# Orden: $QM_NODE, el del PATH, y después las versiones de nvm de mayor a menor.
+
+set -e
+
+sirve() {
+  [ -x "$1" ] || return 1
+  v=$("$1" -e 'const [a,b]=process.versions.node.split(".").map(Number); process.stdout.write(a>22||(a===22&&b>=6)?"si":"no")' 2>/dev/null) || return 1
+  [ "$v" = "si" ]
+}
+
+NODO=""
+if [ -n "$QM_NODE" ] && sirve "$QM_NODE"; then
+  NODO="$QM_NODE"
+elif sirve "$(command -v node 2>/dev/null)"; then
+  NODO="$(command -v node)"
+else
+  # nvm guarda cada versión en su propio directorio. Se ordena por número de
+  # versión, no alfabéticamente, para que v9 no le gane a v22.
+  for d in $(ls -1 "${NVM_DIR:-$HOME/.nvm}/versions/node" 2>/dev/null | sort -t. -k1.2,1n -k2,2n -k3,3n -r); do
+    if sirve "${NVM_DIR:-$HOME/.nvm}/versions/node/$d/bin/node"; then
+      NODO="${NVM_DIR:-$HOME/.nvm}/versions/node/$d/bin/node"
+      break
+    fi
+  done
+fi
+
+if [ -z "$NODO" ]; then
+  echo "qm necesita Node >= 22.6 y no encontré ninguno." >&2
+  echo "Lee TypeScript sin paso de build, y eso recién existe desde 22.6." >&2
+  echo "" >&2
+  echo "  nvm install 22        # o instalá Node 22 como prefieras" >&2
+  echo "  QM_NODE=/ruta/a/node qm   # o decile cuál usar" >&2
+  exit 1
+fi
+
+# La ruta real de este script, siguiendo symlinks: se instala enlazado desde
+# ~/.local/bin y necesita encontrar el src/ del repo igual.
+AQUI=$0
+while [ -L "$AQUI" ]; do
+  DESTINO=$(readlink "$AQUI")
+  case $DESTINO in
+    /*) AQUI=$DESTINO ;;
+    *) AQUI=$(dirname "$AQUI")/$DESTINO ;;
+  esac
+done
+RAIZ=$(cd "$(dirname "$AQUI")/.." && pwd)
+
+exec "$NODO" "$RAIZ/src/cli/qm.ts" "$@"
