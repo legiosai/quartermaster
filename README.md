@@ -265,6 +265,30 @@ Dos decisiones:
   parezca un dato. Es un estado nuevo y explícito, `sin-cuota-legible`, distinto
   de «no hay límites» y de «todavía no se escribió».
 
+### Dos correcciones en la misma fila
+
+La fila de un plan de opencode traía dos cosas mal, y las dos salieron de
+mirarla en la pantalla, no de leer el código.
+
+**El plan mostraba el modelo.** Donde las otras filas ponen `team_tier_1` o
+`plus`, la de opencode ponía `glm-5.3`. Eso salía de `plan: c.modelo` — el id
+del modelo más usado en la ventana. Un modelo no es un plan: no dice qué pagás,
+y **cambia solo** cuando cambiás de modelo. Además ya estaba en el desglose por
+modelo, que es su lugar, así que aparecía dos veces. Ahora ese campo lleva el
+proveedor, y la columna significa lo mismo en todas las filas.
+
+**Y el mapa de nombres no aplicaba nunca.** Las claves eran `zai-coding-plan`,
+`minimax-coding-plan`, `kimi-for-coding`. El `providerID` que opencode guarda en
+esta máquina es **`zai`** a secas. Verificado contra la base: los proveedores
+reales son `zai`, `openai`, `amazon-bedrock`, `anthropic` y `opencode-go`. O sea
+que el nombre lindo no se aplicaba y la fila se llamaba `zai` en vez de `glm`.
+Ahora están las dos formas de cada uno, porque no hay motivo para creer que el
+`providerID` sea estable entre instalaciones — y esa suposición es justo la que
+falló acá.
+
+Ojo con esto último si tenés scripts: la cuenta ahora se llama `glm`, así que un
+`--solo=zai` o un `--ocultar=zai` hay que actualizarlo.
+
 ### Se probó de verdad antes de rendirse
 
 No alcanza con decir «no se puede». Se buscó el porcentaje por los cuatro

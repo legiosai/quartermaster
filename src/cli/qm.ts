@@ -270,9 +270,18 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
  */
 function filasOpencode(o: Opciones): FilaPerfil[] {
   if (!hayOpencode() || o.breve) return [];
+  // Las dos formas del mismo proveedor. opencode no usa un `providerID` estable
+  // entre instalaciones: en la máquina donde se escribió esto la base guarda
+  // `zai` a secas, y el mapa original sólo tenía `zai-coding-plan` — así que la
+  // fila se llamaba `zai` y el nombre lindo no se aplicaba nunca. Verificado
+  // contra la base: los providerID reales son zai, openai, amazon-bedrock,
+  // anthropic y opencode-go.
   const bonito: Record<string, string> = {
+    zai: 'glm',
     'zai-coding-plan': 'glm',
+    minimax: 'minimax',
     'minimax-coding-plan': 'minimax',
+    kimi: 'kimi',
     'kimi-for-coding': 'kimi',
     xai: 'grok',
     'opencode-go': 'opencode-go',
@@ -299,7 +308,12 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
       directorio: 'opencode',
       nombre: bonito[prov] ?? prov,
       porDefecto: false,
-      cuenta: { email: null, organizacion: 'opencode', plan: c.modelo },
+      // El plan es el proveedor, no el modelo. Acá iba `c.modelo` —el id del
+      // modelo más usado— y eso ponía `glm-5.3` donde las otras filas ponen
+      // `team_tier_1` o `plus`: un modelo no es un plan, y además cambia solo
+      // cuando cambiás de modelo. El modelo ya se muestra en el desglose de
+      // abajo, que es su lugar.
+      cuenta: { email: null, organizacion: 'opencode', plan: prov },
     },
     veredicto: `vía opencode · último uso hace ${duracion(Date.now() - cuando.getTime())}`,
     cuota: cuotaDeLimite(prov, limites.get(prov)),
