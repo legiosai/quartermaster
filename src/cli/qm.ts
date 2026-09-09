@@ -31,7 +31,13 @@ import {
 } from '../adapters/codex.ts';
 import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import { leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
-import { consumoOpencode, hayOpencode, ultimoUsoOpencode } from '../adapters/opencode.ts';
+import {
+  consumoOpencode,
+  hayOpencode,
+  limitesOpencode,
+  ultimoUsoOpencode,
+  type LimiteOpencode,
+} from '../adapters/opencode.ts';
 import {
   esPreocupante,
   frase,
@@ -276,6 +282,7 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
   const enVentana = new Map(consumoOpencode(ventana).map((c) => [c.proveedor, c.tokens]));
   const enDias = new Map(consumoOpencode(desde).map((c) => [c.proveedor, c]));
   const visto = ultimoUsoOpencode();
+  const limites = limitesOpencode();
 
   // 30 días: una cuenta que usás cada tanto tiene que seguir estando.
   const corte = Date.now() - 30 * 24 * 3600_000;
@@ -295,10 +302,7 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
       cuenta: { email: null, organizacion: 'opencode', plan: c.modelo },
     },
     veredicto: `vía opencode · último uso hace ${duracion(Date.now() - cuando.getTime())}`,
-    cuota: {
-      estado: 'sin-cuota-legible',
-      detalle: `plan por API key: el porcentaje vive en el endpoint de ${prov} y no en esta máquina`,
-    },
+    cuota: cuotaDeLimite(prov, limites.get(prov)),
     notaRefresco: null,
     proyeccion: null,
     archivos: c.sesiones,
@@ -308,6 +312,47 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
     porModelo: c.modelo === null ? [] : [[c.modelo, c.tokens]],
   });
   });
+}
+
+/**
+ * Lo que se puede afirmar de un plan por API key.
+ *
+ * No hay porcentaje —se probó: ni `/models` ni una llamada real devuelven
+ * cabeceras de límite en zai ni en minimax—. Pero cuando el proveedor te frena
+ * contesta un 429 con la fecha de reinicio, y opencode guarda esa respuesta.
+ * Con eso alcanza para lo único que se hace con el número: saber si estás
+ * frenado y cuándo te liberás.
+ *
+ * Si el reinicio ya pasó, no se afirma nada: se dice que no hay barra y cuándo
+ * fue la última vez que te frenaron. Un límite de la semana pasada no dice nada
+ * de hoy.
+ */
+function cuotaDeLimite(prov: string, lim: LimiteOpencode | undefined): ResultadoCuota {
+  const sinBarra = (extra: string): ResultadoCuota => ({
+    estado: 'sin-cuota-legible',
+    detalle: `plan por API key: el porcentaje no está en esta máquina${extra}`,
+  });
+  if (lim === undefined) return sinBarra('');
+  if (lim.reinicia !== null && lim.reinicia.getTime() > Date.now()) {
+    // Evidencia directa: el proveedor dijo que te frenó y cuándo se libera.
+    return {
+      estado: 'ok',
+      origen: 'cache',
+      medidoEn: lim.cuando,
+      ventanas: [
+        {
+          clave: 'plan',
+          alcance: null,
+          grupo: 'weekly',
+          porcentaje: 100,
+          severidad: 'warning',
+          activa: true,
+          reinicia: lim.reinicia,
+        },
+      ],
+    };
+  }
+  return sinBarra(` · último límite hace ${duracion(Date.now() - lim.cuando.getTime())}`);
 }
 
 async function medir(o: Opciones): Promise<FilaPerfil[]> {

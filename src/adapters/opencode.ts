@@ -64,6 +64,85 @@ export function ultimoUsoOpencode(): Map<string, Date> {
   return salida;
 }
 
+/** Lo último que se supo de un límite alcanzado, por proveedor. */
+export interface LimiteOpencode {
+  readonly proveedor: string;
+  /** Cuándo opencode se comió el error. */
+  readonly cuando: Date;
+  /** Cuándo dice el proveedor que se libera. null si el mensaje no lo trae. */
+  readonly reinicia: Date | null;
+  readonly mensaje: string;
+}
+
+/**
+ * Los límites que estos proveedores SÍ dejan en el disco.
+ *
+ * No hay porcentaje por ningún lado —se probó: ni `/models` ni una llamada real
+ * devuelven cabeceras `x-ratelimit-*` en zai ni en minimax—. Pero cuando te
+ * frenan, contestan un 429 con el texto y la fecha de reinicio, y **opencode
+ * guarda esa respuesta**. O sea que los dos datos que de verdad importan —¿me
+ * frenaron? ¿cuándo me libero?— están en la máquina, gratis y sin credencial.
+ *
+ * Es más pobre que una barra y es exactamente lo que hay: mejor eso que un
+ * porcentaje inventado.
+ */
+export function limitesOpencode(): Map<string, LimiteOpencode> {
+  const salida = new Map<string, LimiteOpencode>();
+  if (!hayOpencode()) return salida;
+  let db: DatabaseSync;
+  try {
+    db = new DatabaseSync(BASE, { readOnly: true });
+  } catch {
+    return salida;
+  }
+  try {
+    const filas = db
+      .prepare(
+        `select json_extract(s.model,'$.providerID') as proveedor,
+                m.time_updated as cuando,
+                coalesce(json_extract(m.data,'$.error.data.message'),
+                         json_extract(m.data,'$.error.name')) as mensaje
+           from message m join session s on s.id = m.session_id
+          where json_extract(m.data,'$.error') is not null
+          order by m.time_updated desc
+          limit 400`,
+      )
+      .all() as { proveedor: string | null; cuando: number; mensaje: string | null }[];
+
+    for (const f of filas) {
+      if (f.proveedor === null || f.mensaje === null) continue;
+      if (!/limit/i.test(f.mensaje)) continue;
+      // Sólo el más nuevo de cada proveedor: la consulta ya viene ordenada.
+      if (salida.has(f.proveedor)) continue;
+      salida.set(f.proveedor, {
+        proveedor: f.proveedor,
+        cuando: new Date(Number(f.cuando)),
+        reinicia: fechaDeReinicio(f.mensaje),
+        mensaje: f.mensaje,
+      });
+    }
+  } catch {
+    /* nada */
+  } finally {
+    db.close();
+  }
+  return salida;
+}
+
+/**
+ * «… will reset at 2026-09-11 18:35:24» -> Date.
+ *
+ * Los proveedores mandan la fecha adentro de una oración en inglés, sin zona
+ * horaria. Se interpreta como hora local, que es lo que se ve en la práctica:
+ * el reinicio que informó zai coincidía con el reloj de la máquina.
+ */
+export function fechaDeReinicio(mensaje: string): Date | null {
+  const m = /reset at\s+(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(:\d{2})?)/i.exec(mensaje);
+  if (m === null) return null;
+  const d = new Date(`${m[1]}T${m[2]!.length === 5 ? `${m[2]}:00` : m[2]}`);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 export interface CuentaOpencode {
   /** `zai-coding-plan`, `minimax-coding-plan`, … tal cual lo nombra opencode. */
   readonly proveedor: string;

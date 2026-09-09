@@ -265,12 +265,36 @@ Dos decisiones:
   parezca un dato. Es un estado nuevo y explícito, `sin-cuota-legible`, distinto
   de «no hay límites» y de «todavía no se escribió».
 
-  Se buscó igual antes de rendirse. opencode **sí** guarda cabeceras de límite,
-  pero sólo cuando la respuesta falla, y sólo las de OpenAI (`x-codex-*`, 8
-  apariciones): de `zai`, `minimax` y `xai` no guarda ninguna. Así que hoy el
-  porcentaje de esos tres no está en esta máquina, ni en la base de opencode ni
-  en ningún archivo suyo. Sacarlo pediría llamar al endpoint de cada proveedor
-  con su API key — la clave que este adaptador decide no leer.
+### Se probó de verdad antes de rendirse
+
+No alcanza con decir «no se puede». Se buscó el porcentaje por los cuatro
+caminos que había, con los endpoints reales sacados del binario de opencode:
+
+| Camino | Resultado |
+|---|---|
+| Cabeceras en la base de opencode | sólo las de OpenAI (`x-codex-*`), y sólo en respuestas con error |
+| `GET /models` con la clave | Z.ai **200**, MiniMax **200** — sin una sola cabecera `x-ratelimit-*` |
+| Una llamada real de 1 token | MiniMax **200**, sin cabeceras. xAI **403**: el token OAuth que guarda opencode está vencido |
+| Un archivo suyo en el disco | no existe |
+
+**Pero la llamada real encontró otra cosa.** Z.ai contestó `429` con esto:
+
+```json
+{"error":{"code":"1310","message":"Weekly/Monthly Limit Exhausted.
+          Your limit will reset at 2026-09-11 18:35:24"}}
+```
+
+O sea que el porcentaje no existe, pero **los dos datos que se usan sí**:
+¿me frenaron? y ¿cuándo me libero? Y no hace falta salir a la red para
+tenerlos, porque **opencode guarda esas respuestas**: en su base hay límites
+alcanzados por proveedor, con la fecha de reinicio adentro del texto —incluida
+la ventana de 5 h de Grok—. Se leen del disco, gratis y sin credencial, igual
+que todo lo demás.
+
+Así que una cuenta de opencode que está frenada **sí muestra barra**: 100 %,
+con su reinicio y su «libre en». Una que no lo está no afirma nada — dice
+cuándo fue la última vez que la frenaron, porque un límite de la semana pasada
+no dice nada de hoy.
 
 Lo que encontré en esta máquina para la que falta:
 

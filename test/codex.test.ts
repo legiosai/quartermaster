@@ -3,6 +3,7 @@
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parsearRateLimits, tieneBarras } from '../src/adapters/codex.ts';
+import { fechaDeReinicio } from '../src/adapters/opencode.ts';
 
 /** Como lo escribe el app-server: camelCase. */
 const DEL_SERVIDOR = {
@@ -94,5 +95,26 @@ describe('codex · el balde vacío que venía después del bueno', () => {
 
   it('un cero es un porcentaje, no un vacío', () => {
     strictEqual(tieneBarras({ primary: { used_percent: 0 } }), true);
+  });
+});
+
+describe('opencode · la fecha de reinicio que viene adentro de una oración', () => {
+  it('la saca del texto del 429', () => {
+    // Es lo único que estos planes dejan: no hay porcentaje por ningún lado,
+    // pero cuando te frenan dicen cuándo te liberás.
+    const d = fechaDeReinicio('Usage limit reached for 5 hour. Your limit will reset at 2026-09-01 00:11:03');
+    strictEqual(d?.getFullYear(), 2026);
+    strictEqual(d?.getMonth(), 8);
+    strictEqual(d?.getDate(), 1);
+  });
+
+  it('acepta la forma sin segundos y la separada con T', () => {
+    strictEqual(fechaDeReinicio('will reset at 2026-09-11 18:35')?.getMinutes(), 35);
+    strictEqual(fechaDeReinicio('will reset at 2026-09-11T18:35:24')?.getHours(), 18);
+  });
+
+  it('sin fecha en el mensaje devuelve null, no una fecha inventada', () => {
+    strictEqual(fechaDeReinicio('The usage limit has been reached'), null);
+    strictEqual(fechaDeReinicio('will reset at mañana'), null);
   });
 });
