@@ -35,24 +35,56 @@ export function servicioLlavero(directorio: string): string {
  * nivel más arriba (~/.claude.json) en vez de adentro del directorio.
  */
 export function rutaConfig(directorio: string): string | null {
-  // El perfil por defecto guarda su config en ~/.claude.json, al lado del
-  // directorio y no adentro. Los demás la tienen adentro. Se prueban las dos.
-  for (const ruta of [join(directorio, '.claude.json'), `${directorio}.json`]) {
-    if (existsSync(ruta)) return ruta;
-  }
-  return null;
+  return rutasConfig(directorio)[0] ?? null;
+}
+
+/**
+ * Los `.claude.json` candidatos de un perfil, del más rico al más pobre.
+ *
+ * El perfil por defecto guarda su config al lado del directorio (`~/.claude.json`)
+ * y los demás adentro (`<dir>/.claude.json`), así que se prueban las dos. Lo
+ * que NO se puede hacer es quedarse con la primera que exista, que es lo que
+ * hacía antes: Claude Code creó un `~/.claude/.claude.json` de 9 claves —sin
+ * cuenta y sin cuota— al lado del `~/.claude.json` de 45 que sí las tenía, y el
+ * perfil pasó a mostrarse como «sin cuenta» de un día para el otro.
+ *
+ * Un archivo vacío que tapa a uno lleno es la misma falla que este repo le
+ * critica a los monitores que leen una sola credencial, sólo que un nivel más
+ * abajo. Así que se ordenan por lo que traen, no por dónde están.
+ */
+export function rutasConfig(directorio: string): string[] {
+  const riqueza = (ruta: string): number => {
+    try {
+      const j = JSON.parse(readFileSync(ruta, 'utf8')) as Record<string, unknown>;
+      return (j['cachedUsageUtilization'] !== undefined ? 2 : 0) + (j['oauthAccount'] !== undefined ? 1 : 0);
+    } catch {
+      return -1;
+    }
+  };
+  return [join(directorio, '.claude.json'), `${directorio}.json`]
+    .filter((r) => existsSync(r))
+    .map((ruta) => ({ ruta, r: riqueza(ruta) }))
+    .sort((a, b) => b.r - a.r)
+    .map((x) => x.ruta);
 }
 
 /** El .claude.json de un perfil, ya parseado. null si no hay o no se puede leer. */
 export function leerConfig(directorio: string): Record<string, unknown> | null {
-  const ruta = rutaConfig(directorio);
-  if (ruta === null) return null;
-  try {
-    return JSON.parse(readFileSync(ruta, 'utf8')) as Record<string, unknown>;
-  } catch {
-    // Un .claude.json corrupto no debería tumbar el descubrimiento entero.
-    return null;
+  // Se fusionan los candidatos de pobre a rico, así que si uno tiene la cuenta
+  // y el otro la cuota, no se pierde ninguna de las dos.
+  const rutas = rutasConfig(directorio);
+  if (rutas.length === 0) return null;
+  let salida: Record<string, unknown> | null = null;
+  for (const ruta of [...rutas].reverse()) {
+    try {
+      const j = JSON.parse(readFileSync(ruta, 'utf8')) as Record<string, unknown>;
+      const previo: Record<string, unknown> = salida ?? {};
+      salida = { ...previo, ...j };
+    } catch {
+      // Un .claude.json corrupto no debería tumbar el descubrimiento entero.
+    }
   }
+  return salida;
 }
 
 export function leerCuenta(directorio: string): Cuenta | null {
