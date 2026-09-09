@@ -31,6 +31,17 @@ import Foundation
 let SEGUNDOS_SONDEO: TimeInterval = 300
 // Coalescer escrituras: Claude Code reescribe .claude.json varias veces seguidas.
 let DEBOUNCE: TimeInterval = 1.5
+/// Piso para cualquier cadencia que salga a la RED.
+///
+/// La primera versión bajaba a 20 s cuando una barra pasaba el 90 %, y como
+/// además refrescaba todas las cuentas en cada vuelta daban ~360 pedidos por
+/// hora, sostenidos mientras la barra siguiera alta. Claude Code pide la cuota
+/// del orden de una vez por sesión. Un endpoint no documentado que además
+/// puede desaparecer sin aviso no es lugar para eso, y la diferencia real es
+/// chica: a 1,6 puntos por minuto, 60 s son 1,6 puntos de atraso.
+///
+/// La lectura del disco no tiene piso: es gratis y la dispara el vigía.
+let MINIMO_RED: TimeInterval = 60
 let UMBRALES = [80, 95]
 let ANCHO_BARRA = 12
 let VIEJO_SEGUNDOS = 6 * 3600
@@ -163,10 +174,10 @@ struct Ventana {
     let activa: Bool
     let reinicia: Date?
     let grupo: String?
+    /// Lo decide qm, no acá.
+    let preocupa: Bool
 
     var nombre: String { alcance == nil ? clave : "\(clave) (\(alcance!))" }
-    /// Una barra preocupa si el servidor lo dice, o si pasó el 80 %.
-    var preocupa: Bool { severidad != "normal" || porcentaje >= 80 }
 }
 
 struct Proyeccion {
@@ -213,26 +224,18 @@ struct PerfilVista {
     let credencial: String
     let hayNumero: Bool
     let frase: String?
-    let ventanas: [Ventana]
+    /// Ya filtradas por qm: las que vale la pena mostrar.
+    let mostrar: [Ventana]
+    /// La que frena antes, la sesión y la semanal — resueltas por qm.
+    let frena: Ventana?
+    let sesion: Ventana?
+    let semanal: Ventana?
     let edadSegundos: Int?
     let proyeccion: Proyeccion?
 }
 
-/// Las que vale la pena mostrar: el servidor manda barras que no aplican a la cuenta.
-func paraMostrar(_ vs: [Ventana]) -> [Ventana] {
-    vs.filter { $0.activa || $0.porcentaje > 0 || $0.severidad != "normal" }
-}
-
-/// La que hay que mirar: la activa gana, salvo que haya una más alta. Es lo
-/// único que evita que un 75 % con aviso quede tapado por un 8 % más lindo.
-func peor(_ vs: [Ventana]) -> Ventana? {
-    guard !vs.isEmpty else { return nil }
-    let activa = vs.sorted {
-        $0.activa != $1.activa ? $0.activa : $0.porcentaje > $1.porcentaje
-    }[0]
-    let alta = vs.sorted { $0.porcentaje > $1.porcentaje }[0]
-    return alta.porcentaje > activa.porcentaje ? alta : activa
-}
+// Las reglas del núcleo no se reimplementan acá: `qm` manda `mostrar`, `frena`,
+// `sesion` y `semanal` ya resueltas. Este archivo dibuja y nada más.
 
 let fechaISO: ISO8601DateFormatter = {
     let f = ISO8601DateFormatter()
@@ -280,15 +283,18 @@ func leer() -> Lectura {
     let perfiles: [PerfilVista] = crudos.map { p in
         let cuota = p["cuota"] as? [String: Any] ?? [:]
         let hayNumero = (cuota["estado"] as? String) == "ok"
-        let ventanas: [Ventana] = (cuota["ventanas"] as? [[String: Any]] ?? []).map { v in
+        func aVentana(_ v: [String: Any]) -> Ventana {
             Ventana(clave: v["clave"] as? String ?? "?",
                     alcance: v["alcance"] as? String,
                     porcentaje: v["porcentaje"] as? Int ?? 0,
                     severidad: v["severidad"] as? String ?? "normal",
                     activa: v["activa"] as? Bool ?? false,
                     reinicia: fecha(v["reinicia"]),
-                    grupo: v["grupo"] as? String)
+                    grupo: v["grupo"] as? String,
+                    preocupa: v["preocupa"] as? Bool ?? false)
         }
+        let mostrar = (cuota["mostrar"] as? [[String: Any]] ?? []).map(aVentana)
+        let una = { (k: String) -> Ventana? in (cuota[k] as? [String: Any]).map(aVentana) }
         var proy: Proyeccion? = nil
         if let pr = p["proyeccion"] as? [String: Any], (pr["estado"] as? String) == "sube",
            let techo = fecha(pr["techo"]) {
@@ -305,7 +311,8 @@ func leer() -> Lectura {
             credencial: p["credencial"] as? String ?? "?",
             hayNumero: hayNumero,
             frase: cuota["frase"] as? String,
-            ventanas: ventanas,
+            mostrar: mostrar,
+            frena: una("frena"), sesion: una("sesion"), semanal: una("semanal"),
             edadSegundos: cuota["edadSegundos"] as? Int,
             proyeccion: proy)
     }
@@ -354,8 +361,8 @@ final class VistaCuenta: NSView {
         self.sub = partes.joined(separator: "  ·  ")
         self.icono = icono
 
-        let visibles = paraMostrar(p.ventanas)
-        let cual = peor(visibles)
+        let visibles = p.mostrar
+        let cual = p.frena
         let chocas = p.proyeccion?.chocas ?? false
         self.barras = p.hayNumero ? visibles.map { v in
             var pie = v.reinicia.map { "reinicia en \(duracion(Int($0.timeIntervalSinceNow)))" } ?? ""
@@ -512,12 +519,12 @@ final class Barra: NSObject, NSApplicationDelegate {
     func cadencia() -> TimeInterval {
         let alto = ultimas.map { max($0.sesion ?? 0, $0.semanal ?? 0) }.max() ?? 0
         var segundos: TimeInterval = SEGUNDOS_SONDEO
-        if alto >= 90 { segundos = 20 }
-        else if alto >= 75 { segundos = 45 }
-        else if alto >= 50 { segundos = 120 }
-        if let m = minutosAlTecho, m <= 30 { segundos = min(segundos, 20) }
-        else if let m = minutosAlTecho, m <= 90 { segundos = min(segundos, 60) }
-        return segundos
+        if alto >= 90 { segundos = MINIMO_RED }
+        else if alto >= 75 { segundos = 120 }
+        else if alto >= 50 { segundos = 240 }
+        if let m = minutosAlTecho, m <= 30 { segundos = min(segundos, MINIMO_RED) }
+        else if let m = minutosAlTecho, m <= 90 { segundos = min(segundos, 120) }
+        return max(MINIMO_RED, segundos)
     }
 
     var minutosAlTecho: Double? = nil
@@ -549,7 +556,12 @@ final class Barra: NSObject, NSApplicationDelegate {
         DispatchQueue.global(qos: .utility).async {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: rutaQm())
-            p.arguments = ["--calentar"]
+            // Sólo las cuentas que se mueven. Refrescar una que va al 9 % es
+            // gastar un pedido para confirmar que no pasó nada.
+            let vale = self.ultimas.filter { max($0.sesion ?? 0, $0.semanal ?? 0) >= 40 }.map(\.nombre)
+            p.arguments = vale.isEmpty || vale.count == self.ultimas.count
+                ? ["--calentar"]
+                : ["--calentar", "--cuentas=" + vale.joined(separator: ",")]
             p.standardOutput = FileHandle.nullDevice
             p.standardError = FileHandle.nullDevice
             try? p.run()
@@ -631,7 +643,7 @@ final class Barra: NSObject, NSApplicationDelegate {
             var peorPct = 0
 
             for p in perfiles {
-                let visibles = paraMostrar(p.ventanas)
+                let visibles = p.mostrar
 
                 // El menú lo dibuja VistaCuenta: acá sólo se junta lo que va
                 // arriba, en el item.
@@ -641,20 +653,15 @@ final class Barra: NSObject, NSApplicationDelegate {
                 menu.addItem(fila)
                 menu.addItem(.separator())
 
-                if p.hayNumero, let cual = peor(visibles) {
+                if p.hayNumero, let cual = p.frena {
                     let viejo = (p.edadSegundos ?? 0) >= VIEJO_SEGUNDOS
                     // El `!` no es sólo severidad: también avisa que a este
                     // ritmo tocás el techo ANTES del reinicio.
                     let chocas = p.proyeccion?.chocas ?? false
                     let esLaProyectada = { (v: Ventana) in chocas && v.clave == cual.clave }
 
-                    let ses = visibles.first { $0.grupo == "session" || $0.clave == "session" }
-                    // Puede haber más de una semanal (weekly_all y
-                    // weekly_scoped): manda la que frena antes de las dos.
-                    let sem = visibles
-                        .filter { $0.grupo == "weekly" || $0.clave.hasPrefix("weekly") || $0.clave == "seven_day" }
-                        .max { ($0.activa ? 1 : 0, $0.porcentaje) < ($1.activa ? 1 : 0, $1.porcentaje) }
-                        ?? visibles.filter { $0.clave != ses?.clave }.max { $0.porcentaje < $1.porcentaje }
+                    let ses = p.sesion
+                    let sem = p.semanal
 
                     piezas.append(Trozo(
                         nombre: corto(p.nombre), producto: p.producto, indice: piezas.count,
@@ -907,7 +914,7 @@ final class Barra: NSObject, NSApplicationDelegate {
             }
         }
         // El aviso que de verdad sirve: enterarte ANTES de chocar, no después.
-        if let pr = p.proyeccion, pr.chocas, let cual = peor(visibles) {
+        if let pr = p.proyeccion, pr.chocas, let cual = p.frena {
             let ventana = cual.reinicia.map { String(Int($0.timeIntervalSince1970 / 60)) } ?? "sin-reinicio"
             let clave = "\(p.nombre)|\(cual.nombre)|\(ventana)|choque"
             if avisados.insert(clave).inserted {

@@ -20,13 +20,24 @@ import { cuotaEnCache } from '../adapters/cache-cuota.ts';
 import { anotar, claveBarra, muestras, type Lectura } from '../adapters/historial.ts';
 import { proyectar, type Proyeccion } from '../core/proyeccion.ts';
 import { consultarCuota } from '../adapters/cuota.ts';
-import { codexEnCache, consultarCodex, duenoCodex, hayCodex, DIRECTORIO_CODEX } from '../adapters/codex.ts';
+import {
+  codexEnCache,
+  codexEnDisco,
+  consultarCodex,
+  consumoCodex,
+  duenoCodex,
+  hayCodex,
+  DIRECTORIO_CODEX,
+} from '../adapters/codex.ts';
 import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import {
+  esPreocupante,
   frase,
   nombreVentana,
   paraMostrar,
   peor,
+  semanal,
+  sesion,
   totalTokens,
   type Perfil,
   type ResultadoCuota,
@@ -78,6 +89,8 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --sin-codex      no mira la cuenta de Codex
   qm --calentar       refresca el endpoint de cada perfil y el de Codex, guarda
                       lo que vuelve y no imprime nada. Es lo que corre la barra
+  qm --cuentas=a,b    con --calentar: sólo esas cuentas. Cada una que se saltea
+                      es un pedido menos a un endpoint que no es nuestro
   qm --calentar-codex igual pero sólo Codex, sin tocar el llavero
 
 Nunca refresca un token. Si una credencial venció, lo dice y sigue con el
@@ -154,15 +167,22 @@ interface FilaPerfil {
 async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
   if (!hayCodex()) return null;
 
-  // El cache primero, como siempre. La diferencia con Claude es que este cache
-  // lo escribimos nosotros, porque Codex no deja ninguno.
-  let { cuota, info } = codexEnCache();
-  const edad =
-    cuota.estado === 'ok' ? Date.now() - cuota.medidoEn.getTime() : Number.POSITIVE_INFINITY;
-  // --breve no habla con nadie: tiene que seguir tardando milisegundos.
-  const conviene = o.refrescar || (!o.breve && edad > CODEX_FRESCO_MS);
+  // El disco primero, igual que en Claude: Codex deja la cuota en sus rollouts
+  // y leerla no cuesta red ni credencial. Se compara con lo último que dejó el
+  // app-server y gana la más nueva de las dos.
+  let { cuota, info } = codexEnDisco();
+  const guardada = codexEnCache();
+  if (
+    guardada.cuota.estado === 'ok' &&
+    (cuota.estado !== 'ok' || guardada.cuota.medidoEn.getTime() > cuota.medidoEn.getTime())
+  ) {
+    ({ cuota, info } = guardada);
+  }
+  // Sólo se sale a la red cuando lo piden. Antes se refrescaba solo con el
+  // cache vencido, y eso —con la barra sondeando— era pegarle al app-server
+  // todo el tiempo para confirmar lo que el disco ya decía.
   let notaRefresco: string | null = null;
-  if (conviene) {
+  if (o.refrescar) {
     const fresca = await consultarCodex();
     if (fresca.cuota.estado === 'ok') ({ cuota, info } = fresca);
     else if (cuota.estado !== 'ok') cuota = fresca.cuota;
@@ -201,20 +221,25 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     }
   }
 
+  // El piso que pide SOUL: aunque el app-server se caiga y el disco no traiga
+  // barras, los rollouts siguen teniendo cuántos tokens gastaste.
+  const local = o.breve
+    ? null
+    : consumoCodex(new Date(Date.now() - o.dias * 24 * 3600_000));
+  const ventana = o.breve ? null : consumoCodex(new Date(Date.now() - o.ventanaH * 3600_000));
+
   return {
     producto: 'codex',
-    // No hay adaptador de transcripciones para Codex: decir 0 sería afirmar
-    // que no consumiste nada, y lo cierto es que no lo medimos.
-    localMedido: false,
+    localMedido: local !== null,
     perfil,
     veredicto: info === null ? 'la pone codex' : `la pone codex · ${info.creditosReset} reset(s) sin usar`,
     cuota,
     notaRefresco,
     proyeccion,
-    archivos: 0,
-    requests: 0,
-    tokens: 0,
-    tokensVentana: 0,
+    archivos: local?.archivos ?? 0,
+    requests: local?.requests ?? 0,
+    tokens: local?.tokens ?? 0,
+    tokensVentana: ventana?.tokens ?? 0,
     porModelo: [],
   };
 }
@@ -467,6 +492,23 @@ function pintarBreve(filas: readonly FilaPerfil[]): void {
   console.log(partes.length === 0 ? 'sin cuota en cache' : partes.join(tenue(' · ')));
 }
 
+function ventanaJson(v: VentanaCuota): Record<string, unknown> {
+  return {
+    clave: v.clave,
+    alcance: v.alcance,
+    grupo: v.grupo,
+    porcentaje: v.porcentaje,
+    severidad: v.severidad,
+    activa: v.activa,
+    reinicia: v.reinicia?.toISOString() ?? null,
+    nombre: nombreVentana(v),
+    preocupa: esPreocupante(v),
+  };
+}
+
+const ventanaJson0 = (v: VentanaCuota | null): Record<string, unknown> | null =>
+  v === null ? null : ventanaJson(v);
+
 function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
   return {
     generado: new Date().toISOString(),
@@ -486,15 +528,16 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
               origen: f.cuota.origen,
               medidoEn: f.cuota.medidoEn.toISOString(),
               edadSegundos: Math.round((Date.now() - f.cuota.medidoEn.getTime()) / 1000),
-              ventanas: f.cuota.ventanas.map((v) => ({
-                clave: v.clave,
-                alcance: v.alcance,
-                grupo: v.grupo,
-                porcentaje: v.porcentaje,
-                severidad: v.severidad,
-                activa: v.activa,
-                reinicia: v.reinicia?.toISOString() ?? null,
-              })),
+              ventanas: f.cuota.ventanas.map(ventanaJson),
+              // Las respuestas ya masticadas. Existen para que los que dibujan
+              // NO reimplementen las reglas: `peor()` y `paraMostrar()` llegaron
+              // a estar copiadas en Python, JavaScript y Swift, y una regla
+              // copiada tres veces vale distinto en cada pantalla en cuanto
+              // alguien toca el núcleo.
+              mostrar: paraMostrar(f.cuota.ventanas).map(ventanaJson),
+              frena: ventanaJson0(peor(paraMostrar(f.cuota.ventanas))),
+              sesion: ventanaJson0(sesion(paraMostrar(f.cuota.ventanas))),
+              semanal: ventanaJson0(semanal(paraMostrar(f.cuota.ventanas))),
             }
           : {
               estado: f.cuota.estado,
@@ -545,9 +588,14 @@ function maximo(filas: readonly FilaPerfil[]): number {
 // perfil de Claude y Codex— y no imprime nada.
 if (process.argv.includes('--calentar') || process.argv.includes('--calentar-codex')) {
   const soloCodex = !process.argv.includes('--calentar');
+  // --cuentas=a,b limita a quiénes se les pregunta. Cada cuenta que se salta
+  // es un pedido menos a un endpoint que no es nuestro.
+  const filtro = process.argv.find((a) => a.startsWith('--cuentas='));
+  const cuentas = filtro === undefined ? null : new Set(filtro.slice('--cuentas='.length).split(','));
   let bien = false;
   if (!soloCodex) {
     for (const perfil of descubrirPerfiles()) {
+      if (cuentas !== null && !cuentas.has(perfil.nombre)) continue;
       const r = await consultarCuota(perfil);
       if (r.estado === 'ok') {
         guardarEndpoint(perfil.nombre, r);
@@ -555,7 +603,9 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
       }
     }
   }
-  const c = await consultarCodex();
+  const c = cuentas !== null && !cuentas.has('codex')
+    ? { cuota: { estado: 'no-consultada' as const } }
+    : await consultarCodex();
   process.exit(c.cuota.estado === 'ok' || bien ? 0 : 1);
 }
 

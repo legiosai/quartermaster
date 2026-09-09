@@ -148,6 +148,28 @@ export function paraMostrar(ventanas: readonly VentanaCuota[]): VentanaCuota[] {
   return ventanas.filter((v) => v.activa || v.porcentaje > 0 || v.severidad !== 'normal');
 }
 
+/**
+ * La ventana corta: «¿puedo seguir ahora?».
+ *
+ * Vive acá y no en cada renderizador porque hubo tres copias de estas reglas
+ * —Python, JavaScript y Swift— y una regla copiada tres veces es una regla que
+ * en algún momento va a valer distinto en cada pantalla.
+ */
+export function sesion(ventanas: readonly VentanaCuota[]): VentanaCuota | null {
+  return ventanas.find((v) => v.grupo === 'session' || v.clave === 'session') ?? null;
+}
+
+/** La semanal que frena antes, cuando hay más de una (weekly_all y weekly_scoped). */
+export function semanal(ventanas: readonly VentanaCuota[]): VentanaCuota | null {
+  const candidatas = ventanas.filter(
+    (v) => v.grupo === 'weekly' || v.clave.startsWith('weekly') || v.clave === 'seven_day',
+  );
+  if (candidatas.length === 0) return null;
+  return [...candidatas].sort((a, b) =>
+    a.activa !== b.activa ? (a.activa ? -1 : 1) : b.porcentaje - a.porcentaje,
+  )[0]!;
+}
+
 /** Nombre legible de una ventana, con su alcance si lo tiene. */
 export function nombreVentana(v: VentanaCuota): string {
   return v.alcance === null ? v.clave : `${v.clave} (${v.alcance})`;

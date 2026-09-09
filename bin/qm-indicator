@@ -92,26 +92,20 @@ def barra(pct: float) -> str:
 
 
 def nombre_ventana(v: dict) -> str:
-    return v["clave"] if not v.get("alcance") else f"{v['clave']} ({v['alcance']})"
+    """El nombre ya viene resuelto; el fallback es por si el JSON es viejo."""
+    return v.get("nombre") or (
+        v["clave"] if not v.get("alcance") else f"{v['clave']} ({v['alcance']})"
+    )
 
 
-def peor(ventanas: list[dict]) -> dict | None:
-    """La que frena primero: la más alta; la activa desempata."""
-    if not ventanas:
-        return None
-    alta = max(ventanas, key=lambda v: v["porcentaje"])
-    activa = next((v for v in ventanas if v.get("activa")), None)
-    if activa and activa["porcentaje"] >= alta["porcentaje"]:
-        return activa
-    return alta
-
-
-def mostrables(ventanas: list[dict]) -> list[dict]:
-    return [
-        v
-        for v in ventanas
-        if v.get("activa") or v["porcentaje"] > 0 or v.get("severidad") != "normal"
-    ]
+# Acá había un `peor()` y un `mostrables()` reimplementados. Eran la MISMA
+# regla que vive en src/core/tipos.ts, copiada — y llegó a estar copiada tres
+# veces, en Python, JavaScript y Swift. Una regla en tres lenguajes vale
+# distinto en cuanto alguien toca uno solo, y justamente esta es la que evita
+# que un 75 % con aviso quede tapado por un 8 % que se ve más lindo.
+#
+# Ahora `qm --json` manda `mostrar`, `frena`, `sesion` y `semanal` ya resueltas
+# y esto sólo dibuja, que es lo que dice el docstring de arriba de todo.
 
 
 def frase_ritmo(p: dict | None) -> str | None:
@@ -302,8 +296,8 @@ class Indicador:
                 self.menu.append(Gtk.SeparatorMenuItem())
                 continue
 
-            ventanas = mostrables(cuota.get("ventanas", []))
-            peor_v = peor(ventanas)
+            ventanas = cuota.get("mostrar") or []
+            peor_v = cuota.get("frena")
             proy = p.get("proyeccion")
             chocas = bool(proy and proy["estado"] == "sube" and proy["chocasAntesDelReinicio"])
 

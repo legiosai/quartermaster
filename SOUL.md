@@ -2,10 +2,15 @@
 
 **Mission:** nobody should discover their quota is gone by hitting the wall.
 
-**Metric:** the fraction of a machine's real Claude Code profiles that the tool
-can report a live number for. Every existing tool scores 1 of N — they read the
+**Metric:** the fraction of a machine's real **agent accounts** that the tool can
+report a live number for. Every existing tool scores 1 of N — they read the
 default credential and nothing else. On the machine this was written on, that is
-1 of 3, and the 1 is an empty directory.
+1 of 4, and the 1 is an empty directory.
+
+The metric used to say "Claude Code profiles". It was widened when Codex became
+a row: a person with a work seat, a personal subscription and a Codex account
+asks one question, not two, and a metric that counts only one vendor's profiles
+stops measuring what the tool does.
 
 ---
 
@@ -19,13 +24,35 @@ default credential and nothing else. On the machine this was written on, that is
 - **No account, no cloud, no telemetry.** Everything is read from disk and from
   the user's own credential. Nothing leaves the machine except the quota poll
   itself, to the same host Claude Code already talks to.
+
+  And that poll has a floor. An adaptive cadence once dropped to 20 s per
+  account while a bar sat high — about 360 requests an hour, sustained, against
+  an undocumented endpoint that Claude Code itself calls roughly once per
+  session. Polling hard enough to get rate-limited for reading your own quota
+  would be a self-inflicted version of the silence this tool exists to fix.
+  60 s is the floor for anything that leaves the machine; reading the disk is
+  free and has none.
 - **The transcript adapter is never optional.** The polled endpoint is
   undocumented and can disappear without notice. Local transcripts are the
   floor: there is always a number, even with every token expired.
+
+  This was stated as absolute and then violated for a year of wall-clock: when
+  Codex was added it had no floor at all — if its app-server failed, the row
+  went blank. It has one now (`consumoCodex`, off the same rollouts). A locked
+  non-goal that a new adapter is allowed to skip is not locked.
 - **CLI first.** A panel indicator is a rendering decision, not a product. It
-  comes after the numbers are right — and now they are, so `bin/qm-indicator`
-  exists: it shells out to `qm --json --breve` and draws, it does not know what
-  a credential is.
+  comes after the numbers are right — and now they are, so there are three of
+  them: `bin/qm-indicator` (GNOME), `bin/qm-barra` (the macOS menu bar) and
+  `bin/qm-web` (the browser). All three shell out to `qm --json` and draw;
+  none of them knows what a credential is.
+
+  Three renderers turned out to be how this rule gets broken rather than how it
+  gets kept: `peor()` and `paraMostrar()` — the rule that stops a 75 % warning
+  bar hiding behind a calm 8 % — ended up copied into Python, JavaScript and
+  Swift. A rule in three languages means a different answer per screen the day
+  someone edits one. `qm --json` now emits the resolved answer (`mostrar`,
+  `frena`, `sesion`, `semanal`) and the drawers read fields. **A renderer that
+  needs to reimplement a rule is a signal the CLI is not emitting enough.**
 
   This line used to end with "and only macOS can show live text in a menu bar
   anyway." That was wrong, and it was wrong in the direction that costs users:

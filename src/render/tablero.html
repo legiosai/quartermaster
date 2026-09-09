@@ -299,19 +299,11 @@ function duracion(seg) {
   return `${seg}s`;
 }
 
-// ── reglas del núcleo, repetidas acá porque acá se dibuja ──────────────
-// paraMostrar: el servidor manda barras que no aplican a la cuenta.
-const paraMostrar = (vs) => vs.filter(v => v.activa || v.porcentaje > 0 || v.severidad !== 'normal');
-
-// peor: la activa gana, salvo que haya una más alta — es lo único que evita
-// que un 75 % con aviso quede tapado por un 8 % que se ve más lindo.
-function peor(vs) {
-  if (!vs.length) return null;
-  const orden = [...vs].sort((a, b) => (a.activa !== b.activa) ? (a.activa ? -1 : 1) : b.porcentaje - a.porcentaje);
-  const activa = orden[0];
-  const alta = [...vs].sort((a, b) => b.porcentaje - a.porcentaje)[0];
-  return alta.porcentaje > activa.porcentaje ? alta : activa;
-}
+// Las reglas del núcleo NO se reimplementan acá: `qm` ya manda masticado qué
+// barras mostrar (`mostrar`), cuál frena antes (`frena`), la sesión y la
+// semanal. Este archivo dibuja y nada más — que es la regla de todo el repo, y
+// que antes se violaba con `peor()` y `paraMostrar()` copiadas en tres
+// lenguajes.
 
 // Cuatro niveles de estado. El color nunca viaja solo: siempre con glifo y palabra.
 function nivel(v) {
@@ -336,7 +328,7 @@ function fraseProy(proy) {
 }
 
 const nombreVentana = (v) =>
-  v.alcance === null ? v.clave : `${v.clave} <span class="alcance">(${v.alcance})</span>`;
+  v.alcance === null ? esc(v.clave) : `${esc(v.clave)} <span class="alcance">(${esc(v.alcance)})</span>`;
 
 // SVG chico por producto. No hay logo de nadie acá: un asterisco —la forma de
 // la marca de Claude— y los chevrones de código para Codex. Alcanza para saber
@@ -437,14 +429,14 @@ function desglose(porModelo) {
 function tarjeta(p) {
   const c = p.cuota;
   const hayNumero = c.estado === 'ok';
-  const vs = hayNumero ? paraMostrar(c.ventanas) : [];
-  const peorV = hayNumero ? peor(vs) : null;
+  const vs = hayNumero ? c.mostrar : [];
+  const peorV = hayNumero ? c.frena : null;
   const viejo = hayNumero && c.edadSegundos >= 6 * 3600;
   const proy = p.proyeccion && p.proyeccion.estado === 'sube' ? p.proyeccion : null;
 
-  const proyectada = hayNumero ? peor(vs) : null;
+  const proyectada = hayNumero ? c.frena : null;
   const cuerpo = hayNumero
-    ? `<div class="medidores">${vs.map(v => medidor(v, proy, v === proyectada)).join('')}</div>` +
+    ? `<div class="medidores">${vs.map(v => medidor(v, proy, proyectada !== null && v.clave === proyectada.clave)).join('')}</div>` +
       (p.proyeccion && p.proyeccion.estado !== 'sube'
         ? `<div class="frase">ritmo: ${p.proyeccion.estado === 'plano'
              ? 'plano, no sube' : 'todavía no sé el ritmo — ' + esc(p.proyeccion.motivo)}</div>` : '')
@@ -487,7 +479,7 @@ function heroe() {
   let mejor = null;
   for (const p of datos.perfiles) {
     if (p.cuota.estado !== 'ok') continue;
-    const v = peor(paraMostrar(p.cuota.ventanas));
+    const v = p.cuota.frena;
     if (v && (!mejor || v.porcentaje > mejor.v.porcentaje)) mejor = { p, v };
   }
   if (!mejor) {
@@ -535,7 +527,7 @@ function tabla() {
       filas.push(`<tr><td>${esc(p.producto || 'claude')}</td><td>${esc(corto(p.perfil))}</td><td colspan="5">${esc(p.cuota.frase)}</td></tr>`);
       continue;
     }
-    for (const v of paraMostrar(p.cuota.ventanas)) {
+    for (const v of p.cuota.mostrar) {
       filas.push(`<tr>
         <td>${esc(p.producto || 'claude')}</td>
         <td>${esc(corto(p.perfil))}</td>
