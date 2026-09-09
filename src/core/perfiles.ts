@@ -34,10 +34,6 @@ export function servicioLlavero(directorio: string): string {
  * oauthAccount en .claude.json; en instalaciones viejas ese archivo vive un
  * nivel más arriba (~/.claude.json) en vez de adentro del directorio.
  */
-export function rutaConfig(directorio: string): string | null {
-  return rutasConfig(directorio)[0] ?? null;
-}
-
 /**
  * Los `.claude.json` candidatos de un perfil, del más rico al más pobre.
  *

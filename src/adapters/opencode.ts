@@ -29,6 +29,41 @@ const BASE = join(
   'opencode.db',
 );
 
+/**
+ * Cuándo se usó por última vez cada proveedor, sin ventana.
+ *
+ * El descubrimiento y el consumo son dos preguntas distintas: si sólo se
+ * listara lo que gastó en los últimos 7 días, una cuenta que usaste hace diez
+ * desaparecería de la lista —y «no aparece» es justo lo que este repo existe
+ * para que no pase—. Aparece igual, con 0 en la ventana y la fecha real.
+ */
+export function ultimoUsoOpencode(): Map<string, Date> {
+  const salida = new Map<string, Date>();
+  if (!hayOpencode()) return salida;
+  let db: DatabaseSync;
+  try {
+    db = new DatabaseSync(BASE, { readOnly: true });
+  } catch {
+    return salida;
+  }
+  try {
+    const filas = db
+      .prepare(
+        `select json_extract(model,'$.providerID') as proveedor, max(time_updated) as visto
+           from session where model is not null group by proveedor`,
+      )
+      .all() as { proveedor: string | null; visto: number }[];
+    for (const f of filas) {
+      if (f.proveedor !== null && f.visto) salida.set(f.proveedor, new Date(Number(f.visto)));
+    }
+  } catch {
+    /* una base que cambió de forma no puede tumbar el resto */
+  } finally {
+    db.close();
+  }
+  return salida;
+}
+
 export interface CuentaOpencode {
   /** `zai-coding-plan`, `minimax-coding-plan`, … tal cual lo nombra opencode. */
   readonly proveedor: string;

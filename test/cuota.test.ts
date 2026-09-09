@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parsearUtilizacion, aFecha } from '../src/adapters/utilizacion.ts';
 import { frase, peor, paraMostrar, nombreVentana, esPreocupante, type ResultadoCuota } from '../src/core/tipos.ts';
-import { anchoVisible, relleno, tenue } from '../src/render/barras.ts';
+import { anchoVisible, duracion, relleno, tenue } from '../src/render/barras.ts';
 
 // Las fixtures son respuestas REALES de dos cuentas de distinto tipo, sacadas
 // de `cachedUsageUtilization` en .claude.json y redactadas sólo en accountUuid.
@@ -196,3 +196,12 @@ test('tenue() sigue siendo medible por anchoVisible, pinte o no pinte', () => {
     assert.strictEqual(paraMostrar([marcada]).length, 1);
   });
 }
+
+test('duracion: arriba de un día se cuenta en días', () => {
+  // «213h21m» es un número que hay que dividir a mano. Aparece en «último uso»
+  // de las cuentas de opencode, que se miden en días, no en horas.
+  assert.strictEqual(duracion(213 * 3600_000 + 21 * 60_000), '8d21h');
+  assert.strictEqual(duracion(48 * 3600_000), '2d');
+  assert.strictEqual(duracion(23 * 3600_000 + 59 * 60_000), '23h59m');
+  assert.strictEqual(duracion(90 * 1000), '1m');
+});

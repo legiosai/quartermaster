@@ -241,10 +241,18 @@ red y sin credencial, igual que las transcripciones de Claude y los rollouts de
 Codex.
 
 ```
-minimax    MiniMax-M3   2,7M en 7d · 2 sesiones
-glm        glm-5.3      837,3k en 7d · 1 sesión
-openai     gpt-5.6-sol  549,3k en 7d · 4 sesiones
+minimax    MiniMax-M3    2,7M en 7d · 2 sesiones
+glm        glm-5.3       837,3k en 7d · 1 sesión
+openai     gpt-5.6-sol   549,3k en 7d · 4 sesiones
+grok       —             0 en 7d · último uso hace 8d21h
+kimi       —             0 en 7d · último uso hace 14d18h
 ```
+
+El descubrimiento y el consumo son dos preguntas distintas: las cuentas se
+listan por **último uso** (30 días) y no por lo que gastaron en la ventana. Si
+sólo se listara lo segundo, una cuenta que usás cada tanto desaparecería de la
+lista — y «no aparece» es exactamente lo que este repo existe para que no pase.
+Grok aparece con 0 en la semana y la fecha real al lado.
 
 Dos decisiones:
 
@@ -256,6 +264,13 @@ Dos decisiones:
   trae consumo y una frase que dice por qué no hay barra — nunca un 0 % que
   parezca un dato. Es un estado nuevo y explícito, `sin-cuota-legible`, distinto
   de «no hay límites» y de «todavía no se escribió».
+
+  Se buscó igual antes de rendirse. opencode **sí** guarda cabeceras de límite,
+  pero sólo cuando la respuesta falla, y sólo las de OpenAI (`x-codex-*`, 8
+  apariciones): de `zai`, `minimax` y `xai` no guarda ninguna. Así que hoy el
+  porcentaje de esos tres no está en esta máquina, ni en la base de opencode ni
+  en ningún archivo suyo. Sacarlo pediría llamar al endpoint de cada proveedor
+  con su API key — la clave que este adaptador decide no leer.
 
 Lo que encontré en esta máquina para la que falta:
 

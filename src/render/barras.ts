@@ -43,6 +43,12 @@ export function duracion(ms: number): string {
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
+  // Arriba de un día se pasa a días: «213h21m» es un número que hay que
+  // dividir a mano para entenderlo, y aparece en cosas como «último uso».
+  if (h >= 24) {
+    const d = Math.floor(h / 24);
+    return h % 24 === 0 ? `${d}d` : `${d}d${h % 24}h`;
+  }
   if (h > 0) return `${h}h${String(m).padStart(2, '0')}m`;
   if (m > 0) return `${m}m`;
   return `${s}s`;

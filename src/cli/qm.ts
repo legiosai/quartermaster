@@ -31,7 +31,7 @@ import {
 } from '../adapters/codex.ts';
 import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import { leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
-import { consumoOpencode, hayOpencode, medidoEnOpencode } from '../adapters/opencode.ts';
+import { consumoOpencode, hayOpencode, ultimoUsoOpencode } from '../adapters/opencode.ts';
 import {
   esPreocupante,
   frase,
@@ -268,25 +268,36 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
     'zai-coding-plan': 'glm',
     'minimax-coding-plan': 'minimax',
     'kimi-for-coding': 'kimi',
+    xai: 'grok',
+    'opencode-go': 'opencode-go',
   };
   const desde = new Date(Date.now() - o.dias * 24 * 3600_000);
   const ventana = new Date(Date.now() - o.ventanaH * 3600_000);
   const enVentana = new Map(consumoOpencode(ventana).map((c) => [c.proveedor, c.tokens]));
-  const medido = medidoEnOpencode();
+  const enDias = new Map(consumoOpencode(desde).map((c) => [c.proveedor, c]));
+  const visto = ultimoUsoOpencode();
 
-  return consumoOpencode(desde).map((c): FilaPerfil => ({
+  // 30 días: una cuenta que usás cada tanto tiene que seguir estando.
+  const corte = Date.now() - 30 * 24 * 3600_000;
+  const proveedores = [...visto.entries()]
+    .filter(([, d]) => d.getTime() >= corte)
+    .sort((a, b) => (enDias.get(b[0])?.tokens ?? 0) - (enDias.get(a[0])?.tokens ?? 0));
+
+  return proveedores.map(([prov, cuando]): FilaPerfil => {
+    const c = enDias.get(prov) ?? { proveedor: prov, modelo: null, tokens: 0, sesiones: 0, costo: 0 };
+    return ({
     producto: 'opencode',
     localMedido: true,
     perfil: {
       directorio: 'opencode',
-      nombre: bonito[c.proveedor] ?? c.proveedor,
+      nombre: bonito[prov] ?? prov,
       porDefecto: false,
       cuenta: { email: null, organizacion: 'opencode', plan: c.modelo },
     },
-    veredicto: medido === null ? 'vía opencode' : `vía opencode · visto hace ${duracion(Date.now() - medido.getTime())}`,
+    veredicto: `vía opencode · último uso hace ${duracion(Date.now() - cuando.getTime())}`,
     cuota: {
       estado: 'sin-cuota-legible',
-      detalle: `plan por API key: el porcentaje vive en el endpoint de ${c.proveedor} y no en esta máquina`,
+      detalle: `plan por API key: el porcentaje vive en el endpoint de ${prov} y no en esta máquina`,
     },
     notaRefresco: null,
     proyeccion: null,
@@ -295,7 +306,8 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
     tokens: c.tokens,
     tokensVentana: enVentana.get(c.proveedor) ?? 0,
     porModelo: c.modelo === null ? [] : [[c.modelo, c.tokens]],
-  }));
+  });
+  });
 }
 
 async function medir(o: Opciones): Promise<FilaPerfil[]> {
