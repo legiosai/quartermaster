@@ -2,15 +2,19 @@
 """qm en la barra de arriba de GNOME.
 
 Es la parte de "renderizado" que SOUL.md dejaba para después de tener los
-números bien. Ahora los hay, así que existe — y de paso corrige una afirmación
-del propio SOUL: GNOME sí puede mostrar texto vivo en la barra, no sólo macOS.
+números bien. Dibuja y nada más: le pide el JSON a `qm` y no sabe qué es una
+credencial ni habla HTTP.
 
-Cómo funciona: cada N segundos corre `qm --json --breve` y repinta la etiqueta
-y el menú. `--breve` no lee transcripciones, así que la corrida cuesta ~85 ms y
-se puede repetir sin que se note.
+Tres cosas que lo hacen algo más que un reloj:
 
-No habla con ninguna API ni lee credenciales: todo eso vive del otro lado de
-qm. Acá sólo se dibuja.
+  · Se entera solo. Vigila el .claude.json de cada perfil con Gio.FileMonitor,
+    así que cuando Claude Code refresca la cuota el número cambia en el acto en
+    vez de esperar al próximo minuto. El sondeo lento queda de red de seguridad.
+  · Avisa sin que lo mires. Notifica al cruzar 80 % y 95 %, y cuando la
+    proyección pasa a decir que tocás el techo ANTES del reinicio — que es el
+    momento útil para enterarte, no cuando ya chocaste.
+  · No repite. Cada aviso se recuerda por (perfil, barra, reinicio), así que
+    una ventana avisa una vez y vuelve a avisar recién en la siguiente.
 
 Requiere el soporte de AppIndicator en GNOME (la extensión
 appindicatorsupport@rgcjonas.gmail.com), que es lo que convierte un
@@ -18,30 +22,43 @@ KStatusNotifierItem en un item de la barra.
 """
 
 import json
+import os
 import shutil
 import subprocess
 import sys
+from datetime import datetime, timezone
+from pathlib import Path
 
 import gi
 
 gi.require_version("Gtk", "3.0")
 gi.require_version("AyatanaAppIndicator3", "0.1")
 from gi.repository import AyatanaAppIndicator3 as AppIndicator  # noqa: E402
-from gi.repository import GLib, Gtk  # noqa: E402
+from gi.repository import Gio, GLib, Gtk  # noqa: E402
 
 ID = "quartermaster"
-# Cada cuánto repintar. El dato de fondo es un cache que refresca Claude Code
-# al usarse, así que mirarlo más seguido que esto no muestra nada nuevo.
-SEGUNDOS = 60
+# Red de seguridad: el FileMonitor es el que manda. Esto sólo cubre el caso de
+# un monitor que se pierda un evento (montajes raros, archivos reemplazados).
+SEGUNDOS_SONDEO = 300
+# Coalescer escrituras: Claude Code reescribe .claude.json varias veces seguidas.
+DEBOUNCE_MS = 1500
+UMBRALES = (80, 95)
+ANCHO_BARRA = 12
+
+ICONO_OK = "utilities-system-monitor-symbolic"
+ICONO_AVISO = "dialog-warning-symbolic"
+ICONO_GRAVE = "dialog-error-symbolic"
 
 
+# ── formato ──────────────────────────────────────────────────────────────
 def corto(nombre: str) -> str:
     """`.claude-teams` -> `teams`; el perfil por defecto -> `main`."""
-    sin = nombre.removeprefix(".claude").lstrip("-")
-    return sin or "main"
+    return nombre.removeprefix(".claude").lstrip("-") or "main"
 
 
-def edad(segundos: int) -> str:
+def dur(segundos: int) -> str:
+    if segundos < 0:
+        return "ya"
     if segundos < 60:
         return f"{segundos}s"
     if segundos < 3600:
@@ -49,18 +66,33 @@ def edad(segundos: int) -> str:
     return f"{segundos // 3600}h{(segundos % 3600) // 60:02d}m"
 
 
-def falta(iso: str | None) -> str:
-    """Cuánto queda hasta un instante ISO, en texto corto."""
+def faltan(iso: str | None) -> int | None:
     if not iso:
-        return ""
-    from datetime import datetime, timezone
-
+        return None
     try:
         cuando = datetime.fromisoformat(iso.replace("Z", "+00:00"))
     except ValueError:
-        return ""
-    seg = int((cuando - datetime.now(timezone.utc)).total_seconds())
-    return "ya" if seg <= 0 else f"reinicia en {edad(seg)}"
+        return None
+    return int((cuando - datetime.now(timezone.utc)).total_seconds())
+
+
+def al_minuto(iso: str | None) -> str:
+    """Un instante ISO recortado al minuto, para usar de clave estable."""
+    if not iso:
+        return "sin-reinicio"
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).strftime("%Y-%m-%dT%H:%M")
+    except ValueError:
+        return iso
+
+
+def barra(pct: float) -> str:
+    llenos = round(max(0.0, min(1.0, pct / 100)) * ANCHO_BARRA)
+    return "█" * llenos + "░" * (ANCHO_BARRA - llenos)
+
+
+def nombre_ventana(v: dict) -> str:
+    return v["clave"] if not v.get("alcance") else f"{v['clave']} ({v['alcance']})"
 
 
 def peor(ventanas: list[dict]) -> dict | None:
@@ -75,7 +107,6 @@ def peor(ventanas: list[dict]) -> dict | None:
 
 
 def mostrables(ventanas: list[dict]) -> list[dict]:
-    """Las mismas que muestra `qm`: se van las internas en cero."""
     return [
         v
         for v in ventanas
@@ -83,29 +114,134 @@ def mostrables(ventanas: list[dict]) -> list[dict]:
     ]
 
 
-def nombre_ventana(v: dict) -> str:
-    return v["clave"] if not v.get("alcance") else f"{v['clave']} ({v['alcance']})"
+def frase_ritmo(p: dict | None) -> str | None:
+    """La misma distinción que hace qm: 'no sé' no es 'no'."""
+    if not p:
+        return None
+    if p["estado"] == "sube":
+        seg = faltan(p["techo"])
+        cuando = f"{p['ritmoPuntosPorHora']:.1f} pts/h · 100 % en {dur(seg if seg is not None else 0)}"
+        return f"{cuando} — antes del reinicio" if p["chocasAntesDelReinicio"] else f"{cuando} — después del reinicio"
+    if p["estado"] == "plano":
+        return "no sube"
+    return f"todavía no sé el ritmo: {p['motivo']}"
 
 
+# ── avisos ───────────────────────────────────────────────────────────────
+class Avisos:
+    """Notificaciones sin repetir.
+
+    La clave incluye el instante de reinicio: cuando la ventana se reinicia,
+    la clave cambia sola y el mismo umbral puede volver a avisar. Sin eso, o
+    spameás cada minuto o avisás una sola vez en la vida.
+    """
+
+    def __init__(self) -> None:
+        self.bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+        self.ruta = Path(
+            os.environ.get("XDG_CACHE_HOME", str(Path.home() / ".cache"))
+        ) / "quartermaster" / "avisados.json"
+        try:
+            self.vistos = set(json.loads(self.ruta.read_text()))
+        except (OSError, ValueError):
+            self.vistos = set()
+
+    def guardar(self) -> None:
+        try:
+            self.ruta.parent.mkdir(parents=True, exist_ok=True)
+            self.ruta.write_text(json.dumps(sorted(self.vistos)))
+        except OSError:
+            pass  # sin memoria de avisos se avisa de más, no de menos
+
+    def avisar(self, clave: str, titulo: str, cuerpo: str, urgente: bool) -> None:
+        if clave in self.vistos:
+            return
+        self.vistos.add(clave)
+        self.guardar()
+        try:
+            self.bus.call_sync(
+                "org.freedesktop.Notifications",
+                "/org/freedesktop/Notifications",
+                "org.freedesktop.Notifications",
+                "Notify",
+                GLib.Variant(
+                    "(susssasa{sv}i)",
+                    (
+                        "quartermaster",
+                        0,
+                        ICONO_GRAVE if urgente else ICONO_AVISO,
+                        titulo,
+                        cuerpo,
+                        [],
+                        {"urgency": GLib.Variant("y", 2 if urgente else 1)},
+                        0 if urgente else 10_000,
+                    ),
+                ),
+                GLib.VariantType("(u)"),
+                Gio.DBusCallFlags.NONE,
+                -1,
+                None,
+            )
+        except GLib.Error:
+            pass  # sin servidor de notificaciones el indicador igual funciona
+
+
+# ── indicador ────────────────────────────────────────────────────────────
 class Indicador:
     def __init__(self, qm: str):
         self.qm = qm
+        self.avisos = Avisos()
+        self.pendiente: int | None = None
         self.menu = Gtk.Menu()
         self.ind = AppIndicator.Indicator.new(
-            ID,
-            "utilities-system-monitor-symbolic",
-            AppIndicator.IndicatorCategory.SYSTEM_SERVICES,
+            ID, ICONO_OK, AppIndicator.IndicatorCategory.SYSTEM_SERVICES
         )
         self.ind.set_status(AppIndicator.IndicatorStatus.ACTIVE)
         self.ind.set_title("quartermaster")
         self.ind.set_menu(self.menu)
+        self.monitores: list[Gio.FileMonitor] = []
         self.refrescar()
-        GLib.timeout_add_seconds(SEGUNDOS, self.refrescar)
+        self.vigilar()
+        GLib.timeout_add_seconds(SEGUNDOS_SONDEO, self.refrescar)
 
-    # ── datos ────────────────────────────────────────────────────────────
+    # Vigilancia de archivos ------------------------------------------------
+    def vigilar(self) -> None:
+        """Un monitor por .claude.json. Es donde aparece la cuota nueva."""
+        casa = Path.home()
+        rutas = [casa / ".claude.json"]
+        rutas += [d / ".claude.json" for d in casa.glob(".claude-*") if d.is_dir()]
+        for r in rutas:
+            try:
+                mon = Gio.File.new_for_path(str(r)).monitor_file(
+                    Gio.FileMonitorFlags.NONE, None
+                )
+            except GLib.Error:
+                continue
+            mon.connect("changed", self.cambio)
+            self.monitores.append(mon)
+
+    def cambio(self, _mon, _f, _o, evento) -> None:
+        if evento not in (
+            Gio.FileMonitorEvent.CHANGES_DONE_HINT,
+            Gio.FileMonitorEvent.CREATED,
+            Gio.FileMonitorEvent.RENAMED,
+        ):
+            return
+        # Claude Code reescribe el archivo varias veces seguidas; una sola
+        # relectura al final alcanza.
+        if self.pendiente is not None:
+            GLib.source_remove(self.pendiente)
+        self.pendiente = GLib.timeout_add(DEBOUNCE_MS, self.disparar)
+
+    def disparar(self) -> bool:
+        self.pendiente = None
+        self.refrescar()
+        return False
+
+    # Datos -----------------------------------------------------------------
     def leer(self) -> dict | str:
         try:
-            salida = subprocess.run(
+            r = subprocess.run(
                 [self.qm, "--json", "--breve"],
                 capture_output=True,
                 text=True,
@@ -114,15 +250,15 @@ class Indicador:
             )
         except (OSError, subprocess.TimeoutExpired) as e:
             return f"no pude correr qm: {e}"
-        if salida.returncode not in (0, 3):
-            primera = (salida.stderr or salida.stdout or "").strip().splitlines()
-            return f"qm salió {salida.returncode}: {primera[0] if primera else 'sin detalle'}"
+        if r.returncode not in (0, 3):
+            lineas = (r.stderr or r.stdout or "").strip().splitlines()
+            return f"qm salió {r.returncode}: {lineas[0] if lineas else 'sin detalle'}"
         try:
-            return json.loads(salida.stdout)
+            return json.loads(r.stdout)
         except json.JSONDecodeError:
             return "qm no devolvió JSON"
 
-    # ── dibujo ───────────────────────────────────────────────────────────
+    # Dibujo ----------------------------------------------------------------
     def refrescar(self) -> bool:
         datos = self.leer()
         for hijo in self.menu.get_children():
@@ -131,60 +267,104 @@ class Indicador:
         if isinstance(datos, str):
             # Un estado que no produce número tiene que producir una frase.
             self.ind.set_label("qm ?", "qm")
-            self.item(datos, activo=False)
+            self.ind.set_icon_full(ICONO_AVISO, "qm sin datos")
+            self.item(datos)
         else:
             self.pintar(datos)
 
         self.menu.append(Gtk.SeparatorMenuItem())
-        actualizar = Gtk.MenuItem(label="Actualizar ahora")
-        actualizar.connect("activate", lambda _: self.refrescar())
-        self.menu.append(actualizar)
-        salir = Gtk.MenuItem(label="Salir")
-        salir.connect("activate", lambda _: Gtk.main_quit())
-        self.menu.append(salir)
+        for etiqueta, accion in (
+            ("Actualizar ahora", lambda _: self.refrescar()),
+            ("Salir", lambda _: Gtk.main_quit()),
+        ):
+            it = Gtk.MenuItem(label=etiqueta)
+            it.connect("activate", accion)
+            self.menu.append(it)
         self.menu.show_all()
-        return True  # que el timeout siga vivo
+        return True
 
-    def item(self, texto: str, activo: bool = False) -> None:
+    def item(self, texto: str) -> None:
         it = Gtk.MenuItem(label=texto)
-        it.set_sensitive(activo)
+        it.set_sensitive(False)
         self.menu.append(it)
 
     def pintar(self, datos: dict) -> None:
-        etiquetas = []
+        etiquetas: list[str] = []
+        pico = 0.0
+        grave = False
+
         for p in datos.get("perfiles", []):
             cuota = p.get("cuota", {})
             nombre = corto(p["perfil"])
 
             if cuota.get("estado") != "ok":
-                # Los perfiles sin número igual aparecen en el menú, con el
-                # motivo. Lo que no hacen es ocupar lugar en la barra.
-                self.item(f"{nombre}: {cuota.get('frase', 'sin cuota')}")
+                self.item(f"{nombre} — {cuota.get('frase', 'sin cuota')}")
                 self.menu.append(Gtk.SeparatorMenuItem())
                 continue
 
             ventanas = mostrables(cuota.get("ventanas", []))
-            p_ = peor(ventanas)
-            if p_ is not None:
-                aviso = "!" if p_.get("severidad") != "normal" else ""
-                viejo = "~" if cuota.get("edadSegundos", 0) > 6 * 3600 else ""
-                etiquetas.append(f"{nombre} {viejo}{p_['porcentaje']:.0f}%{aviso}")
+            peor_v = peor(ventanas)
+            proy = p.get("proyeccion")
+            chocas = bool(proy and proy["estado"] == "sube" and proy["chocasAntesDelReinicio"])
 
-            cabecera = f"{nombre} · {p.get('cuenta') or 'sin cuenta'}"
-            if cuota.get("origen") == "cache":
-                cabecera += f"  (cache, hace {edad(cuota.get('edadSegundos', 0))})"
-            self.item(cabecera)
+            if peor_v is not None:
+                pct = peor_v["porcentaje"]
+                pico = max(pico, pct)
+                if pct >= 95 or chocas:
+                    grave = True
+                viejo = "~" if cuota.get("edadSegundos", 0) > 6 * 3600 else ""
+                marca = "!" if peor_v.get("severidad") != "normal" or chocas else ""
+                etiquetas.append(f"{nombre} {viejo}{pct:.0f}%{marca}")
+                self.revisar_avisos(nombre, peor_v, proy, chocas)
+
+            edad = dur(cuota.get("edadSegundos", 0))
+            origen = "cache" if cuota.get("origen") == "cache" else "endpoint"
+            self.item(f"{nombre} · {p.get('cuenta') or 'sin cuenta'}   ({origen}, hace {edad})")
             for v in ventanas:
-                marca = "▸" if p_ is not None and v is p_ else " "
+                flecha = "▸" if peor_v is not None and v is peor_v else " "
+                seg = faltan(v.get("reinicia"))
+                cola = f"  reinicia en {dur(seg)}" if seg is not None else ""
                 sev = f"  {v['severidad']}" if v.get("severidad") != "normal" else ""
-                resto = falta(v.get("reinicia"))
                 self.item(
-                    f"  {marca} {nombre_ventana(v):<22} {v['porcentaje']:>3.0f}%{sev}"
-                    + (f"   {resto}" if resto else "")
+                    f" {flecha} {nombre_ventana(v):<24} {barra(v['porcentaje'])} "
+                    f"{v['porcentaje']:>3.0f}%{sev}{cola}"
                 )
+            ritmo = frase_ritmo(proy)
+            if ritmo:
+                self.item(f"   ritmo: {ritmo}")
             self.menu.append(Gtk.SeparatorMenuItem())
 
         self.ind.set_label(" · ".join(etiquetas) if etiquetas else "sin cuota", "qm 100%")
+        icono = ICONO_GRAVE if grave else ICONO_AVISO if pico >= UMBRALES[0] else ICONO_OK
+        self.ind.set_icon_full(icono, f"cuota {pico:.0f}%")
+
+    def revisar_avisos(self, perfil: str, v: dict, proy: dict | None, chocas: bool) -> None:
+        # El reinicio va en la clave: cuando la ventana se reinicia, el mismo
+        # umbral vuelve a poder avisar. Va redondeado al minuto porque el
+        # servidor manda microsegundos y no siempre los mismos entre lecturas
+        # (se vieron .117894 y .118092 en la misma respuesta): con el valor
+        # crudo, cada jitter estrena clave y vuelve a notificar lo mismo.
+        base = f"{perfil}|{nombre_ventana(v)}|{al_minuto(v.get('reinicia'))}"
+        pct = v["porcentaje"]
+        for u in UMBRALES:
+            if pct >= u:
+                seg = faltan(v.get("reinicia"))
+                cola = f" Se reinicia en {dur(seg)}." if seg is not None else ""
+                self.avisos.avisar(
+                    f"{base}|{u}",
+                    f"{perfil}: {pct:.0f}% de {nombre_ventana(v)}",
+                    f"Pasaste el {u}%.{cola}",
+                    urgente=u >= 95,
+                )
+        if chocas and proy:
+            seg = faltan(proy["techo"])
+            self.avisos.avisar(
+                f"{base}|choque",
+                f"{perfil}: a este ritmo llegás al 100%",
+                f"{proy['ritmoPuntosPorHora']:.1f} pts/h — tocás el techo en "
+                f"{dur(seg if seg is not None else 0)}, antes de que la ventana se reinicie.",
+                urgente=True,
+            )
 
 
 def buscar_qm() -> str | None:
@@ -197,8 +377,6 @@ def buscar_qm() -> str | None:
     encontrado = shutil.which("qm")
     if encontrado:
         return encontrado
-    from pathlib import Path
-
     vecino = Path(__file__).resolve().parent / "qm"
     return str(vecino) if vecino.is_file() else None
 

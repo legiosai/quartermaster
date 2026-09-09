@@ -32,6 +32,22 @@ se ejecutaba. Se agregaron dos tests con el caso construido a mano —activa al
 20 %, otra al 90 %— y recién ahí el gate se puso en rojo. Es el motivo por el
 que este ejercicio se hace: no probó el código, probó los tests.
 
+## Tercera tanda (H7, proyección y avisos)
+
+41 tests.
+
+| Sabotaje | Qué simula | Tests que cayeron |
+|---|---|---|
+| el historial no deduplica por `medidoEn` | qm corre cada minuto sobre un cache que cambia cada hora: la serie se llena de puntos idénticos y el ritmo sale **plano justo cuando más subís** | 1 |
+| `SUBIDA_MINIMA_PUNTOS = 0` | proyectar sobre un movimiento del tamaño del redondeo, o sea inventar un techo a partir de ruido | 1 |
+
+Un tercer defecto no lo encontró ningún test sino la prueba a mano contra un
+perfil de juguete: la clave de «ya avisé» incluía `resets_at` **crudo**, y el
+servidor manda microsegundos que cambian entre lecturas (se vieron `.117894` y
+`.118092` en una misma respuesta). Cada jitter estrenaba clave y volvía a
+notificar lo mismo. Ahora la clave va redondeada al minuto, que es estable
+entre lecturas y cambia igual cuando la ventana se reinicia de verdad.
+
 ## Lo que ningún gate cubre
 
 Que la respuesta **en vivo** de `/api/oauth/usage` tenga la forma de las

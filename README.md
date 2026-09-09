@@ -43,6 +43,7 @@ multi-perfil en un cálculo, no en una heurística.
 | **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ⏳ | [`numeros/h4-linux.md`](numeros/h4-linux.md) |
 | **H5** cuota sin red ni credencial | ✅ **número** | [`numeros/h5-cuota.md`](numeros/h5-cuota.md) · [`h5-cuota.json`](numeros/h5-cuota.json) |
 | **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `qm --breve` en la statusline de Claude Code |
+| **H7** que te avise antes de chocar | ✅ mecanismo | proyección por mínimos cuadrados + avisos al 80/95 % y al detectar choque |
 
 **Advertencias, para que el README no mienta:**
 
@@ -147,6 +148,35 @@ make numero-h5         # regenera numeros/h5-cuota.json, ya redactado
 
 Requiere **Node ≥ 22.6** (lee TypeScript directamente, no hay paso de build).
 
+## ¿Vas a chocarte antes de que se reinicie?
+
+Es la pregunta que ni el porcentaje ni el consumo contestan solos. «Vas 75 %»
+no dice nada sin saber a qué velocidad subís.
+
+qm guarda una serie de lecturas por barra y le ajusta una recta:
+
+```
+ritmo: 12.4 pts/h · 100 % en 1h58m — antes del reinicio
+```
+
+Lo que importa no es la recta, es **cuándo no se dibuja**. Con dos lecturas, o
+con una ventana que recién arranca, cualquier extrapolación es un número
+inventado con cara de dato. Entonces dice:
+
+```
+ritmo: todavía no sé el ritmo: hacen falta 3 lecturas y hay 1
+```
+
+«No sé si te vas a chocar» y «no te vas a chocar» son cosas distintas y se
+muestran distinto. Dos guardas más: se descartan las lecturas de más de 2 h
+—el ritmo de hace cuatro horas no predice el de ahora— y no se proyecta sobre
+un movimiento menor a 2 puntos, porque el servidor manda enteros y subir uno
+no se distingue de un redondeo.
+
+La serie vive en `~/.cache/quartermaster/historial.jsonl` y se indexa por el
+`medidoEn` de la cuota, no por el momento en que qm miró: leer diez veces el
+mismo cache deja **una** muestra.
+
 ## En la barra de arriba de GNOME
 
 ```bash
@@ -164,9 +194,21 @@ y que al desplegarlo muestra cada perfil con todas sus barras, la edad del
 cache, y el motivo cuando un perfil no tiene número. `!` es una barra que el
 servidor marcó con aviso; `~` es un cache de más de 6 horas.
 
-Repinta cada 60 s corriendo `qm --json --breve`, que cuesta ~85 ms porque no
-lee transcripciones. `bin/qm-indicator` no sabe qué es una credencial: le pide
-el JSON a `qm` y dibuja.
+Tres cosas lo hacen algo más que un reloj:
+
+- **Se entera solo.** Vigila el `.claude.json` de cada perfil con
+  `Gio.FileMonitor`: cuando Claude Code refresca la cuota, el número cambia en
+  el acto. Medido: de 82 % a 96 % en menos de 5 s sin reiniciar nada. El sondeo
+  cada 5 min queda de red de seguridad.
+- **Avisa sin que lo mires.** Notifica al cruzar 80 % y 95 %, y cuando la
+  proyección pasa a decir que tocás el techo *antes* del reinicio — que es el
+  momento útil, no cuando ya chocaste.
+- **No repite.** Cada aviso se recuerda por perfil, barra y minuto de reinicio,
+  así que una ventana avisa una vez y vuelve a avisar recién en la siguiente.
+
+El icono acompaña: normal, `dialog-warning` desde 80 %, `dialog-error` al 95 %
+o cuando la proyección dice que chocás. `bin/qm-indicator` no sabe qué es una
+credencial: le pide el JSON a `qm` y dibuja.
 
 Necesita el soporte de AppIndicator en GNOME —la extensión
 `appindicatorsupport@rgcjonas.gmail.com`—, que es lo que convierte un

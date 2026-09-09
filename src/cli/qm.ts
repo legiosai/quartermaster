@@ -17,6 +17,8 @@ import { descubrirPerfiles } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
 import { consumoDesde, transcripciones } from '../adapters/transcripciones.ts';
 import { cuotaEnCache } from '../adapters/cache-cuota.ts';
+import { anotar, claveBarra, muestras, type Lectura } from '../adapters/historial.ts';
+import { proyectar, type Proyeccion } from '../core/proyeccion.ts';
 import { consultarCuota } from '../adapters/cuota.ts';
 import {
   frase,
@@ -113,6 +115,8 @@ interface FilaPerfil {
   cuota: ResultadoCuota;
   /** Por qué no se usó el número del endpoint, cuando se pidió y no salió. */
   notaRefresco: string | null;
+  /** Hacia dónde va la barra que más apremia. null si no hay barra. */
+  proyeccion: Proyeccion | null;
   archivos: number;
   requests: number;
   tokens: number;
@@ -146,6 +150,33 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
         else notaRefresco = frase(fresca, perfil.directorio);
       }
 
+      // Cada lectura alimenta la serie que hace posible la proyección. Se
+      // indexa por `medidoEn`, así que mirar el mismo cache diez veces deja
+      // una sola muestra.
+      let proyeccion: Proyeccion | null = null;
+      if (cuota.estado === 'ok') {
+        const lecturas: Lectura[] = cuota.ventanas.map((v) => ({
+          perfil: perfil.nombre,
+          barra: claveBarra(v.clave, v.alcance),
+          medidoEn: cuota.medidoEn,
+          porcentaje: v.porcentaje,
+        }));
+        try {
+          anotar(lecturas);
+        } catch {
+          // Si el cache del usuario no es escribible, se pierde la proyección
+          // y nada más. No es motivo para no mostrar el número.
+        }
+        const p = peor(paraMostrar(cuota.ventanas));
+        if (p !== null) {
+          proyeccion = proyectar(
+            muestras(perfil.nombre, claveBarra(p.clave, p.alcance)),
+            p.porcentaje,
+            p.reinicia,
+          );
+        }
+      }
+
       // En modo breve no se tocan las transcripciones: son 128 archivos y un
       // segundo entero, y una statusline se dibuja todo el tiempo.
       if (o.breve) {
@@ -154,6 +185,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
           veredicto,
           cuota,
           notaRefresco,
+          proyeccion,
           archivos: 0,
           requests: 0,
           tokens: 0,
@@ -170,6 +202,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
         veredicto,
         cuota,
         notaRefresco,
+        proyeccion,
         archivos: transcripciones(perfil).length,
         requests: c.requests,
         tokens: totalTokens(c),
@@ -204,6 +237,24 @@ function pintarVentana(v: VentanaCuota, marca: boolean): void {
   );
 }
 
+/**
+ * Hacia dónde va. La frase de 'sin-datos' importa tanto como la proyección:
+ * es la diferencia entre «no vas a chocarte» y «todavía no sé si te vas a
+ * chocar», y confundirlas es exactamente el error que esta herramienta evita.
+ */
+function fraseProyeccion(p: Proyeccion): string {
+  switch (p.estado) {
+    case 'sube': {
+      const cuando = `${p.ritmo.toFixed(1)} pts/h · 100 % en ${duracion(p.techo.getTime() - Date.now())}`;
+      return p.chocas ? rojo(`${cuando} — antes del reinicio`) : tenue(`${cuando} — después del reinicio`);
+    }
+    case 'plano':
+      return tenue(`no sube (${p.muestras} lecturas)`);
+    case 'sin-datos':
+      return tenue(`todavía no sé el ritmo: ${p.motivo}`);
+  }
+}
+
 function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
   console.log(negrita(`\nqm · ${process.platform} · consumo de ${o.dias}d\n`));
 
@@ -226,6 +277,9 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
     } else {
       // Sin número de cuota, una frase. Nunca un renglón en blanco.
       console.log(`  ${relleno('', 18)} ${tenue(`cuota: ${frase(f.cuota, f.perfil.directorio)}`)}`);
+    }
+    if (f.proyeccion !== null) {
+      console.log(`  ${relleno('', 18)} ${tenue('ritmo: ')}${fraseProyeccion(f.proyeccion)}`);
     }
     if (f.notaRefresco !== null) {
       console.log(`  ${relleno('', 18)} ${tenue(`--refrescar no sirvió: ${f.notaRefresco}`)}`);
@@ -284,7 +338,10 @@ function pintarBreve(filas: readonly FilaPerfil[]): void {
     const v = peor(paraMostrar(f.cuota.ventanas));
     if (v === null) continue;
     const viejo = Date.now() - f.cuota.medidoEn.getTime() > 6 * 3600_000 ? '~' : '';
-    const aviso = v.severidad !== 'normal' ? '!' : '';
+    // El «!» ya no es sólo severidad: también avisa que a este ritmo tocás el
+    // techo antes de que la ventana se reinicie, que es lo que duele.
+    const chocas = f.proyeccion?.estado === 'sube' && f.proyeccion.chocas;
+    const aviso = v.severidad !== 'normal' || chocas ? '!' : '';
     partes.push(
       `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${v.porcentaje.toFixed(0)}%${aviso}`)}`,
     );
@@ -324,6 +381,20 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
               estado: f.cuota.estado,
               frase: redactar(o, frase(f.cuota, f.perfil.directorio)),
             },
+      proyeccion:
+        f.proyeccion === null
+          ? null
+          : f.proyeccion.estado === 'sube'
+            ? {
+                estado: 'sube',
+                ritmoPuntosPorHora: Number(f.proyeccion.ritmo.toFixed(3)),
+                techo: f.proyeccion.techo.toISOString(),
+                chocasAntesDelReinicio: f.proyeccion.chocas,
+                muestras: f.proyeccion.muestras,
+              }
+            : f.proyeccion.estado === 'plano'
+              ? { estado: 'plano', muestras: f.proyeccion.muestras }
+              : { estado: 'sin-datos', motivo: f.proyeccion.motivo },
       // En --breve no se leyeron las transcripciones. Informar 0 sería decir
       // "no consumiste nada" cuando lo que pasa es "no lo medí".
       local: o.breve
