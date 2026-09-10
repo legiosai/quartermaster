@@ -93,6 +93,11 @@ def corto(nombre: str) -> str:
 def dur(segundos: int) -> str:
     """La misma escalera que duracion() en Swift y Dur() en PowerShell.
 
+    OJO: hoy no la llama nadie —el panel usa dur_larga()— y las dos NO dan lo
+    mismo: ésta sigue a las GUIs y dur_larga() sigue al CLI, que son dos
+    convenciones distintas. Está medido y sin resolver en numeros/duraciones.md.
+    Antes de tocar cualquiera de las dos, leer eso.
+
     Incluidos los días: sin ellos un reinicio semanal se lee "168h00m", que no
     es una duración, es una cuenta de horas. Esta era la única de las tres sin
     esa rama, y se vio poniendo este panel al lado del de Windows: donde uno

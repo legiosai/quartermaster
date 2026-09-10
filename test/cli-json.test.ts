@@ -16,12 +16,33 @@ import { test } from 'node:test';
 
 const RAIZ = new URL('..', import.meta.url).pathname;
 
+/** Una máquina sin nada, de verdad.
+ *
+ * Con sólo HOME no alcanza: qm también lee XDG_DATA_HOME y XDG_CONFIG_HOME —de
+ * ahí salen las cuentas que guarda opencode— y en una máquina real esas dos
+ * apuntan a la casa del usuario aunque HOME diga otra cosa. El test pasaba por
+ * casualidad hasta que opencode empezó a aparecer en más caminos, y entonces
+ * encontró las cuentas de verdad de quien lo corría.
+ */
+function entornoVacio(casa: string): NodeJS.ProcessEnv {
+  const env = { ...process.env };
+  delete env['CLAUDE_CONFIG_DIR'];
+  delete env['QM_CODEX'];
+  return {
+    ...env,
+    HOME: casa,
+    XDG_CACHE_HOME: join(casa, 'cache'),
+    XDG_CONFIG_HOME: join(casa, 'config'),
+    XDG_DATA_HOME: join(casa, 'data'),
+  };
+}
+
 function correr(args: readonly string[]): { salida: string; codigo: number } {
   const casa = mkdtempSync(join(tmpdir(), 'qm-vacio-'));
   try {
     const salida = execFileSync(join(RAIZ, 'bin', 'qm'), [...args], {
       encoding: 'utf8',
-      env: { ...process.env, HOME: casa, XDG_CACHE_HOME: join(casa, 'cache') },
+      env: entornoVacio(casa),
       timeout: 30_000,
     });
     return { salida, codigo: 0 };
