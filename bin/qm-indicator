@@ -517,13 +517,17 @@ class VistaCuenta:
                 "pie": pie,
             })
 
+        self.ritmo = None
         if sube:
             seg = faltan(proy.get("techo"))
-            self.ritmo = (f"{proy.get('ritmoPuntosPorHora', 0):.1f} pts/h · 100 % en "
-                          f"{dur_larga(seg if seg is not None else 0)}"
-                          + (" — antes del reinicio" if choca else ""))
-        else:
-            self.ritmo = None
+            # Una proyección con el techo en el pasado ya no proyecta nada: se
+            # leía «100 % en vencido», que no quiere decir nada. Cuando ya
+            # tocaste el techo la pregunta es cuándo te liberás, y ésa la
+            # contesta la cabecera.
+            if seg is not None and seg > 0:
+                self.ritmo = (f"{proy.get('ritmoPuntosPorHora', 0):.1f} pts/h · 100 % en "
+                              f"{dur_larga(seg)}"
+                              + (" — antes del reinicio" if choca else ""))
         self.ritmo_rojo = choca
 
         # Cada cuánto se lee ESTA cuenta y cuándo fue la última: la pregunta
@@ -661,6 +665,59 @@ class VistaCuenta:
             if not self.ritmo:
                 y += 4
             pluma.escribir(ix, y, self.lecturas, 10.5, TEMA.terciario)
+        return arriba + alto
+
+
+class VistaSinCuota:
+    """Las cuentas que todavía no tienen número, juntas en una tarjeta.
+
+    Cada una ocupaba una tarjeta entera para decir la misma frase, y el panel
+    —que en una pantalla de 768 px ya no entra— gastaba doscientos píxeles en
+    repetirla. Juntas además se leen mejor: no son tres misterios distintos,
+    es un hecho con varios nombres.
+    """
+
+    def __init__(self, cuentas: list[tuple[str, str]]) -> None:
+        # Agrupadas por frase y en el orden en que aparecieron: dos cuentas
+        # pueden estar calladas por motivos distintos, y ahí la frase importa.
+        self.grupos: list[tuple[str, list[str]]] = []
+        for nombre, frase in cuentas:
+            for f, nombres in self.grupos:
+                if f == frase:
+                    nombres.append(nombre)
+                    break
+            else:
+                self.grupos.append((frase, [nombre]))
+
+    @staticmethod
+    def _ancho_contenido() -> float:
+        return ANCHO_PANEL - 2 * MARGEN - 2 * PAD_TARJETA
+
+    def medir(self, pluma: Pluma) -> float:
+        alto = PAD_TARJETA
+        for frase, nombres in self.grupos:
+            alto += 18 + pluma.alto(frase, 10.5, ancho=self._ancho_contenido()) + 8
+        return alto + PAD_TARJETA - 8
+
+    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
+        alto = self.medir(pluma)
+        _redondeado(cr, MARGEN + 0.5, arriba + 0.5,
+                    ANCHO_PANEL - 2 * MARGEN - 1, alto - 1, RADIO_TARJETA)
+        _color(cr, TEMA.tarjeta)
+        cr.fill_preserve()
+        _color(cr, TEMA.borde_tarjeta)
+        cr.set_line_width(1)
+        cr.stroke()
+
+        ix = MARGEN + PAD_TARJETA
+        y = arriba + PAD_TARJETA
+        for frase, nombres in self.grupos:
+            pluma.escribir(ix, y, "   ·   ".join(nombres), 11.5, TEMA.secundario,
+                           Pango.Weight.MEDIUM)
+            y += 18
+            y += pluma.escribir(ix, y, frase, 10.5, TEMA.terciario,
+                                ancho=self._ancho_contenido())
+            y += 8
         return arriba + alto
 
 
@@ -814,7 +871,9 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             "viejo": (cuota.get("edadSegundos") or 0) >= VIEJO_SEGUNDOS,
         })
         if avisar is not None:
-            avisar(nombre, frena, proy, chocas)
+            # Todas las barras, no sólo la que frena: la semanal puede estar
+            # tranquila mientras la de sesión te para, y al revés.
+            avisar(nombre, cuota.get("mostrar") or [], frena, proy, chocas)
     return piezas
 
 
@@ -899,13 +958,18 @@ def modelo_panel(datos):
     if not isinstance(datos, dict):
         return None, []
     perfiles = datos.get("perfiles", [])
-    vistas, i = [], 0
+    vistas, calladas, i = [], [], 0
     for p in perfiles:
+        cuota = p.get("cuota") or {}
+        if cuota.get("estado") != "ok":
+            calladas.append((corto(p.get("perfil") or "?"), cuota.get("frase") or "sin cuota"))
+            continue
         vistas.append(VistaCuenta(p, i))
         # El índice de color sólo avanza con las cuentas que tienen número, para
         # que dos cuentas con barras nunca compartan color.
-        if (p.get("cuota") or {}).get("estado") == "ok":
-            i += 1
+        i += 1
+    if calladas:
+        vistas.append(VistaSinCuota(calladas))
     return VistaResumen.desde(perfiles), vistas
 
 
@@ -1182,10 +1246,16 @@ class Avisos:
             pass  # sin memoria de avisos se avisa de más, no de menos
 
     def avisar(self, clave: str, titulo: str, cuerpo: str, urgente: bool) -> None:
+        """Una vez por clave y nunca más."""
         if clave in self.vistos:
             return
         self.vistos.add(clave)
         self.guardar()
+        self.notificar(titulo, cuerpo, urgente)
+
+    def notificar(self, titulo: str, cuerpo: str, urgente: bool) -> None:
+        """Sin memoria: para lo que sí tiene que volver a avisar cada vez que
+        pasa, como un reinicio."""
         try:
             self.bus.call_sync(
                 "org.freedesktop.Notifications",
@@ -1237,11 +1307,44 @@ def leer_qm(qm: str) -> dict | str:
         return "qm no devolvió JSON"
 
 
+class Previos:
+    """Cuánto valía cada barra la última vez, para poder ver que se reinició.
+
+    Un porcentaje solo no dice nada de eso: 3 % puede ser «recién empezás» o
+    «acabás de salir de estar contra el techo», y la diferencia es justo lo que
+    hay que avisar. Se guarda el minuto de reinicio junto al número: cuando el
+    minuto cambia, la ventana es otra.
+    """
+
+    def __init__(self) -> None:
+        self.ruta = CACHE / "previos.json"
+        try:
+            self.mapa = json.loads(self.ruta.read_text())
+        except (OSError, ValueError):
+            self.mapa = {}
+
+    def ver_y_guardar(self, clave: str, minuto: str, pct: float):
+        """Devuelve lo anterior (minuto, pct) o None, y anota lo de ahora."""
+        antes = self.mapa.get(clave)
+        self.mapa[clave] = [minuto, pct]
+        if not isinstance(antes, list) or len(antes) != 2:
+            return None
+        return antes[0], antes[1]
+
+    def guardar(self) -> None:
+        try:
+            self.ruta.parent.mkdir(parents=True, exist_ok=True)
+            self.ruta.write_text(json.dumps(self.mapa))
+        except OSError:
+            pass  # sin memoria se avisa de más, no de menos
+
+
 # ── indicador ────────────────────────────────────────────────────────────
 class Indicador:
     def __init__(self, qm: str):
         self.qm = qm
         self.avisos = Avisos()
+        self.previos = Previos()
         self.pendiente: int | None = None
         self.pedido_pendiente: int | None = None
         self.menu = Gtk.Menu()
@@ -1534,33 +1637,62 @@ class Indicador:
         except OSError:
             pass  # sin extensión instalada esto no le importa a nadie
 
-    def revisar_avisos(self, perfil: str, v: dict, proy: dict | None, chocas: bool) -> None:
-        # El reinicio va en la clave: cuando la ventana se reinicia, el mismo
-        # umbral vuelve a poder avisar. Va redondeado al minuto porque el
-        # servidor manda microsegundos y no siempre los mismos entre lecturas
-        # (se vieron .117894 y .118092 en la misma respuesta): con el valor
-        # crudo, cada jitter estrena clave y vuelve a notificar lo mismo.
-        base = f"{perfil}|{nombre_ventana(v)}|{al_minuto(v.get('reinicia'))}"
-        pct = v["porcentaje"]
-        for u in UMBRALES:
-            if pct >= u:
-                seg = faltan(v.get("reinicia"))
-                cola = f" Se reinicia en {dur(seg)}." if seg is not None else ""
-                self.avisos.avisar(
-                    f"{base}|{u}",
-                    f"{perfil}: {pct:.0f}% de {nombre_ventana(v)}",
-                    f"Pasaste el {u}%.{cola}",
-                    urgente=u >= 95,
-                )
-        if chocas and proy:
+    def revisar_avisos(self, perfil: str, ventanas: list, frena: dict | None,
+                       proy: dict | None, chocas: bool) -> None:
+        for v in ventanas:
+            nombre = nombre_ventana(v)
+            minuto = al_minuto(v.get("reinicia"))
+            pct = v["porcentaje"]
+            # El reinicio va en la clave: cuando la ventana se reinicia, el
+            # mismo umbral vuelve a poder avisar. Va redondeado al minuto porque
+            # el servidor manda microsegundos y no siempre los mismos entre
+            # lecturas (se vieron .117894 y .118092 en la misma respuesta): con
+            # el valor crudo, cada jitter estrena clave y vuelve a notificar lo
+            # mismo.
+            base = f"{perfil}|{nombre}|{minuto}"
+            for u in UMBRALES:
+                if pct >= u:
+                    seg = faltan(v.get("reinicia"))
+                    cola = f" Se reinicia en {dur_larga(seg)}." if seg is not None else ""
+                    self.avisos.avisar(
+                        f"{base}|{u}",
+                        f"{perfil}: {pct:.0f}% de {nombre}",
+                        f"Pasaste el {u}%.{cola}",
+                        urgente=u >= 95,
+                    )
+            self.revisar_liberada(perfil, nombre, minuto, pct)
+
+        if chocas and proy and frena:
             seg = faltan(proy["techo"])
             self.avisos.avisar(
-                f"{base}|choque",
+                f"{perfil}|{nombre_ventana(frena)}|{al_minuto(frena.get('reinicia'))}|choque",
                 f"{perfil}: a este ritmo llegás al 100%",
                 f"{proy['ritmoPuntosPorHora']:.1f} pts/h — tocás el techo en "
-                f"{dur(seg if seg is not None else 0)}, antes de que la ventana se reinicie.",
+                f"{dur_larga(faltan(proy['techo']) or 0)}, antes de que la ventana se reinicie.",
                 urgente=True,
             )
+        self.previos.guardar()
+
+    def revisar_liberada(self, perfil: str, nombre: str, minuto: str, pct: float) -> None:
+        """El aviso que faltaba: ya podés volver a trabajar.
+
+        Todo lo demás avisa cuando subís. Este avisa cuando la ventana se
+        reinicia habiendo estado contra el techo, que es el único momento en
+        que la noticia sirve para hacer algo distinto ahora mismo — y es
+        justamente cuando dejaste de mirar la barra, porque no había nada que
+        mirar.
+        """
+        antes = self.previos.ver_y_guardar(f"{perfil}|{nombre}", minuto, pct)
+        if antes is None:
+            return
+        minuto_antes, pct_antes = antes
+        if minuto == minuto_antes or pct_antes < 80 or pct >= pct_antes:
+            return
+        self.avisos.notificar(
+            f"{perfil}: se reinició {nombre}",
+            f"Estabas {pct_antes:.0f} % y ahora vas {pct:.0f} %.",
+            urgente=False,
+        )
 
 
 def buscar_qm() -> str | None:

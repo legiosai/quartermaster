@@ -631,6 +631,13 @@ medidor de verdad por barra, la curva pegada a la que frena y el ritmo en rojo
 cuando chocás antes del reinicio. Se cierra con un click afuera, con Escape, o
 con otro click del medio.
 
+Las cuentas que todavía no tienen número van juntas en una sola tarjeta al
+final. Antes cada una gastaba una tarjeta entera para decir la misma frase, y en
+una pantalla de 768 px el panel ya no entraba; juntas ahorran ~120 px y además
+se leen mejor, porque no son tres misterios distintos sino un hecho con varios
+nombres. Se agrupan por frase: dos cuentas pueden estar calladas por motivos
+distintos, y ahí la frase importa.
+
 Es el mismo contenido que el panel de la barra de macOS, pero **no es una copia
 del dibujo**: acá va con la paleta de estado de Adwaita en vez de la de Apple,
 con una tarjeta redondeada por cuenta —la «boxed list» con la que GNOME agrupa
@@ -724,11 +731,21 @@ Cuatro cosas lo hacen algo más que un reloj:
   `Gio.FileMonitor`: cuando Claude Code refresca la cuota, el número cambia en
   el acto. Medido: de 82 % a 96 % en menos de 5 s sin reiniciar nada. El sondeo
   cada 5 min queda de red de seguridad.
-- **Avisa sin que lo mires.** Notifica al cruzar 80 % y 95 %, y cuando la
-  proyección pasa a decir que tocás el techo *antes* del reinicio — que es el
-  momento útil, no cuando ya chocaste.
-- **No repite.** Cada aviso se recuerda por perfil, barra y minuto de reinicio,
-  así que una ventana avisa una vez y vuelve a avisar recién en la siguiente.
+- **Avisa sin que lo mires.** Notifica al cruzar 80 % y 95 % —por **todas** las
+  barras, no sólo por la que frena: la semanal puede estar tranquila mientras la
+  de sesión te para, y al revés— y cuando la proyección pasa a decir que tocás
+  el techo *antes* del reinicio, que es el momento útil y no cuando ya chocaste.
+- **Y avisa cuando te liberás**, que es el único aviso que sirve para hacer algo
+  distinto ahora mismo: la ventana se reinició habiendo estado contra el techo.
+  Un porcentaje solo no alcanza para verlo —3 % puede ser «recién empezás» o
+  «acabás de salir de estar frenado»— así que se guarda el minuto de reinicio
+  junto al número en `previos.json`: cuando el minuto cambia, la ventana es
+  otra. Justo el momento en que dejaste de mirar la barra, porque no había nada
+  que mirar.
+- **No repite.** Cada aviso de umbral se recuerda por perfil, barra y minuto de
+  reinicio, así que una ventana avisa una vez y vuelve a avisar recién en la
+  siguiente. El de liberación no lleva memoria a propósito: tiene que sonar
+  cada vez que pasa.
 
 El icono acompaña: normal, `dialog-warning` desde 80 %, `dialog-error` al 95 %
 o cuando la proyección dice que chocás. `bin/qm-indicator` no sabe qué es una
