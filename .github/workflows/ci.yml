@@ -11,3 +11,22 @@ jobs:
       - run: npm install
       - run: npm run typecheck
       - run: npm test
+
+  # El panel y el item de GNOME son Python + Cairo, y la extensión es JavaScript:
+  # nada de eso lo toca `npm test`. Sin este job, borrar medio bin/qm-indicator
+  # deja el CI en verde — ya pasó.
+  dibujo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: dependencias de dibujo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-gi python3-gi-cairo python3-cairo \
+            gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 \
+            fonts-cantarell
+      - run: ./scripts/gate-dibujo.sh

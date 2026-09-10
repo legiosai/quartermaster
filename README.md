@@ -780,6 +780,31 @@ cerrar sesión y volver a entrar una vez. `ReloadExtension` está deprecada y
 devuelve error, y `EnableExtension` sobre una que el shell todavía no vio
 devuelve `false`.
 
+### El gate que faltaba
+
+`npm test` cubre el núcleo en TypeScript, y hasta acá eso era todo lo que
+miraba el CI. Afuera quedaban las 1.400 líneas de Python que dibujan el panel y
+el item, y la extensión de GNOME Shell. No es hipotético: sacando código muerto
+de `bin/qm-indicator`, un corte demasiado ancho se llevó puesto el bloque entero
+del panel —unas 700 líneas— y el archivo siguió compilando, así que el CI siguió
+en verde. Se descubrió a mano.
+
+```bash
+make gate-dibujo
+```
+
+Mira tres cosas, en orden de qué tan barato es equivocarse: que el indicador
+**compile**, que la extensión **parsee** —un error ahí lo ve GNOME al iniciar
+sesión, que es el peor momento para enterarse— y que **dibuje**, con
+`test/fixtures/panel.json` de entrada, saliendo con las medidas de siempre y con
+píxeles adentro. Lo tercero es lo que no se puede reemplazar por un import: un
+error de Cairo no rompe la importación del módulo.
+
+Y el chequeo de píxeles no es decorativo: un PNG del tamaño correcto y
+enteramente transparente pasa cualquier verificación de medidas sin haber
+dibujado nada. Probado en rojo contra cuatro sabotajes en
+[`numeros/gate-rojo.md`](numeros/gate-rojo.md).
+
 ## En la bandeja de Windows
 
 ```bash

@@ -54,3 +54,34 @@ Que la respuesta **en vivo** de `/api/oauth/usage` tenga la forma de las
 fixtures. Las fixtures salen de `cachedUsageUtilization`, que es esa respuesta
 guardada por Claude Code — muy buena evidencia, pero no una corrida propia
 contra el endpoint (README, H2).
+
+## Tercera tanda: el gate de dibujo (GNOME)
+
+`npm test` cubre el núcleo en TypeScript. Fuera de eso quedaban **1.400 líneas
+de Python** que dibujan el panel y el item de GNOME, y una extensión de GNOME
+Shell en JavaScript, y no las revisaba nadie. No es hipotético: el 2026-09-10,
+sacando código muerto de `bin/qm-indicator`, un `index()` demasiado ancho se
+llevó puesto el bloque entero del panel —unas 700 líneas— y el archivo siguió
+compilando, así que `npm test` siguió en verde. Se descubrió a mano.
+
+`scripts/gate-dibujo.sh` mira tres cosas, en orden de qué tan barato es
+equivocarse: que el indicador compile, que la extensión parsee, y que **dibuje**
+—con `test/fixtures/panel.json` de entrada, el panel y el item tienen que salir
+con las medidas de siempre y con píxeles adentro—. Lo tercero es lo que no se
+puede reemplazar por un import: un error de Cairo no rompe la importación.
+
+Corrido el 2026-09-10, sabotando y restaurando.
+
+| Sabotaje | Qué simula | Qué dijo el gate |
+|---|---|---|
+| `if True` sin dos puntos en `bin/qm-indicator` | exactamente el accidente de arriba | `GATE ROJO: bin/qm-indicator no compila` |
+| `function rota( {` en `extension.js` | un error en la extensión, que GNOME sólo mostraría al iniciar sesión | `GATE ROJO: extension.js no parsea` |
+| `ancho_total = 20` en el item | perder la proporción ancha: GNOME deja de dibujarlo a lo ancho y lo encaja en un cuadrado de 16 px, con los medidores ilegibles | `GATE ROJO: el item quedó de 20x22` |
+| `ANCHO_PANEL = 300` | una medida cambiada sin querer | `GATE ROJO: el panel salió de 300 px de ancho` |
+
+Los cuatro salieron con código 1. Verde antes y después de cada uno.
+
+El chequeo de píxeles no es decorativo: un PNG del tamaño correcto y enteramente
+transparente pasa cualquier verificación de medidas y no dibujó nada. Por eso se
+cuentan los píxeles con alfa distinto de cero, y para el panel se exige que sean
+más de la mitad.
