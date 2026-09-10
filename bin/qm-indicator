@@ -86,13 +86,25 @@ def corto(nombre: str) -> str:
 
 
 def dur(segundos: int) -> str:
+    """La misma escalera que duracion() en Swift y Dur() en PowerShell.
+
+    Incluidos los días: sin ellos un reinicio semanal se lee "168h00m", que no
+    es una duración, es una cuenta de horas. Esta era la única de las tres sin
+    esa rama, y se vio poniendo este panel al lado del de Windows: donde uno
+    decía "cache de hace 127d19h" el otro decía "3067h28m". Los minutos
+    tampoco se rellenan con cero, por lo mismo: "3h08m" contra "3h8m" es la
+    misma clase de diferencia.
+    """
     if segundos < 0:
         return "ya"
     if segundos < 60:
         return f"{segundos}s"
     if segundos < 3600:
         return f"{segundos // 60}m"
-    return f"{segundos // 3600}h{(segundos % 3600) // 60:02d}m"
+    h, m = segundos // 3600, (segundos % 3600) // 60
+    if h < 24:
+        return f"{h}h" if m == 0 else f"{h}h{m}m"
+    return f"{h // 24}d{h % 24}h"
 
 
 def faltan(iso: str | None) -> int | None:

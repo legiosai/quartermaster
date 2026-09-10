@@ -104,6 +104,9 @@ multi-perfil en un cálculo, no en una heurística.
 - **Las ramas de error del endpoint siguen sin ejecutarse.** Contestó bien en
   todos los perfiles; token vencido a mitad de camino y endpoint caído siguen
   sin probarse.
+- **`dur()` era distinta en Python que en las otras dos.** Le faltaba la rama de
+  días, así que el panel de GNOME decía `3067h28m` donde el de Windows decía
+  `127d19h`. Se vio poniendo los dos paneles al lado; no se ve mirando uno solo.
 - **El número del cache puede estar viejo.** Claude Code lo refresca cuando
   quiere —medido: reescribió `.claude.json` 19 s antes y el bloque de cuota
   seguía siendo de hacía 83 minutos—. `qm` imprime la edad siempre.
