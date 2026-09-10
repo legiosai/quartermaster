@@ -877,8 +877,14 @@ def piezas_de(datos, avisar=None) -> list[dict]:
     return piezas
 
 
-def dibujar_item(piezas: list[dict], destino: str) -> tuple[int, int, str]:
-    """Deja el PNG en `destino` y devuelve (ancho, alto, descripción accesible)."""
+def dibujar_item(piezas: list[dict], destino: str, escala: float = 1.0) -> tuple[int, int, str]:
+    """Deja el PNG en `destino` y devuelve (ancho, alto, descripción accesible).
+
+    `escala` multiplica los píxeles del archivo sin tocar las medidas que
+    devuelve: a 3 salen los mismos 99×22 de siempre, dibujados sobre 297×66
+    píxeles. Sirve para mostrarlo grande sin agrandar un bitmap chico, que es
+    interpolar los bordes de un medidor de 3 px de ancho y verlo todo blando.
+    """
     superficie = cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1)
     pluma = Pluma(cairo.Context(superficie), FAMILIA)
 
@@ -894,8 +900,10 @@ def dibujar_item(piezas: list[dict], destino: str) -> tuple[int, int, str]:
     total = sum(anchos) + max(0, len(piezas) - 1) * ENTRE_GRUPOS + 2
     ancho_total = max(int(math.ceil(total)), int(ALTO_ITEM * PROPORCION_ANCHA))
 
-    superficie = cairo.ImageSurface(cairo.FORMAT_ARGB32, ancho_total, ALTO_ITEM)
+    superficie = cairo.ImageSurface(cairo.FORMAT_ARGB32,
+                                    int(ancho_total * escala), int(ALTO_ITEM * escala))
     cr = cairo.Context(superficie)
+    cr.scale(escala, escala)
     pluma = Pluma(cr, FAMILIA)
     base = (ALTO_ITEM - ALTO_MEDIDOR) / 2
     radio = ANCHO_MEDIDOR / 2

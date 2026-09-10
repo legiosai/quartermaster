@@ -13,14 +13,19 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --fondo:#0c0e13; --sup:#12151d; --sup2:#171b26;
-  --borde:rgba(255,255,255,.08); --borde2:rgba(255,255,255,.14);
-  --texto:#e8ecf4; --medio:rgba(232,236,244,.64); --tenue:rgba(232,236,244,.42);
-  --cian:#2ee9ff; --violeta:#a78bff; --verde:#3ddc97; --ambar:#ffa348; --rojo:#f66151;
-  --radio:16px; --ancho:1120px;
+  /* Los colores son los del programa: la rampa verde → ámbar → rojo con la que
+     pinta las barras. El acento es ámbar y no un degradado de moda, porque acá
+     el color significa algo. El negro tira a cálido para que el papel no sea
+     azul. */
+  --fondo:#0e0d0c; --sup:#171512; --sup2:#1f1c18;
+  --borde:rgba(240,236,229,.09); --borde2:rgba(240,236,229,.16);
+  --texto:#f0ece5; --medio:rgba(240,236,229,.66); --tenue:rgba(240,236,229,.44);
+  --verde:#2fbf71; --ambar:#f2b134; --rojo:#e2483d; --legios:#3FB7F0;
+  --radio:14px; --ancho:1120px;
+  --serif:"Instrument Serif",Georgia,"Times New Roman",serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 *{box-sizing:border-box}
@@ -32,19 +37,29 @@ body{
 }
 .env{max-width:var(--ancho);margin:0 auto;padding:0 24px}
 a{color:inherit}
-h1,h2,h3{line-height:1.15;letter-spacing:-.022em;margin:0}
-h1{font-size:clamp(34px,4.4vw,50px);font-weight:700}
-h2{font-size:clamp(26px,3.4vw,38px);font-weight:600}
-h3{font-size:19px;font-weight:600}
+h1,h2{font-family:var(--serif);font-weight:400;line-height:1.06;letter-spacing:-.012em;margin:0}
+h1{font-size:clamp(44px,5.6vw,68px)}
+h2{font-size:clamp(32px,4vw,46px)}
+h3{font-size:17.5px;font-weight:600;letter-spacing:-.01em;margin:0;line-height:1.3}
+em.it{font-family:var(--serif);font-style:italic;font-size:1.06em}
 p{margin:0}
 code{font-family:var(--mono);font-size:.92em}
-.grad{background:linear-gradient(120deg,var(--cian),var(--violeta));-webkit-background-clip:text;background-clip:text;color:transparent}
+.grad{font-family:var(--serif);font-style:italic;color:var(--ambar)}
+/* Un rótulo de sección: número en monoespaciada y una regla. Le da a la página
+   el aire de una hoja de datos, que es lo que el programa es. */
+.rotulo{display:flex;align-items:center;gap:14px;font:500 11.5px/1 var(--mono);
+  letter-spacing:.16em;text-transform:uppercase;color:var(--tenue);margin-bottom:20px}
+.rotulo::after{content:"";flex:1;height:1px;background:var(--borde)}
+.rotulo b{color:var(--ambar);font-weight:500}
 
 /* ── luz de fondo ── */
 .aura{position:fixed;inset:0;pointer-events:none;z-index:0;
   background:
-    radial-gradient(900px 520px at 78% -8%,rgba(46,233,255,.13),transparent 62%),
-    radial-gradient(760px 480px at 8% 4%,rgba(167,139,255,.11),transparent 60%);}
+    radial-gradient(880px 520px at 82% -10%,rgba(242,177,52,.10),transparent 62%),
+    radial-gradient(720px 460px at 4% 2%,rgba(226,72,61,.07),transparent 60%);}
+/* Grano. Es lo que separa un fondo dibujado de un degradado de plantilla. */
+.grano{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
 .capa{position:relative;z-index:1}
 
 /* ── barra ── */
@@ -62,20 +77,30 @@ header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
 .heroe{padding:88px 0 40px;display:grid;grid-template-columns:1.18fr .82fr;gap:56px;align-items:start}
 .ceja{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid var(--borde2);
   border-radius:999px;font-size:12.5px;font-weight:500;color:var(--medio);margin-bottom:22px}
-.ceja b{color:var(--cian);font-weight:600}
+.ceja b{color:var(--ambar);font-weight:600}
 .heroe p.bajada{color:var(--medio);font-size:18.5px;margin-top:20px;max-width:37ch}
 .heroe .no{color:var(--texto);font-weight:600}
 
-.instalar{margin-top:30px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.instalar{margin-top:22px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.so{display:flex;gap:6px;margin:30px 0 12px;flex-wrap:wrap}
+.so button{display:inline-flex;align-items:center;gap:8px;padding:9px 14px;border-radius:11px;
+  border:1px solid var(--borde);background:transparent;color:var(--medio);cursor:pointer;
+  font:500 14px Inter,sans-serif}
+.so button svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.5;
+  stroke-linecap:round;stroke-linejoin:round}
+.so button:hover{color:var(--texto);border-color:var(--borde2)}
+.so button[aria-selected=true]{color:var(--texto);border-color:var(--ambar);
+  background:rgba(242,177,52,.10)}
+.so button[aria-selected=true] svg{stroke:var(--ambar)}
 .comando{display:flex;align-items:center;gap:12px;background:var(--sup);border:1px solid var(--borde);
   border-radius:12px;padding:12px 14px;font-family:var(--mono);font-size:14px}
-.comando .p{color:var(--cian)}
+.comando .p{color:var(--ambar)}
 .copiar{margin-left:4px;border:0;background:rgba(255,255,255,.07);color:var(--medio);cursor:pointer;
   border-radius:7px;padding:5px 9px;font:500 12px Inter,sans-serif}
 .copiar:hover{background:rgba(255,255,255,.13);color:var(--texto)}
 .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;border-radius:12px;
   text-decoration:none;font-weight:600;font-size:15px}
-.btn.p{background:linear-gradient(120deg,var(--cian),var(--violeta));color:#07090d}
+.btn.p{background:var(--ambar);color:#17120a}
 .btn.s{border:1px solid var(--borde2);color:var(--texto)}
 .btn:hover{filter:brightness(1.08)}
 .nota{color:var(--tenue);font-size:13.5px;margin-top:16px}
@@ -100,9 +125,8 @@ section{padding:76px 0}
 .c3{grid-template-columns:repeat(3,1fr)}
 .c4{grid-template-columns:repeat(4,1fr)}
 .tarjeta{background:var(--sup);border:1px solid var(--borde);border-radius:var(--radio);padding:22px}
-.tarjeta .ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
-  background:rgba(46,233,255,.10);border:1px solid rgba(46,233,255,.20);margin-bottom:14px}
-.tarjeta .ico svg{width:18px;height:18px;stroke:var(--cian);fill:none;stroke-width:1.7;
+.tarjeta .ico{width:30px;height:30px;display:grid;place-items:center;margin-bottom:16px}
+.tarjeta .ico svg{width:22px;height:22px;stroke:var(--ambar);fill:none;stroke-width:1.5;
   stroke-linecap:round;stroke-linejoin:round}
 .tarjeta p{color:var(--medio);font-size:14.5px;margin-top:8px}
 .tarjeta code{color:var(--texto);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:5px}
@@ -122,14 +146,21 @@ section{padding:76px 0}
 .pestanas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
 .pestanas button{border:1px solid var(--borde);background:var(--sup);color:var(--medio);
   padding:9px 15px;border-radius:11px;cursor:pointer;font:500 14px Inter,sans-serif}
-.pestanas button[aria-selected=true]{color:#07090d;background:linear-gradient(120deg,var(--cian),var(--violeta));border-color:transparent}
+.pestanas button[aria-selected=true]{color:#17120a;background:var(--ambar);border-color:transparent}
 pre{margin:0;background:var(--sup);border:1px solid var(--borde);border-radius:14px;padding:20px 22px;
   overflow-x:auto;font-family:var(--mono);font-size:14px;line-height:1.75;color:var(--texto)}
 pre .c{color:var(--tenue)}
-pre .p{color:var(--cian)}
+pre .p{color:var(--ambar)}
 
 /* ── pie ── */
-footer{border-top:1px solid var(--borde);padding:40px 0;color:var(--tenue);font-size:14px}
+footer{border-top:1px solid var(--borde);padding:52px 0 40px;color:var(--tenue);font-size:14px}
+.pie-legios{display:flex;gap:28px;align-items:center;flex-wrap:wrap;margin-bottom:22px}
+.pie-legios img{opacity:.95;flex:none}
+.pie-legios p{max-width:52ch;color:var(--medio);font-size:14.5px}
+.pie-legios b{color:var(--texto);font-weight:600}
+.firma{font-family:var(--mono);font-size:12.5px;letter-spacing:.02em;color:var(--tenue);
+  padding-bottom:26px;border-bottom:1px solid var(--borde);margin-bottom:22px}
+.firma b{color:var(--medio);font-weight:500}
 .pie-fila{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
 footer a{color:var(--medio);text-decoration:none}
 footer a:hover{color:var(--texto)}
@@ -154,12 +185,13 @@ footer a:hover{color:var(--texto)}
 </head>
 <body>
 <div class="aura"></div>
+<div class="grano"></div>
 <div class="capa">
 
 <header>
   <div class="env nav">
     <a class="marca" href="./">
-      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2ee9ff"/><stop offset="1" stop-color="#a78bff"/></linearGradient></defs><circle cx="32" cy="32" r="22" fill="none" stroke="#2ee9ff" stroke-opacity=".18" stroke-width="7"/><path d="M32 10A22 22 0 1 1 10 32" fill="none" stroke="url(#m)" stroke-width="7" stroke-linecap="round"/><path d="M43.5 43.5 53 53" fill="none" stroke="url(#m)" stroke-width="7" stroke-linecap="round"/></svg>
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="m" gradientUnits="userSpaceOnUse" x1="14" y1="46" x2="50" y2="14"><stop offset="0" stop-color="#2fbf71"/><stop offset=".5" stop-color="#f2b134"/><stop offset="1" stop-color="#e2483d"/></linearGradient></defs><circle cx="32" cy="32" r="20" fill="none" stroke="currentColor" stroke-opacity=".16" stroke-width="9"/><path d="M32 12A20 20 0 1 1 14.8 42" fill="none" stroke="url(#m)" stroke-width="9" stroke-linecap="round"/><path d="M41 41 51.5 51.5" fill="none" stroke="url(#m)" stroke-width="9" stroke-linecap="round"/></svg>
       quartermaster
     </a>
     <nav>
@@ -179,14 +211,20 @@ footer a:hover{color:var(--texto)}
       <span class="no">Sin red y sin credenciales</span>: sale del cache que
       Claude Code ya dejó en tu disco, así que se lee aunque el token esté vencido.
     </p>
-    <div class="instalar">
-      <div class="comando"><span class="p">$</span><span id="cmd">brew install legiosai/tap/quartermaster</span><button class="copiar" data-copiar="#cmd">copiar</button></div>
+    <div class="so" role="tablist" aria-label="Sistema operativo">
+      <button role="tab" aria-selected="true" data-so="mac">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h6v6H9z"/><path d="M9 9V7a2 2 0 1 0-2 2z"/><path d="M15 9V7a2 2 0 1 1 2 2z"/><path d="M9 15v2a2 2 0 1 1-2-2z"/><path d="M15 15v2a2 2 0 1 0 2-2z"/></svg>macOS</button>
+      <button role="tab" aria-selected="false" data-so="linux">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3c2 0 3.3 1.6 3.3 3.6 0 1 0 1.5.5 2.2 1 1.4 2.4 3.3 2.4 5.4 0 2.6-2.6 4.3-6.2 4.3S5.8 16.8 5.8 14.2c0-2.1 1.4-4 2.4-5.4.5-.7.5-1.2.5-2.2C8.7 4.6 10 3 12 3z"/><path d="M10.6 7.1h.01M13.4 7.1h.01"/><path d="M11 9.1l1 .9 1-.9"/></svg>Linux</button>
+      <button role="tab" aria-selected="false" data-so="win">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="7.5" height="6.5" rx="1"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="3.5" y="13" width="7.5" height="6.5" rx="1"/><rect x="13" y="13" width="7.5" height="7.5" rx="1"/></svg>Windows</button>
     </div>
+    <div class="comando"><span class="p">$</span><span id="cmd">brew install legiosai/tap/quartermaster</span><button class="copiar" data-copiar="#cmd">copiar</button></div>
+    <p class="nota" id="nota-so">Homebrew. También por npm.</p>
     <div class="instalar">
-      <a class="btn p" href="#instalar">Instalar</a>
+      <a class="btn p" href="#instalar">Todas las formas</a>
       <a class="btn s" href="https://github.com/legiosai/quartermaster">Ver el código</a>
     </div>
-    <p class="nota">También por npm y con un <code>.deb</code>. macOS, Linux y Windows.</p>
   </div>
   <div class="retrato aparece">
     <figure class="barra-foto">
@@ -200,6 +238,7 @@ footer a:hover{color:var(--texto)}
 <section id="problema">
   <div class="env">
     <div class="titulo aparece">
+      <div class="rotulo"><b>01</b> El problema</div>
       <h2>Los monitores leen una credencial. Vos tenés tres cuentas.</h2>
       <p>
         Claude Code soporta varios perfiles con <code>CLAUDE_CONFIG_DIR</code>, y cada uno
@@ -231,6 +270,7 @@ footer a:hover{color:var(--texto)}
 <section id="hallazgo">
   <div class="env">
     <div class="titulo aparece">
+      <div class="rotulo"><b>02</b> La evidencia</div>
       <h2>El hallazgo que lo justifica</h2>
       <p>
         Dentro de <code>limits[]</code> hay barras que <b>no tienen clave propia arriba</b>.
@@ -268,6 +308,7 @@ footer a:hover{color:var(--texto)}
 <section id="superficies">
   <div class="env">
     <div class="titulo aparece">
+      <div class="rotulo"><b>03</b> Las superficies</div>
       <h2>Donde ya estás mirando</h2>
       <p>El mismo número, dibujado para cada escritorio. No hay una app que abrir.</p>
     </div>
@@ -306,7 +347,8 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
 <section id="instalar">
   <div class="env">
     <div class="titulo aparece">
-      <h2>Instalar</h2>
+      <div class="rotulo"><b>04</b> Instalar</div>
+      <h2>Ponerlo a andar</h2>
       <p>No hay paso de compilación: <code>qm</code> lee el TypeScript directo, y por eso pide Node ≥ 22.6.</p>
     </div>
     <div class="pestanas aparece" role="tablist">
@@ -333,8 +375,19 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
 </section>
 
 <footer>
+  <div class="env">
+    <div class="pie-legios">
+      <a href="https://github.com/legiosai" aria-label="Legios"><img src="legios.svg" alt="Legios" width="182" height="70"></a>
+      <p>
+        quartermaster es un instrumento de <b>Legios</b>: las piezas que hacen falta
+        para que un cambio de software vaya de un síntoma a un PR sin que nadie tenga
+        que sostener el sistema entero en la cabeza.
+      </p>
+    </div>
+    <p class="firma">Ingeniería de <b>Valentín Torassa</b> y <b>Sol Soletti</b>.</p>
+  </div>
   <div class="env pie-fila">
-    <span>quartermaster · un instrumento de <a href="https://github.com/legiosai">Legios</a> · MIT</span>
+    <span>MIT · <a href="https://github.com/legiosai/quartermaster/releases">v0.1.2</a></span>
     <span>
       <a href="https://github.com/legiosai/quartermaster">Código</a> ·
       <a href="https://github.com/legiosai/quartermaster/releases">Releases</a> ·
@@ -352,6 +405,25 @@ document.querySelectorAll('.copiar').forEach(b=>{
       setTimeout(()=>b.textContent='copiar',1400);}catch(e){b.textContent='no pude';}
   });
 });
+const CMD={
+  mac:['brew install legiosai/tap/quartermaster','Homebrew. También por npm.'],
+  linux:['brew install legiosai/tap/quartermaster','Homebrew, npm, o el <code>.deb</code> de la release.'],
+  win:['npm install -g @legios/quartermaster','npm. La bandeja anda desde WSL.']
+};
+const sos=document.querySelectorAll('.so button');
+function elegirSO(b){
+  sos.forEach(o=>o.setAttribute('aria-selected',String(o===b)));
+  const [cmd,nota]=CMD[b.dataset.so];
+  document.getElementById('cmd').textContent=cmd;
+  document.getElementById('nota-so').innerHTML=nota;
+}
+sos.forEach(b=>b.addEventListener('click',()=>elegirSO(b)));
+{ // arrancar en el sistema de quien mira, que es el único que le importa
+  const p=(navigator.userAgentData?.platform||navigator.platform||'').toLowerCase();
+  const cual=p.includes('win')?'win':p.includes('linux')?'linux':'mac';
+  const b=document.querySelector(`.so button[data-so="${cual}"]`);
+  if(b) elegirSO(b);
+}
 const pest=document.querySelectorAll('.pestanas button');
 pest.forEach(b=>b.addEventListener('click',()=>{
   pest.forEach(o=>{o.setAttribute('aria-selected',String(o===b));

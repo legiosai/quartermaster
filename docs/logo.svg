@@ -1,14 +1,17 @@
 <!-- quartermaster.
-     Un anillo al que le falta un cuarto: el medidor de cuota que dibuja el
-     panel, y una Q. El hueco es lo consumido; la cola cierra la letra. -->
+     Un medidor circular al que le falta un cuarto, que además es una Q: el
+     hueco es lo consumido y la cola cierra la letra. El arco va de verde a
+     rojo porque es literalmente lo que hace el programa — no es decoración,
+     es la escala. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="quartermaster">
   <defs>
-    <linearGradient id="qm" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2ee9ff"/>
-      <stop offset="1" stop-color="#a78bff"/>
+    <linearGradient id="qm" gradientUnits="userSpaceOnUse" x1="14" y1="46" x2="50" y2="14">
+      <stop offset="0" stop-color="#2fbf71"/>
+      <stop offset=".5" stop-color="#f2b134"/>
+      <stop offset="1" stop-color="#e2483d"/>
     </linearGradient>
   </defs>
-  <circle cx="32" cy="32" r="22" fill="none" stroke="#2ee9ff" stroke-opacity=".18" stroke-width="7"/>
-  <path d="M32 10A22 22 0 1 1 10 32" fill="none" stroke="url(#qm)" stroke-width="7" stroke-linecap="round"/>
-  <path d="M43.5 43.5 53 53" fill="none" stroke="url(#qm)" stroke-width="7" stroke-linecap="round"/>
+  <circle cx="32" cy="32" r="20" fill="none" stroke="currentColor" stroke-opacity=".14" stroke-width="9"/>
+  <path d="M32 12A20 20 0 1 1 14.8 42" fill="none" stroke="url(#qm)" stroke-width="9" stroke-linecap="round"/>
+  <path d="M41 41 51.5 51.5" fill="none" stroke="url(#qm)" stroke-width="9" stroke-linecap="round"/>
 </svg>
