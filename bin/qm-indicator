@@ -1080,23 +1080,19 @@ class Panel:
         self.menu.get_style_context().add_class("qm")
         self.menu.set_reserve_toggle_size(False)
 
-        self.lienzo = Gtk.DrawingArea()
-        self.lienzo.connect("draw", self._dibujar)
-        self.fila = Gtk.MenuItem()
-        self.fila.get_style_context().add_class("qm-lienzo")
-        self.fila.add(self.lienzo)
-        self.menu.append(self.fila)
-
-        css = Gtk.CssProvider()
-        css.load_from_data(CSS_PANEL)
-        for w in (self.menu, self.fila):
-            w.get_style_context().add_provider(css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
-
-        self.menu.append(Gtk.SeparatorMenuItem())
-        actualizar = Gtk.MenuItem(label="Actualizar ahora")
-        actualizar.connect("activate", lambda _: self.al_actualizar())
-        self.menu.append(actualizar)
-        self.menu.show_all()
+        # Un item por tarjeta, y no una sola superficie gigante.
+        #
+        # Un Gtk.Menu rueda ITEM por item: con un único item más alto que la
+        # pantalla no hay nada que rodar, y el menú directamente no abre. Se vio
+        # con un panel de 946 px en un monitor cuyo área útil son 728 — antes
+        # medía 740 y entraba raspando, así que el bug apareció recién cuando el
+        # panel creció. Partido en tarjetas, cada item entra y GTK pone las
+        # flechas de rodar solo.
+        self.css = Gtk.CssProvider()
+        self.css.load_from_data(CSS_PANEL)
+        self.menu.get_style_context().add_provider(
+            self.css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        self.filas: list[Gtk.MenuItem] = []
 
         self.menu.realize()
         # Si el compositor le rompe el agarre —pasa cuando el foco se va al lado
@@ -1132,12 +1128,70 @@ class Panel:
         if not self.abierto:
             self.tictac = None
             return False
-        self.lienzo.queue_draw()
+        for fila in self.filas:
+            fila.get_child().queue_draw()
         return True
 
-    def _dibujar(self, _w, cr) -> bool:
-        dibujar_panel(cr, self.datos, self.alto, self.cuanto_falta())
-        return False
+    def _fila(self, dibujo, alto: float) -> Gtk.MenuItem:
+        """Un renglón del menú que se dibuja solo."""
+        lienzo = Gtk.DrawingArea()
+        lienzo.set_size_request(ANCHO_PANEL, int(alto))
+        lienzo.connect("draw", lambda _w, cr, d=dibujo: (d(cr), False)[1])
+        fila = Gtk.MenuItem()
+        fila.get_style_context().add_class("qm-lienzo")
+        fila.get_style_context().add_provider(
+            self.css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        fila.add(lienzo)
+        return fila
+
+    def _armar(self) -> None:
+        # Todo se construye de nuevo, incluidos el separador y «Actualizar».
+        # Sacar un widget de un contenedor de GTK lo DESTRUYE, así que guardarlo
+        # para reusarlo en la próxima vuelta deja un objeto muerto: el menú se
+        # armaba una vez, se cerraba, y de ahí en adelante no abría nunca más.
+        for hijo in self.menu.get_children():
+            self.menu.remove(hijo)
+        self.filas = []
+
+        pluma = _pluma_de_medir()
+        if isinstance(self.datos, str):
+            # Silencio es el bug: si no hay número, hay una frase.
+            alto = pluma.alto(self.datos, 11.5, ancho=ANCHO_PANEL - 2 * MARGEN) + 2 * MARGEN
+            texto = self.datos
+            self.filas.append(self._fila(
+                lambda cr, t=texto: Pluma(cr, FAMILIA).escribir(
+                    MARGEN, MARGEN, t, 11.5, TEMA.secundario,
+                    ancho=ANCHO_PANEL - 2 * MARGEN), alto))
+        else:
+            cabecera, vistas = modelo_panel(self.datos)
+            if cabecera:
+                self.filas.append(self._fila(
+                    lambda cr, v=cabecera: v.pintar(cr, Pluma(cr, FAMILIA), 0.0),
+                    ALTO_CABECERA))
+            for v in vistas:
+                self.filas.append(self._fila(
+                    lambda cr, v=v: v.pintar(cr, Pluma(cr, FAMILIA), 0.0),
+                    v.medir(pluma) + ENTRE_TARJETAS))
+            if self.cuanto_falta() is not None:
+                self.filas.append(self._fila(self._pintar_lectura, ALTO_PIE_LECTURA))
+
+        for fila in self.filas:
+            self.menu.append(fila)
+        self.menu.append(Gtk.SeparatorMenuItem())
+        actualizar = Gtk.MenuItem(label="Actualizar ahora")
+        actualizar.connect("activate", lambda _: self.al_actualizar())
+        self.menu.append(actualizar)
+        self.menu.show_all()
+
+    def _pintar_lectura(self, cr) -> None:
+        falta = self.cuanto_falta()
+        if falta is None:
+            return
+        # Cada cuenta dice de cuándo es su número; esto dice cuándo deja de
+        # serlo. Es la otra mitad de la misma pregunta.
+        Pluma(cr, FAMILIA).escribir(
+            MARGEN + PAD_TARJETA, 4, f"próxima lectura en {cuenta_regresiva(falta)}",
+            10.5, TEMA.terciario)
 
     @staticmethod
     def _area():
@@ -1189,10 +1243,13 @@ class Panel:
         TEMA = Tema.desde(self.menu)
         self.datos = datos
         self.alto = medir_panel(datos, self.cuanto_falta() is not None)
-        self.lienzo.set_size_request(ANCHO_PANEL, self.alto)
-        self.lienzo.queue_draw()
         if self.abierto:
+            # Con el menú abierto no se reconstruyen los items —eso lo cerraría—
+            # así que sólo se repintan.
+            for fila in self.filas:
+                fila.get_child().queue_draw()
             return
+        self._armar()
         # Arriba a la derecha del área útil, que ya excluye la barra.
         area = self._area()
         donde = Gdk.Rectangle()

@@ -689,6 +689,13 @@ GNOME sabe dibujar ahí adentro: los items viajan por DBus y del otro lado la
 extensión hace `label.set_text(...)`, texto pelado y sin markup. Un muro de
 texto delante del dibujo bueno es peor que no tener menú.
 
+El panel se arma con **un item de menú por tarjeta**, no como una sola
+superficie. Un menú rueda item por item: con un único item más alto que la
+pantalla no hay nada que rodar y el menú **no abre**, sin un error en ningún
+lado. Venía midiendo 740 px contra 728 de área útil —entraba raspando— y en
+cuanto creció dejó de abrirse. `make gate-dibujo` ahora falla si una tarjeta
+sola pasa de 700 px.
+
 **El panel es un `Gtk.Menu` propio** —popeado por este proceso, no por DBus— y
 no una ventana suelta. La razón se midió: en este escritorio ninguna ventana
 sostiene el foco. Se probaron los cuatro tipos (UTILITY, NORMAL, DIALOG,

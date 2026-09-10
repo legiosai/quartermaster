@@ -100,7 +100,17 @@ y después de todos.
 | `ANCHO_PANEL = 300` | una medida cambiada sin querer | `el panel salió de 300 px de ancho` |
 | `cabecera, vistas = None, []` | el caso peor: medidas perfectas y nada dibujado | `el panel salió de 24 px de alto` |
 
-Los cinco salieron con código 1.
+| `ALTO_BARRA = 205` | una tarjeta sola más alta que la pantalla | `la tarjeta VistaCuenta mide 733 px y no entra` |
+
+Los seis salieron con código 1.
+
+El último apareció después, y por las malas. El panel de GNOME es un `Gtk.Menu`,
+y un menú rueda **item por item**: con un solo item más alto que la pantalla no
+hay nada que rodar y el menú directamente no abre — sin un error, sin un log,
+sin nada. El panel venía midiendo 740 px contra 728 de área útil, o sea entraba
+raspando; las mejoras del día lo llevaron a 946 y dejó de abrir. Partirlo en una
+tarjeta por cuenta lo arregla, pero sólo mientras ninguna tarjeta sola se pase, y
+eso es lo que ahora mira `scripts/gate-tarjetas.py`.
 
 El chequeo de píxeles no es decorativo: un PNG del tamaño correcto y enteramente
 transparente pasa cualquier verificación de medidas y no dibujó nada. Por eso se

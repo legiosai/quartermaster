@@ -83,4 +83,8 @@ if fallas:
 print("dibujo verificado: panel 360 px y item ancho, los dos con píxeles adentro")
 PY
 
+# 4 · y que ninguna tarjeta sola sea más alta que una pantalla: el panel es un
+#     menú, y un menú rueda item por item.
+python3 scripts/gate-tarjetas.py || exit 1
+
 echo "gate de dibujo: verde"
