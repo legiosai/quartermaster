@@ -2,7 +2,7 @@
 
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { parsearRateLimits, tieneBarras } from '../src/adapters/codex.ts';
+import { modoDeAuth, parsearRateLimits, tieneBarras } from '../src/adapters/codex.ts';
 import { fechaDeReinicio } from '../src/adapters/opencode.ts';
 
 /** Como lo escribe el app-server: camelCase. */
@@ -116,5 +116,33 @@ describe('opencode · la fecha de reinicio que viene adentro de una oración', (
   it('sin fecha en el mensaje devuelve null, no una fecha inventada', () => {
     strictEqual(fechaDeReinicio('The usage limit has been reached'), null);
     strictEqual(fechaDeReinicio('will reset at mañana'), null);
+  });
+});
+
+describe('codex · con qué está autenticado', () => {
+  // Esto empezó como un bug reportado a mano: la bandeja decía `plus` en una
+  // máquina sin ninguna suscripción. La causa estaba en el disco: ocho
+  // rollouts de mayo con `plan_type: "plus"` y barras de hasta el 94 %, y un
+  // auth.json que decía `apikey`. La suscripción existió y se dio de baja; los
+  // rollouts de cuando existía no se borran nunca.
+  it('auth_mode manda, y con una API key no hay suscripción', () => {
+    strictEqual(modoDeAuth({ auth_mode: 'apikey', OPENAI_API_KEY: 'sk-noimporta' }), 'apikey');
+    strictEqual(modoDeAuth({ auth_mode: 'chatgpt', tokens: { id_token: 'a.b.c' } }), 'chatgpt');
+  });
+
+  it('sin auth_mode se deduce de qué guardó, que es lo que hacían los viejos', () => {
+    // Un auth.json viejo de una cuenta de ChatGPT: no traía auth_mode.
+    strictEqual(modoDeAuth({ tokens: { id_token: 'a.b.c' } }), 'chatgpt');
+    strictEqual(modoDeAuth({ OPENAI_API_KEY: 'sk-noimporta' }), 'apikey');
+    // Y si no hay ninguna de las dos, no se afirma nada: null no es 'apikey'.
+    // Afirmar de más acá esconde una cuenta con suscripción de verdad.
+    strictEqual(modoDeAuth({}), null);
+    strictEqual(modoDeAuth({ tokens: {} }), null);
+  });
+
+  it('el id_token gana sobre la key: las dos cosas pueden estar en el archivo', () => {
+    // Codex deja la key vieja cuando entrás con la cuenta. Si ganara la key,
+    // una cuenta con suscripción quedaría reportada como si no la tuviera.
+    strictEqual(modoDeAuth({ tokens: { id_token: 'a.b.c' }, OPENAI_API_KEY: 'sk-vieja' }), 'chatgpt');
   });
 });

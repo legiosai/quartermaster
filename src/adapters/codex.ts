@@ -92,6 +92,46 @@ export function duenoCodex(): DuenoCodex | null {
   }
 }
 
+/**
+ * Cómo está autenticado Codex: con la cuenta de ChatGPT o con una API key.
+ *
+ * Es la señal AUTORITATIVA de si hay suscripción, y hay que mirarla antes que
+ * los rollouts. Encontrado en la máquina donde se escribió esto: ocho rollouts
+ * que decían `plan_type: "plus"` con barras de hasta el 94 %, todos de mayo, y
+ * un `auth.json` que decía `auth_mode: "apikey"`. La suscripción existió y se
+ * dio de baja; los rollouts de cuando existía siguen en el disco para siempre.
+ * Sin mirar el modo, qm reportaba un plan que ya no está y unas barras de hace
+ * 127 días como si fueran de ahora — y peor, en una cuenta que no tiene barras
+ * porque paga por uso.
+ *
+ * Es el mismo caso que las filas de opencode: un plan por API key cuyo
+ * porcentaje sólo existe del otro lado.
+ */
+export type ModoCodex = 'apikey' | 'chatgpt' | null;
+
+/**
+ * La decisión sola, sin tocar el disco. Exportada para poder probarla, igual
+ * que `parsearRateLimits`: es donde vive la regla que se puede romper sin que
+ * nadie se entere.
+ */
+export function modoDeAuth(auth: Record<string, unknown>): ModoCodex {
+  const modo = auth['auth_mode'];
+  if (modo === 'apikey' || modo === 'chatgpt') return modo;
+  // Los auth.json viejos no traían auth_mode: se deduce de qué guardaron.
+  const tokens = (auth['tokens'] as Record<string, unknown>) ?? {};
+  if (typeof tokens['id_token'] === 'string') return 'chatgpt';
+  if (typeof auth['OPENAI_API_KEY'] === 'string') return 'apikey';
+  return null;
+}
+
+export function modoCodex(): ModoCodex {
+  try {
+    return modoDeAuth(JSON.parse(readFileSync(join(DIRECTORIO_CODEX, 'auth.json'), 'utf8')) as Record<string, unknown>);
+  } catch {
+    return null;
+  }
+}
+
 export interface CuentaCodex {
   readonly plan: string | null;
   readonly accountId: string | null;
@@ -191,6 +231,10 @@ export function tieneBarras(rl: Record<string, unknown>): boolean {
  */
 export function codexEnDisco(): LecturaCodex {
   if (!hayCodex()) return { cuota: { estado: 'sin-cache' }, info: null };
+  // Una API key no tiene barras de suscripción, y los rollouts de cuando SÍ
+  // había suscripción no se borran. El modo manda sobre el rollout: si no,
+  // se reporta un plan de baja y un porcentaje de hace meses.
+  if (modoCodex() === 'apikey') return { cuota: { estado: 'sin-suscripcion' }, info: null };
   // Se miran varios y gana el evento MÁS NUEVO, no el primer archivo que traiga
   // barras: el mtime del rollout y la fecha del último token_count no siempre
   // coinciden —una sesión vieja puede reescribirse— y quedarse con el primero
@@ -383,6 +427,9 @@ export function codexEnCache(): LecturaCodex {
  */
 export async function consultarCodex(): Promise<LecturaCodex> {
   if (!hayCodex()) return { cuota: { estado: 'sin-cache' }, info: null };
+  // Con API key no hay límites de suscripción que pedir: levantar un
+  // app-server para que conteste eso es gastar 20 s de timeout.
+  if (modoCodex() === 'apikey') return { cuota: { estado: 'sin-suscripcion' }, info: null };
 
   return new Promise<LecturaCodex>((resolver) => {
     const binario = rutaCodex();

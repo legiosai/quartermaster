@@ -95,6 +95,13 @@ export function limitesOpencode(): Map<string, LimiteOpencode> {
   } catch {
     return salida;
   }
+  // Acotado por fecha, y eso no es una optimización de adorno: sin el `where`
+  // sobre time_updated hay que hacer json_extract del blob de CADA mensaje
+  // —10 173 en esta máquina— y la consulta tarda 135 ms en frío. Con el corte
+  // son 3 ms. Medido, no supuesto. Y no se pierde nada que se use: lo único
+  // que produce una barra es un límite cuyo reinicio todavía no pasó, y ningún
+  // proveedor reinicia en más de un mes.
+  const corte = Date.now() - 30 * 24 * 3600_000;
   try {
     const filas = db
       .prepare(
@@ -103,11 +110,12 @@ export function limitesOpencode(): Map<string, LimiteOpencode> {
                 coalesce(json_extract(m.data,'$.error.data.message'),
                          json_extract(m.data,'$.error.name')) as mensaje
            from message m join session s on s.id = m.session_id
-          where json_extract(m.data,'$.error') is not null
+          where m.time_updated >= ?
+            and json_extract(m.data,'$.error') is not null
           order by m.time_updated desc
           limit 400`,
       )
-      .all() as { proveedor: string | null; cuando: number; mensaje: string | null }[];
+      .all(corte) as { proveedor: string | null; cuando: number; mensaje: string | null }[];
 
     for (const f of filas) {
       if (f.proveedor === null || f.mensaje === null) continue;

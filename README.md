@@ -882,21 +882,67 @@ make tray            # lo arranca ahora (desde WSL)
 make tray-autostart  # y que arranque solo al iniciar sesión de Windows
 ```
 
-El menú es el mismo dibujo que `VistaCuenta` en `bin/qm-barra.swift`: glifo del
-producto, cuenta y plan, medidores redondeados con la paleta de estado,
-porcentaje alineado a la derecha y un pie con el reinicio y la edad del cache.
-En WinForms no se puede pintar un item de menú sin subclasear, así que cada
-perfil se dibuja a un `Bitmap` y el `Bitmap` va adentro de un `PictureBox`
-hosteado en el menú. El efecto es el mismo; el camino, no.
+El panel es el mismo dibujo que `VistaResumen` y `VistaCuenta` en
+`bin/qm-barra.swift`: cabecera con el anillo de **lo primero que te frena**, y
+después una sección por cuenta con el glifo del producto, cuenta y plan,
+medidores redondeados con la paleta de estado, porcentaje a la derecha, un pie
+con el reinicio y la edad del cache, la curva de las últimas muestras pegada a
+la barra que frena, y el ritmo. En WinForms no se puede pintar un item de menú
+sin subclasear, así que cada sección se dibuja a un `Bitmap` y el `Bitmap` va
+adentro de un `PictureBox` hosteado en el menú. El efecto es el mismo; el
+camino, no.
 
-**El ícono es un anillo, no un número.** La primera versión dibujaba el
-porcentaje adentro del ícono, como los medidores de batería. Se renderizó a
-16×16 —el tamaño real de la bandeja a 96 dpi— y se miró: **un dígito se lee, dos
-son una mancha.** Así que el número se fue al tooltip y al menú, y el ícono hace
-lo que la barra de macOS ya hacía en su lugar: un medidor. El arco dice cuánto
-va, el color dice cuánto importa, y las dos cosas sobreviven a 16 píxeles. La
-pista del anillo es gris translúcido porque la barra de tareas puede ser clara u
-oscura y el ícono no se entera.
+**El ícono nunca es un número.** La primera versión dibujaba el porcentaje
+adentro del ícono, como los medidores de batería. Se renderizó a 16×16 —el
+tamaño real de la bandeja a 96 dpi— y se miró: **un dígito se lee, dos son una
+mancha.** Así que el número se fue al tooltip y al menú, y el ícono hace de
+medidor: la forma dice cuánto va, el color dice cuánto importa, y las dos cosas
+sobreviven a 16 píxeles.
+
+**Y hay un ícono por cuenta, no uno solo.** La barra de menú de macOS no muestra
+un medidor: muestra una **tira** —glifo, medidor y número, una vez por cuenta— y
+eso es lo que uno viene a mirar. En un item de bandeja no cabe: no tiene
+etiqueta de texto y es un cuadrado de 16×16. Así que la tira se reparte en
+varios items, uno por cuenta, con el glifo de su producto y el medidor de su
+semanal, y el número de la sesión en el tooltip. Comparten el mismo menú, así
+que hacer click en cualquiera abre el panel completo. El anillo quedó para el
+único caso que no tiene cuenta que dibujar: cuando `qm` no contesta.
+
+**Dos cosas que aparecieron al mirarlo y no al leerlo.**
+
+- **El color de cuenta necesitaba las dos tablas.** `colorCuenta()` en Swift
+  devuelve un `NSColor` dinámico con una tabla clara y una oscura; el `.ps1`
+  había copiado sólo la clara. Con el ícono a 16×16 sobre la barra de tareas
+  negra de fábrica, los chevrones de codex —`#4a3aa7`— casi no estaban. Y hace
+  falta elegir **dos veces**, porque el menú y la barra de tareas son
+  superficies distintas con temas distintos: medido acá, `AppsUseLightTheme=0` y
+  aun así `SystemColors.Menu` da `240,240,240` —los colores clásicos de Win32 no
+  siguen al tema oscuro— mientras la barra de tareas sí es oscura.
+- **Cada perfil tiene un lugar fijo, tenga número o no.** macOS puede dejar
+  afuera a una cuenta muda porque su tira es un solo dibujo que se rehace
+  entero. Acá cada lugar es un item de bandeja, y Windows lo identifica por el
+  hash de (ejecutable + UID) donde el UID lo reparte WinForms **por orden de
+  creación** — visto en `HKCU\Control Panel\NotifyIconSettings`. Sacar y volver
+  a poner un item corre los UID de los que vienen después, y con eso se le muda
+  de cuenta la decisión de «este ícono va fijo en la barra» que el usuario tomó
+  arrastrándolo.
+
+**El costo de la tira, dicho de frente:** Windows decide por ícono si va a la
+barra o al desplegable de escondidos, y a los nuevos los manda al desplegable.
+Se arrastra una vez y, por lo del UID, la elección persiste.
+
+**Y tiene modo oscuro.** El panel era el único de los cuatro renderizadores que
+salía siempre blanco, y la causa es la de arriba: `SystemColors.Menu` no sigue al
+tema de las apps. macOS lo saca de un `NSColor` dinámico y GNOME del tema de
+GTK, así que Windows era el único que tenía que preguntarle al registro, y el
+fondo se había quedado atrás mientras el color de cuenta ya lo hacía.
+
+Pintar los dibujos en oscuro no alcanzaba: el marco del menú, el resaltado del
+item bajo el mouse y los separadores los pinta WinForms con su propia tabla, que
+es clara, y un panel oscuro adentro de un menú blanco se ve peor que el problema
+original. Va una `ProfessionalColorTable` heredada, y el tema entero vive en
+`AplicarTema`, que se relee en cada tick: cambiar Windows de claro a oscuro se
+nota en la vuelta siguiente sin reiniciar la bandeja.
 
 **Y calienta el endpoint, como la barra de macOS.** Esto no es un detalle de
 adorno: fue el bug. La primera versión sólo leía el disco, y en la máquina donde
@@ -916,10 +962,32 @@ es gastar un pedido para confirmar que no pasó nada. Con `-SinCalentar` no se l
 pide nada a la red y se vuelve al comportamiento de sólo-disco.
 
 Hay una diferencia con macOS que es de Windows y no se puede evitar: el timer
-corre en el hilo de la interfaz, así que el calentado **se dispara y se suelta**,
-y el número que trae lo levanta el tick siguiente (30 s). Esperarlo ahí
-congelaría el menú veinte segundos, que es peor que un número medio minuto
-tarde.
+corre en el hilo de la interfaz, así que en el tick automático el calentado **se
+dispara y se suelta**, y el número que trae lo levanta el tick siguiente (30 s).
+Esperarlo ahí congelaría el menú, que es peor que un número medio minuto tarde.
+
+**«Actualizar ahora» sí espera, y no cierra el panel.** Empezó haciendo el mismo
+`Calentar; Refrescar` del tick, y ahí estaba el bug: el calentado tarda
+**~930 ms** y el `Refrescar` de atrás tarda **~250**, así que leía el cache de
+*antes* del calentado que él mismo acababa de disparar. El panel se cerraba
+—Windows cierra un menú al clickear un item— y el número era el que ya estabas
+mirando; había que esperar el tick. El botón decía «ahora» y no hacía nada ahora.
+
+Ahora espera con un timer y no con el hilo —mira si el proceso del calentado
+terminó cada 250 ms, con techo de 15 s— y **el panel se queda abierto**: el
+cierre se cancela, pero sólo para este item, porque «Abrir tablero» y «Salir»
+tienen que seguir cerrándolo igual que clickear afuera o apretar Escape. Hacen
+falta dos handlers y no uno: `ItemClicked` corre antes que `Closing` y es el
+único que sabe *qué* se clickeó; `Closing` es el único que puede cancelar.
+Mientras el número llega, el item dice **«Actualizando…»** y no acepta otro
+click: dos segundos sin ninguna señal se leen como que no pasó nada, que es de
+donde vino todo esto.
+
+Rehacer el menú estando **visible** necesita `SuspendLayout`/`ResumeLayout` —si
+no, cada `Add()` relayoutea el menú abierto y se lo ve saltar de tamaño una vez
+por sección— y un `PerformLayout` al final, porque sin él se queda con el alto
+viejo y recorta la última. De paso arregla un borde que ya existía: si dejabas
+el panel abierto más de 30 s, el tick también lo rehacía sin reacomodarlo.
 
 Lo demás es igual a las otras dos: avisa al cruzar 80 % y 95 % y cuando la
 proyección dice que tocás el techo antes del reinicio, y no repite —la clave del
@@ -943,9 +1011,24 @@ la terminal el tray sigue. Para sacarlo: «Salir» en su propio menú, o
 - Verificado en Windows 11 con Windows PowerShell 5.1: arranca, dibuja el menú
   contra los perfiles reales de esta máquina, sobrevive los ticks, sale por
   `make tray-quitar`, y el atajo de arranque lanza un tray que anda.
-- **El menú y el ícono se miraron, no se supusieron.** Los dos se renderizaron a
-  PNG con los datos reales y se abrieron. Ahí se vio que los dígitos a 16×16 no
-  servían.
+- **El panel y los íconos se miraron, no se supusieron.** Los dos se
+  renderizaron a PNG con los datos reales; los íconos, además, a los 16×16
+  reales y agrandados con vecino más cercano sobre fondo claro y oscuro, que es
+  mirar los píxeles que va a haber y no una versión cómoda. Ahí se vio que los
+  dígitos no servían y que faltaba la tabla de color oscura. **El panel en
+  oscuro se capturó del proceso vivo**, que se puede: un menú es una ventana
+  normal y `CopyFromScreen` la agarra, al contrario que la barra de tareas, que
+  la compone DWM y devuelve negro.
+- **La tira se verificó por UI Automation**, justamente porque la barra de
+  tareas no se deja capturar: se le preguntó a la bandeja qué items tiene, y
+  contestó uno por cuenta con su tooltip —incluidos los perfiles mudos y el `~`
+  de cache viejo—, unos en la barra y otros en el desplegable.
+- **«Actualizar ahora» se probó con los handlers reales del archivo**, no con
+  una copia: la función vuelve en 59 ms —no congela—, el panel sigue abierto
+  después del click, el item muestra y saca el «Actualizando…», clickear
+  cualquier otro item sí cierra, y con dos dibujos de alturas distintas a
+  propósito el panel abierto pasa de 472 a 614 px y vuelve a 472 sin recortar
+  nada.
 - **Los avisos están probados en la lógica, no en pantalla.** Ningún perfil pasó
   de 80 % cuando se probó, así que se ejercitaron con una barra sintética al
   96 % y un `NotifyIcon` de mentira que anota los globos en vez de dibujarlos:
