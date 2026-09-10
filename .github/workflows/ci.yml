@@ -30,21 +30,10 @@ jobs:
             gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 \
             fonts-cantarell
       - run: ./scripts/gate-dibujo.sh
-      # El runner de Ubuntu trae PowerShell, así que acá sí se puede comprobar
-      # la escalera de la bandeja de Windows.
+      # El runner de Ubuntu trae Swift Y PowerShell, así que las cuatro
+      # implementaciones se comprueban acá. Se llegó a agregar un job de macOS
+      # para Swift antes de mirar qué había en el de Ubuntu: sobraba, y encima
+      # fallaba porque ahí no está el cairo que necesita el panel de GNOME.
       - run: python3 scripts/gate-duraciones.py
         env:
-          QM_GATE_EXIGE: pwsh
-
-  # Swift sólo existe en el runner de macOS, y sin él la barra de macOS es la
-  # única de las cuatro que nadie comprueba. Es un job chico y sólo corre eso.
-  duraciones-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: python3 scripts/gate-duraciones.py
-        env:
-          QM_GATE_EXIGE: swift
+          QM_GATE_EXIGE: swift,pwsh
