@@ -1,0 +1,10 @@
+/* El renglón del panel no lleva el relleno de un item de menú: el dibujo ya
+   trae el suyo, y sumarle otro lo descentra respecto del resto del menú. */
+.qm-fila {
+  padding: 0;
+  margin: 0;
+}
+
+.qm-rodante {
+  margin: 0;
+}

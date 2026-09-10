@@ -76,6 +76,15 @@ ESTADO = CACHE / "estado.json"
 EXTENSION_VIVA = CACHE / "extension-viva"
 # Donde la extensión deja el click.
 PEDIDO = CACHE / "pedido"
+# El panel, dibujado a un PNG para que lo muestre la extensión.
+#
+# Por qué un PNG y no la ventana: un menú de GTK sobre XWayland no logra
+# sostener su agarre contra la actividad real del escritorio. Aislado aguanta
+# minutos; con alguien usando la máquina se cierra a los segundos, y tocarlo
+# para rodarlo lo cierra. Medido tres veces, con tres arquitecturas (ventana con
+# foco, ventana con agarre a mano, y menú de GTK). Adentro de la extensión el
+# panel es un actor del compositor: no hay agarre que romper, no hay XWayland, y
+# rueda y se cierra como cualquier menú del shell.
 # Cuánto se le cree a `extension-viva` sin que lo renueven. La extensión lo
 # toca cada 30 s; el triple da margen para una máquina cargada sin dejar el
 # item escondido más de minuto y medio si del otro lado ya no hay nadie.
@@ -1060,23 +1069,37 @@ def fondo_panel(cr, ancho: float, alto: float) -> None:
     cr.stroke()
 
 
-def capturar(datos, ruta: str) -> None:
+def capturar(datos, ruta: str, proxima: float | None = None) -> int:
     """El panel a un PNG, sin abrir nada. Para mirarlo sin tener la barra
-    adelante, y para que un cambio de dibujo se revise en una imagen."""
-    alto = medir_panel(datos)
+    adelante, para que un cambio de dibujo se revise en una imagen, y para que
+    lo muestre la extensión de GNOME.
+
+    Devuelve el alto dibujado. Hay que usar ESE número y no volver a medir por
+    fuera: medir con el renglón de «próxima lectura» y dibujar sin él daba una
+    imagen de 1034 px declarada como 1060, y la diferencia se ve como un hueco.
+    """
+    alto = medir_panel(datos, proxima is not None)
     superficie = cairo.ImageSurface(cairo.FORMAT_ARGB32, ANCHO_PANEL, alto)
     cr = cairo.Context(superficie)
     fondo_panel(cr, ANCHO_PANEL, alto)
-    dibujar_panel(cr, datos, alto)
+    dibujar_panel(cr, datos, alto, proxima)
     superficie.write_to_png(ruta)
+    return alto
 
 
 # ── el panel, en pantalla ────────────────────────────────────────────────
-CSS_PANEL = b"""
+# En texto y no en bytes: load_from_data() quiere bytes, pero un literal b"" no
+# admite un solo carácter fuera de ASCII, y un comentario en castellano adentro
+# rompe el archivo entero.
+CSS_PANEL = """
 menu.qm { padding: 6px 0; }
 menuitem.qm-lienzo { padding: 0; background: none; background-color: transparent; }
 menuitem.qm-lienzo:hover { background: none; background-color: transparent; }
-"""
+/* Insensible no quiere decir apagado: el dibujo se pinta con sus propios
+   colores y no tiene que perder opacidad por no ser un botón. */
+menuitem.qm-lienzo:disabled { opacity: 1; color: inherit; }
+menuitem.qm-lienzo:disabled drawingarea { opacity: 1; }
+""".encode("utf-8")
 
 
 class Panel:
@@ -1173,6 +1196,12 @@ class Panel:
         lienzo.set_size_request(ANCHO_PANEL, int(alto))
         lienzo.connect("draw", lambda _w, cr, d=dibujo: (d(cr), False)[1])
         fila = Gtk.MenuItem()
+        # Insensible a propósito, y es lo único que hace que el panel se pueda
+        # usar: en un menú de GTK un item se ACTIVA al soltar el botón encima, y
+        # activar un item cierra el menú. Con las tarjetas sensibles, tocar el
+        # panel para rodarlo lo cerraba en el acto — el dibujo no es un botón,
+        # es contenido. Los renglones de acción de abajo sí quedan sensibles.
+        fila.set_sensitive(False)
         fila.get_style_context().add_class("qm-lienzo")
         fila.get_style_context().add_provider(
             self.css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
@@ -1440,6 +1469,7 @@ class Indicador:
         self.pendiente: int | None = None
         self.pedido_pendiente: int | None = None
         self.reinicio_pendiente: int | None = None
+        self.apertura_pendiente: int | None = None
         self.menu = Gtk.Menu()
         self.ind = AppIndicator.Indicator.new(
             ID, ICONO_OK, AppIndicator.IndicatorCategory.SYSTEM_SERVICES
@@ -1589,6 +1619,8 @@ class Indicador:
         except OSError:
             return False
         if accion == "alternar":
+            # La extensión sólo pide esto cuando NO puede dibujar el panel ella
+            # misma; si puede, abre su propio menú y no manda nada.
             self.abrir_panel()
         elif accion == "actualizar":
             self.refrescar()
@@ -1770,7 +1802,27 @@ class Indicador:
         return True
 
     def abrir_panel(self) -> None:
+        """Un respiro antes de abrir.
+
+        Cuando esto lo dispara el renglón «Panel de cuota» del menú de GNOME, el
+        click que lo activó todavía no terminó: el shell está cerrando su propio
+        menú y soltando su agarre, y el button-release de ese mismo click llega
+        DESPUÉS de que nuestro menú ya se agarró el puntero. Un menú de GTK
+        interpreta ese release como «soltaron afuera» y se cierra en el acto —
+        desde afuera se ve como que el panel parpadea y desaparece sin que
+        puedas hacer nada.
+
+        Esperar a que el evento original se consuma lo arregla. No se nota:
+        menos de dos décimas.
+        """
+        if self.apertura_pendiente is not None:
+            GLib.source_remove(self.apertura_pendiente)
+        self.apertura_pendiente = GLib.timeout_add(180, self._abrir_ya)
+
+    def _abrir_ya(self) -> bool:
+        self.apertura_pendiente = None
         self.panel.alternar(self.datos)
+        return False
 
     def item(self, texto: str) -> None:
         it = Gtk.MenuItem(label=texto)
@@ -1814,10 +1866,19 @@ class Indicador:
 
     def publicar(self, ruta: Path, ancho: int, alto: int, descripcion: str) -> None:
         """Deja escrito qué dibujó, para la extensión de GNOME Shell."""
+        panel = {}
+        try:
+            # El nombre alterna igual que el del item: el shell cachea la
+            # textura por ruta y si no, muestra el panel de hace un rato.
+            destino = self.iconos / f"panel-{self.turno}.png"
+            alto = capturar(self.datos, str(destino), self.falta_para_lectura())
+            panel = {"panel": str(destino), "panelAncho": ANCHO_PANEL, "panelAlto": alto}
+        except (OSError, MemoryError):
+            pass  # sin panel dibujado la extensión sigue mostrando el item
         try:
             ESTADO.write_text(json.dumps({
                 "icono": str(ruta), "ancho": ancho, "alto": alto,
-                "descripcion": descripcion,
+                "descripcion": descripcion, **panel,
             }))
         except OSError:
             pass  # sin extensión instalada esto no le importa a nadie

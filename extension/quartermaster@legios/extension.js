@@ -23,6 +23,7 @@ import St from 'gi://St';
 
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PanelMenu from 'resource:///org/gnome/shell/ui/panelMenu.js';
+import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
 import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 
 const CARPETA = GLib.build_filenamev([GLib.get_user_cache_dir(), 'quartermaster']);
@@ -41,31 +42,55 @@ const PEDIDO = GLib.build_filenamev([CARPETA, 'pedido']);
 const Boton = GObject.registerClass(
 class Boton extends PanelMenu.Button {
     _init() {
-        // El tercer argumento es dontCreateMenu: el panel no es un menú del
-        // shell —lo dibuja qm y lo abre qm—, así que este botón no tiene menú
-        // que abrir y el click queda libre.
-        super._init(0.5, 'quartermaster', true);
+        super._init(0.5, 'quartermaster');
 
         this._imagen = new St.Bin({yAlign: Clutter.ActorAlign.CENTER});
         this.add_child(this._imagen);
-        this._ancho = 0;
-        this._alto = 0;
+        this._panel = null;
+        this._estado = {};
+
+        this._armarMenu();
         this._leer();
 
         this._vigia = Gio.File.new_for_path(ESTADO).monitor_file(
             Gio.FileMonitorFlags.NONE, null);
         this._vigia.connect('changed', () => this._leer());
 
-        this.connect('button-press-event', () => {
-            this._pedir('alternar');
-            return Clutter.EVENT_STOP;
+        // Al abrir se le pide a qm que redibuje, así el panel que se ve es de
+        // este momento y no del último refresco.
+        this.menu.connect('open-state-changed', (_m, abierto) => {
+            if (abierto)
+                this._pedir('actualizar');
         });
-        this.connect('touch-event', event => {
-            if (event.type() !== Clutter.EventType.TOUCH_BEGIN)
-                return Clutter.EVENT_PROPAGATE;
-            this._pedir('alternar');
-            return Clutter.EVENT_STOP;
+    }
+
+    _armarMenu() {
+        // El panel entero es un actor del compositor y no una ventana de
+        // XWayland. Ésa es toda la diferencia: una ventana o un menú de GTK no
+        // logra sostener su agarre contra la actividad real del escritorio y se
+        // cierra al tocarlo — medido con tres arquitecturas distintas. Acá rueda
+        // y se cierra como cualquier menú del shell, porque ES uno.
+        this._fila = new PopupMenu.PopupBaseMenuItem({
+            reactive: false, can_focus: false, style_class: 'qm-fila',
         });
+        this._rodante = new St.ScrollView({
+            hscrollbarPolicy: St.PolicyType.NEVER,
+            vscrollbarPolicy: St.PolicyType.AUTOMATIC,
+            overlayScrollbars: true,
+            styleClass: 'qm-rodante',
+        });
+        this._lienzo = new St.Widget({xExpand: true, yExpand: true});
+        if (this._rodante.set_child)
+            this._rodante.set_child(this._lienzo);
+        else
+            this._rodante.add_actor(this._lienzo);
+        this._fila.add_child(this._rodante);
+        this.menu.addMenuItem(this._fila);
+
+        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+        const actualizar = new PopupMenu.PopupMenuItem('Actualizar ahora');
+        actualizar.connect('activate', () => this._pedir('actualizar'));
+        this.menu.addMenuItem(actualizar);
     }
 
     _leer() {
@@ -78,20 +103,39 @@ class Boton extends PanelMenu.Button {
         } catch (e) {
             return;  // sin estado no hay nada que mostrar todavía
         }
-        if (!datos.icono || !datos.ancho || !datos.alto)
+        this._estado = datos;
+
+        if (datos.icono && datos.ancho && datos.alto) {
+            // El nombre del archivo alterna entre dos: el shell cachea la
+            // textura por ruta, y reescribiendo siempre la misma el item se
+            // quedaría con el dibujo viejo.
+            this._imagen.set_style(
+                `background-image: url("file://${datos.icono}");` +
+                'background-size: contain;' +
+                'background-repeat: no-repeat;' +
+                `width: ${datos.ancho}px;` +
+                `height: ${datos.alto}px;`);
+            this.accessible_name = datos.descripcion ?? 'quartermaster';
+        }
+
+        if (!datos.panel || !datos.panelAncho || !datos.panelAlto) {
+            this._fila.visible = false;
             return;
-        this._ancho = datos.ancho;
-        this._alto = datos.alto;
-        // El nombre del archivo alterna entre dos: el shell cachea la textura
-        // por ruta, y reescribiendo siempre la misma el item se quedaría con el
-        // dibujo viejo.
-        this._imagen.set_style(
-            `background-image: url("file://${datos.icono}");` +
+        }
+        this._fila.visible = true;
+        // El panel es más alto que muchas pantallas — ése es medio el punto— así
+        // que se le da un techo y el resto rueda.
+        const monitor = Main.layoutManager.primaryMonitor;
+        const techo = Math.max(320, Math.floor((monitor?.height ?? 900) * 0.62));
+        this._lienzo.set_style(
+            `background-image: url("file://${datos.panel}");` +
             'background-size: contain;' +
             'background-repeat: no-repeat;' +
-            `width: ${datos.ancho}px;` +
-            `height: ${datos.alto}px;`);
-        this.accessible_name = datos.descripcion ?? 'quartermaster';
+            `width: ${datos.panelAncho}px;` +
+            `height: ${datos.panelAlto}px;`);
+        this._rodante.set_style(
+            `width: ${datos.panelAncho + 8}px;` +
+            `max-height: ${Math.min(techo, datos.panelAlto)}px;`);
     }
 
     _pedir(accion) {

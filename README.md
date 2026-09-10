@@ -783,7 +783,30 @@ lado. Venía midiendo 740 px contra 728 de área útil —entraba raspando— y 
 cuanto creció dejó de abrirse. `make gate-dibujo` ahora falla si una tarjeta
 sola pasa de 700 px.
 
-**El panel es un `Gtk.Menu` propio** —popeado por este proceso, no por DBus— y
+### Y por qué el panel terminó adentro de la extensión
+
+Con la extensión puesta, **el panel lo dibuja ella**: qm lo deja en un PNG y la
+extensión lo muestra en su propio menú del shell. Eso no fue una preferencia
+estética, fue la tercera arquitectura y la primera que aguanta.
+
+Las dos anteriores fallaron por la misma razón, y las dos veces costó verlo
+porque el síntoma sólo aparece con alguien usando la máquina:
+
+1. **Ventana con foco**: ninguna ventana sostiene el foco acá. Los cuatro tipos
+   lo pierden solos entre 0,15 s y 4,6 s.
+2. **Menú de GTK con agarre propio**: aislado aguanta minutos —medido: 50 s sin
+   un solo `unmap`— pero con actividad real del escritorio se cierra a los
+   segundos, y **tocarlo para rodarlo lo cierra**, porque en un menú de GTK
+   soltar el botón sobre un item lo activa, y activar un item cierra el menú.
+
+Adentro de la extensión el panel es un actor del compositor: no hay agarre que
+romper, no hay XWayland, y rueda y se cierra como cualquier menú del shell,
+porque es uno.
+
+Sin la extensión sigue existiendo el menú de GTK como respaldo, con las tarjetas
+marcadas insensibles para que tocarlas no lo cierre.
+
+**El panel de respaldo es un `Gtk.Menu` propio** —popeado por este proceso, no por DBus— y
 no una ventana suelta. La razón se midió: en este escritorio ninguna ventana
 sostiene el foco. Se probaron los cuatro tipos (UTILITY, NORMAL, DIALOG,
 POPUP_MENU) y las cuatro lo pierden solas entre 0,15 s y 4,6 s después de abrir,
