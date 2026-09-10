@@ -28,6 +28,7 @@ import pathlib
 import shutil
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -73,6 +74,10 @@ ESTADO = CACHE / "estado.json"
 EXTENSION_VIVA = CACHE / "extension-viva"
 # Donde la extensión deja el click.
 PEDIDO = CACHE / "pedido"
+# Cuánto se le cree a `extension-viva` sin que lo renueven. La extensión lo
+# toca cada 30 s; el triple da margen para una máquina cargada sin dejar el
+# item escondido más de minuto y medio si del otro lado ya no hay nadie.
+VIVA_SEGUNDOS = 90
 
 ICONO_OK = "utilities-system-monitor-symbolic"
 ICONO_AVISO = "dialog-warning-symbolic"
@@ -407,7 +412,8 @@ class Pluma:
         self.cr = cr
         self.familia = familia
 
-    def caja(self, texto: str, px: float, peso=Pango.Weight.NORMAL, ancho=None, tabular=False):
+    def caja(self, texto: str, px: float, peso=Pango.Weight.NORMAL, ancho=None,
+             tabular=False, elipsis=False):
         lay = PangoCairo.create_layout(self.cr)
         fd = Pango.FontDescription()
         fd.set_family(self.familia)
@@ -425,7 +431,15 @@ class Pluma:
                 pass
         if ancho is not None:
             lay.set_width(int(ancho * Pango.SCALE))
-            lay.set_wrap(Pango.WrapMode.WORD_CHAR)
+            if elipsis:
+                # Un renglón que no se puede achicar: se corta con puntos.
+                # Cairo no recorta nada por su cuenta, así que sin esto un
+                # nombre de perfil largo se dibuja por encima del borde de la
+                # tarjeta y sale del panel.
+                lay.set_single_paragraph_mode(True)
+                lay.set_ellipsize(Pango.EllipsizeMode.END)
+            else:
+                lay.set_wrap(Pango.WrapMode.WORD_CHAR)
         lay.set_text(texto, -1)
         return lay
 
@@ -436,8 +450,8 @@ class Pluma:
         return self.caja(*a, **k).get_pixel_size()[0]
 
     def escribir(self, x, y, texto, px, color, peso=Pango.Weight.NORMAL,
-                 derecha=None, ancho=None, tabular=False):
-        lay = self.caja(texto, px, peso, ancho=ancho, tabular=tabular)
+                 derecha=None, ancho=None, tabular=False, elipsis=False):
+        lay = self.caja(texto, px, peso, ancho=ancho, tabular=tabular, elipsis=elipsis)
         w, h = lay.get_pixel_size()
         _color(self.cr, color)
         self.cr.move_to(derecha - w if derecha is not None else x, y)
@@ -631,10 +645,12 @@ class VistaCuenta:
         y = arriba + PAD_TARJETA
 
         glifo_producto(cr, self.producto, TEMA.color_cuenta(self.indice_color), ix, y + 2, 14)
-        pluma.escribir(ix + 21, y, self.titulo, 13.5, TEMA.etiqueta, Pango.Weight.BOLD)
+        pluma.escribir(ix + 21, y, self.titulo, 13.5, TEMA.etiqueta, Pango.Weight.BOLD,
+                       ancho=ancho - 21, elipsis=True)
         y += 20
         if self.sub:
-            pluma.escribir(ix + 21, y, self.sub, 11, TEMA.terciario)
+            pluma.escribir(ix + 21, y, self.sub, 11, TEMA.terciario,
+                           ancho=ancho - 21, elipsis=True)
             y += 17
         y += 6
 
@@ -644,10 +660,14 @@ class VistaCuenta:
 
         for b in self.barras:
             nombre = f"{b['nombre']}  ▸" if b["activa"] else b["nombre"]
+            cifra = f"{b['pct']:.0f}%"
+            # El nombre cede: el número es el dato y nunca se recorta.
+            hueco = ancho - pluma.ancho(cifra, 12, Pango.Weight.BOLD, tabular=True) - 12
             pluma.escribir(ix, y, nombre, 11.5,
                            TEMA.etiqueta if b["activa"] else TEMA.secundario,
-                           Pango.Weight.MEDIUM if b["activa"] else Pango.Weight.NORMAL)
-            pluma.escribir(0, y - 0.5, f"{b['pct']:.0f}%", 12, TEMA.etiqueta,
+                           Pango.Weight.MEDIUM if b["activa"] else Pango.Weight.NORMAL,
+                           ancho=hueco, elipsis=True)
+            pluma.escribir(0, y - 0.5, cifra, 12, TEMA.etiqueta,
                            Pango.Weight.BOLD, derecha=der, tabular=True)
             y += 18
             # El medidor: pista tenue y relleno con el color del estado.
@@ -660,7 +680,7 @@ class VistaCuenta:
             cr.fill()
             y += 11
             if b["pie"]:
-                pluma.escribir(ix, y, b["pie"], 10.5, TEMA.terciario)
+                pluma.escribir(ix, y, b["pie"], 10.5, TEMA.terciario, ancho=ancho, elipsis=True)
             y += 16
             # La curva va pegada a la barra que frena: es de ella.
             if b["nombre"] == self.clave_frena and len(self.historia) >= 3:
@@ -671,12 +691,13 @@ class VistaCuenta:
             y += 4
             pluma.escribir(ix, y, self.ritmo, 11,
                            TEMA.nivel("critico") if self.ritmo_rojo else TEMA.terciario,
-                           Pango.Weight.MEDIUM if self.ritmo_rojo else Pango.Weight.NORMAL)
+                           Pango.Weight.MEDIUM if self.ritmo_rojo else Pango.Weight.NORMAL,
+                           ancho=ancho, elipsis=True)
             y += 16
         if self.lecturas:
             if not self.ritmo:
                 y += 4
-            pluma.escribir(ix, y, self.lecturas, 10.5, TEMA.terciario)
+            pluma.escribir(ix, y, self.lecturas, 10.5, TEMA.terciario, ancho=ancho, elipsis=True)
         return arriba + alto
 
 
@@ -725,7 +746,7 @@ class VistaSinCuota:
         y = arriba + PAD_TARJETA
         for frase, nombres in self.grupos:
             pluma.escribir(ix, y, "   ·   ".join(nombres), 11.5, TEMA.secundario,
-                           Pango.Weight.MEDIUM)
+                           Pango.Weight.MEDIUM, ancho=self._ancho_contenido(), elipsis=True)
             y += 18
             y += pluma.escribir(ix, y, frase, 10.5, TEMA.terciario,
                                 ancho=self._ancho_contenido())
@@ -783,7 +804,7 @@ class VistaResumen:
 
         x = izq + lado + 14
         pluma.escribir(x, arriba + 12, "Lo primero que te frena", 10.5, TEMA.terciario,
-                       Pango.Weight.SEMIBOLD)
+                       Pango.Weight.SEMIBOLD, ancho=ANCHO_PANEL - MARGEN - x, elipsis=True)
         cifra = f"{self.pct:.0f}%"
         y_cifra = arriba + 26
         ancho_cifra = pluma.ancho(cifra, 22, Pango.Weight.BOLD, tabular=True)
@@ -792,7 +813,8 @@ class VistaResumen:
         corrimiento = (pluma.linea_base(cifra, 22, Pango.Weight.BOLD)
                        - pluma.linea_base("x", 12))
         pluma.escribir(x + ancho_cifra + 8, y_cifra + corrimiento,
-                       f"{self.cuenta} · {self.barra}", 12, TEMA.secundario)
+                       f"{self.cuenta} · {self.barra}", 12, TEMA.secundario,
+                       ancho=ANCHO_PANEL - MARGEN - (x + ancho_cifra + 8), elipsis=True)
 
         seg = faltan(self.reinicia)
         if seg is None:
@@ -804,7 +826,8 @@ class VistaResumen:
         else:
             texto, urgente = reinicio(seg), False
         pluma.escribir(x, arriba + 54, texto, 11, color if urgente else TEMA.terciario,
-                       Pango.Weight.MEDIUM if urgente else Pango.Weight.NORMAL)
+                       Pango.Weight.MEDIUM if urgente else Pango.Weight.NORMAL,
+                       ancho=ANCHO_PANEL - MARGEN - x, elipsis=True)
         return arriba + ALTO_CABECERA
 
 
@@ -1444,6 +1467,7 @@ class Indicador:
         self.refrescar()
         self.vigilar()
         self.vigilar_extension()
+        self.vigilar_tema()
         GLib.timeout_add_seconds(SEGUNDOS_SONDEO, self.refrescar)
         self.programar_calentado(5)
 
@@ -1475,6 +1499,32 @@ class Indicador:
             mon.connect("changed", lambda *a, f=accion: f())
             self.monitores.append(mon)
         self.mandar_en_la_barra()
+        # Un archivo que se quedó viejo no dispara ningún evento, así que hay
+        # que ir a mirarlo.
+        GLib.timeout_add_seconds(VIVA_SEGUNDOS // 2, self.mandar_en_la_barra)
+
+    def vigilar_tema(self) -> None:
+        """El tema del escritorio se cambia con esto andando.
+
+        El color del número de la barra sale de TEMA, que se resolvía una sola
+        vez al arrancar: pasar el escritorio a claro dejaba el número blanco
+        sobre una barra clara hasta el próximo reinicio del indicador.
+        """
+        try:
+            fuente = Gio.SettingsSchemaSource.get_default()
+            esquema = fuente.lookup("org.gnome.desktop.interface", True) if fuente else None
+            if esquema is None or not esquema.has_key("color-scheme"):
+                return
+            self.ajustes = Gio.Settings.new("org.gnome.desktop.interface")
+            self.ajustes.connect("changed::color-scheme", lambda *_: self.cambio_de_tema())
+        except (GLib.Error, AttributeError, TypeError):
+            pass
+
+    def cambio_de_tema(self) -> None:
+        global TEMA
+        alinear_tema_gtk()
+        TEMA = tema_actual()
+        self.refrescar()
 
     def atender_pedido(self) -> None:
         """Un click, una acción.
@@ -1500,16 +1550,30 @@ class Indicador:
             self.refrescar()
         return False
 
-    def mandar_en_la_barra(self) -> None:
+    def extension_viva(self) -> bool:
+        """La extensión está puesta y sigue viva.
+
+        No alcanza con que el archivo exista: si el shell se cae sin llamar a
+        disable(), queda para siempre y este item se escondería para siempre —
+        ningún icono en ningún lado. La extensión le renueva la fecha cada 30 s,
+        así que un archivo viejo quiere decir que del otro lado no hay nadie.
+        """
+        try:
+            return (time.time() - EXTENSION_VIVA.stat().st_mtime) < VIVA_SEGUNDOS
+        except OSError:
+            return False
+
+    def mandar_en_la_barra(self) -> bool:
         """Si la extensión está puesta, el item de AppIndicator sobra.
 
         No se destruye, se pone en PASSIVE: la extensión se puede apagar en
         cualquier momento y entonces este item tiene que volver, sin reiniciar
         nada y sin dejar la barra vacía en el medio.
         """
-        propia = not EXTENSION_VIVA.exists()
+        propia = not self.extension_viva()
         self.ind.set_status(AppIndicator.IndicatorStatus.ACTIVE if propia
                             else AppIndicator.IndicatorStatus.PASSIVE)
+        return True
 
     def cambio(self, _mon, _f, _o, evento) -> None:
         if evento not in (
@@ -1772,6 +1836,43 @@ class Indicador:
         )
 
 
+NOMBRE_BUS = "ai.legios.quartermaster"
+_nombre_tomado = None
+
+
+def soy_el_unico() -> bool:
+    """Un indicador por sesión, y el segundo se va.
+
+    Sin esto, arrancarlo dos veces —el arranque automático más un `make
+    indicador` a mano, que es lo más fácil del mundo— deja DOS items en la
+    barra, abre DOS paneles con un solo click, y los dos procesos se pisan
+    escribiendo el mismo PNG y el mismo estado.json. Medido, no supuesto.
+
+    El candado es un nombre en el bus de sesión y no un archivo: si el proceso
+    muere de cualquier forma, el bus suelta el nombre solo. Un archivo con el
+    PID hay que limpiarlo, y nunca se limpia en el caso que importa.
+    """
+    global _nombre_tomado
+    resultado = {"mio": None}
+    bucle = GLib.MainLoop()
+
+    def adquirido(*_):
+        resultado["mio"] = True
+        bucle.quit()
+
+    def perdido(*_):
+        resultado["mio"] = False
+        bucle.quit()
+
+    _nombre_tomado = Gio.bus_own_name(
+        Gio.BusType.SESSION, NOMBRE_BUS, Gio.BusNameOwnerFlags.DO_NOT_QUEUE,
+        None, adquirido, perdido)
+    # Si el bus no contesta, seguir es mejor que quedarse esperando para siempre.
+    GLib.timeout_add_seconds(3, lambda: (bucle.quit(), False)[1])
+    bucle.run()
+    return resultado["mio"] is not False
+
+
 def buscar_qm() -> str | None:
     """qm en el PATH; si no, el hermano de este archivo.
 
@@ -1842,6 +1943,10 @@ def main() -> int:
         else:
             dibujar_item(piezas_de(datos), sys.argv[i + 1])  # devuelve medidas, no se usan acá
         print(sys.argv[i + 1])
+        return 0
+
+    if not soy_el_unico():
+        print("ya hay un quartermaster corriendo en esta sesión.", file=sys.stderr)
         return 0
 
     Indicador(qm)

@@ -1,0 +1,250 @@
+{
+    "generado": "2026-09-10T13:44:14.067Z",
+    "plataforma": "linux",
+    "ventanaDias": 7,
+    "perfiles": [
+        {
+            "producto": "claude",
+            "perfil": ".claude-nombre-larguisimo-nombre-larguisimo-nombre-larguisimo-nombre-larguisimo-",
+            "directorio": "~/.claude",
+            "cuenta": "una.direccion.de.correo.francamente.absurda@subdominio.ejemplo.com",
+            "plan": "plan_con_un_nombre_interminable_v2",
+            "credencial": "vigente (5h53m)",
+            "cuota": {
+                "estado": "ok",
+                "origen": "endpoint",
+                "medidoEn": "2026-09-10T13:43:45.445Z",
+                "edadSegundos": 29,
+                "ventanas": [
+                    {
+                        "clave": "session",
+                        "alcance": null,
+                        "grupo": "session",
+                        "porcentaje": 32,
+                        "severidad": "normal",
+                        "activa": false,
+                        "reinicia": "2026-09-10T16:30:00.305Z",
+                        "nombre": "session",
+                        "preocupa": false
+                    },
+                    {
+                        "clave": "weekly_all",
+                        "alcance": null,
+                        "grupo": "weekly",
+                        "porcentaje": 78,
+                        "severidad": "warning",
+                        "activa": false,
+                        "reinicia": "2026-09-13T04:00:00.305Z",
+                        "nombre": "weekly_all",
+                        "preocupa": true
+                    },
+                    {
+                        "clave": "weekly_scoped",
+                        "alcance": "Fable",
+                        "grupo": "weekly",
+                        "porcentaje": 89,
+                        "severidad": "warning",
+                        "activa": true,
+                        "reinicia": "2026-09-13T04:00:00.305Z",
+                        "nombre": "weekly_scoped (Fable)",
+                        "preocupa": true
+                    },
+                    {
+                        "clave": "nimbus_quill",
+                        "alcance": null,
+                        "grupo": null,
+                        "porcentaje": 0,
+                        "severidad": "normal",
+                        "activa": false,
+                        "reinicia": null,
+                        "nombre": "nimbus_quill",
+                        "preocupa": false
+                    }
+                ],
+                "mostrar": [
+                    {
+                        "clave": "session",
+                        "alcance": null,
+                        "grupo": "session",
+                        "porcentaje": 32,
+                        "severidad": "normal",
+                        "activa": false,
+                        "reinicia": "2026-09-10T16:30:00.305Z",
+                        "nombre": "session (un alcance con nombre largu\u00edsimo)",
+                        "preocupa": false
+                    },
+                    {
+                        "clave": "weekly_all",
+                        "alcance": null,
+                        "grupo": "weekly",
+                        "porcentaje": 78,
+                        "severidad": "warning",
+                        "activa": false,
+                        "reinicia": "2026-09-13T04:00:00.305Z",
+                        "nombre": "weekly_all (un alcance con nombre largu\u00edsimo)",
+                        "preocupa": true
+                    },
+                    {
+                        "clave": "weekly_scoped",
+                        "alcance": "Fable",
+                        "grupo": "weekly",
+                        "porcentaje": 89,
+                        "severidad": "warning",
+                        "activa": true,
+                        "reinicia": "2026-09-13T04:00:00.305Z",
+                        "nombre": "weekly_scoped (un alcance con nombre largu\u00edsimo)",
+                        "preocupa": true
+                    }
+                ],
+                "frena": {
+                    "clave": "weekly_scoped",
+                    "alcance": "Fable",
+                    "grupo": "weekly",
+                    "porcentaje": 89,
+                    "severidad": "warning",
+                    "activa": true,
+                    "reinicia": "2026-09-13T04:00:00.305Z",
+                    "nombre": "weekly_scoped (Fable)",
+                    "preocupa": true
+                },
+                "sesion": {
+                    "clave": "session",
+                    "alcance": null,
+                    "grupo": "session",
+                    "porcentaje": 32,
+                    "severidad": "normal",
+                    "activa": false,
+                    "reinicia": "2026-09-10T16:30:00.305Z",
+                    "nombre": "session",
+                    "preocupa": false
+                },
+                "semanal": {
+                    "clave": "weekly_scoped",
+                    "alcance": "Fable",
+                    "grupo": "weekly",
+                    "porcentaje": 89,
+                    "severidad": "warning",
+                    "activa": true,
+                    "reinicia": "2026-09-13T04:00:00.305Z",
+                    "nombre": "weekly_scoped (Fable)",
+                    "preocupa": true
+                },
+                "historia": [
+                    {
+                        "t": 1789045655159,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789045758167,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789045821217,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789045913439,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789045977164,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046040200,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046114271,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046177163,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046240142,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046303249,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046414399,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046495236,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046581309,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046644272,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046840243,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789046903233,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047001386,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047065287,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047161170,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047257141,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047326199,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047389287,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047472209,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047613200,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047696144,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047763251,
+                        "porcentaje": 89
+                    },
+                    {
+                        "t": 1789047825445,
+                        "porcentaje": 89
+                    }
+                ]
+            },
+            "proyeccion": {
+                "estado": "plano",
+                "muestras": 27
+            },
+            "local": null
+        }
+    ]
+}

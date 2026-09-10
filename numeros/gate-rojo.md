@@ -116,3 +116,29 @@ El chequeo de píxeles no es decorativo: un PNG del tamaño correcto y enteramen
 transparente pasa cualquier verificación de medidas y no dibujó nada. Por eso se
 cuentan los píxeles con alfa distinto de cero, y para el panel se exige que sean
 más de la mitad.
+
+## Cuarta tanda: los flujos, con datos adversos
+
+El gate cubría que dibujara. No cubría *qué* dibuja cuando los datos son feos.
+Se armaron diez entradas adversas —cero cuentas, una, doce, todo al 100 %, una
+cuota sin ventanas, sin instantes de reinicio, porcentajes en −5 y 250, una
+proyección con el techo en el pasado, una historia de puntos idénticos, y
+nombres largos— y se dibujaron las dos superficies con cada una.
+
+Ninguna hizo crashear nada. Una mostró un bug de verdad: **con nombres largos el
+texto se dibuja fuera de la tarjeta y se sale del panel**. Cairo no recorta por
+su cuenta, así que un perfil llamado `.claude-nombre-larguisimo-…` pisaba el
+borde y seguía de largo. Ahora todo lo que lleva dato del usuario se corta con
+puntos suspensivos, y el número nunca cede: cede el nombre.
+
+Quedó en el gate como una medición y no como una mirada: se dibuja el fixture de
+nombres largos y se recorren los píxeles de la franja de afuera de la tarjeta,
+que tienen que ser exactamente el color del fondo.
+
+| Sabotaje | Qué dijo el gate |
+|---|---|
+| sacarle la elipsis al nombre de la cuenta | `hay algo dibujado en x=350, fuera de la tarjeta` |
+
+Un detalle que costó: la primera versión del chequeo daba rojo con el código
+sano. No era un desborde — eran las cuatro filas de la **esquina redondeada del
+propio panel**, que pasa por esa franja. El chequeo saltea 18 px arriba y abajo.

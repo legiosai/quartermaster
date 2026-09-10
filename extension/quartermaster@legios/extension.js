@@ -28,8 +28,13 @@ import {Extension} from 'resource:///org/gnome/shell/extensions/extension.js';
 const CARPETA = GLib.build_filenamev([GLib.get_user_cache_dir(), 'quartermaster']);
 // Lo que qm acaba de dibujar: {icono, ancho, alto}.
 const ESTADO = GLib.build_filenamev([CARPETA, 'estado.json']);
-// Mientras exista, qm esconde su propio item de AppIndicator: si no, quedan dos.
+// Mientras esté FRESCO, qm esconde su propio item de AppIndicator: si no, quedan
+// dos. Se le renueva la fecha cada tanto en vez de escribirlo y ya: si el shell
+// se cae sin llamar a disable(), el archivo queda ahí y qm escondería su item
+// para siempre — o sea, ningún icono en ningún lado, que es lo peor que puede
+// pasar. Con la fecha, qm se da cuenta solo de que del otro lado no hay nadie.
 const VIVA = GLib.build_filenamev([CARPETA, 'extension-viva']);
+const LATIDO_SEGUNDOS = 30;
 // Donde se deja el click.
 const PEDIDO = GLib.build_filenamev([CARPETA, 'pedido']);
 
@@ -114,14 +119,27 @@ export default class Quartermaster extends Extension {
         Main.panel.addToStatusArea('quartermaster', this._boton, 0, 'right');
         // Recién acá: si se escribiera antes de que el item exista, qm podría
         // esconder el suyo y quedarían cero items en la barra.
+        this._latir();
+        this._latido = GLib.timeout_add_seconds(
+            GLib.PRIORITY_DEFAULT, LATIDO_SEGUNDOS, () => {
+                this._latir();
+                return GLib.SOURCE_CONTINUE;
+            });
+    }
+
+    _latir() {
         try {
-            GLib.file_set_contents(VIVA, '');
+            GLib.file_set_contents(VIVA, `${Date.now()}\n`);
         } catch (e) {
             logError(e, 'quartermaster: no pude avisar que estoy viva');
         }
     }
 
     disable() {
+        if (this._latido) {
+            GLib.source_remove(this._latido);
+            this._latido = null;
+        }
         // Primero el aviso: qm tiene que volver a mostrar su item ANTES de que
         // este desaparezca, para que no haya un momento sin nada arriba.
         try {
