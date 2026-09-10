@@ -128,6 +128,10 @@ autostart:  ## que el indicador arranque solo al iniciar sesión
 	  > $(HOME)/.config/autostart/quartermaster.desktop
 	@echo "$(HOME)/.config/autostart/quartermaster.desktop escrito"
 
+.PHONY: deb
+deb:  ## arma el .deb en dist/
+	@./scripts/hacer-deb.sh
+
 .PHONY: gate-dibujo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh

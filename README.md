@@ -8,6 +8,38 @@ Code y, si está instalado, Codex.
 
 Ver [`SOUL.md`](SOUL.md) para la métrica, los non-goals y la apuesta falsable.
 
+## Instalar
+
+```sh
+brew install legiosai/tap/quartermaster        # macOS y Linux
+npm install -g @legios/quartermaster           # cualquier lado
+```
+
+En Debian y Ubuntu, el `.deb` de la [última
+release](https://github.com/legiosai/quartermaster/releases/latest):
+
+```sh
+sudo apt install ./quartermaster_0.1.1_all.deb
+```
+
+O desde el repo, sin instalar nada global:
+
+```sh
+git clone https://github.com/legiosai/quartermaster && cd quartermaster
+npm install && make instalar    # deja `qm` en ~/.local/bin
+```
+
+Necesita **Node >= 22.6**: `qm` lee el TypeScript sin paso de build, y eso
+recién existe desde ahí. El lanzador lo busca en el `PATH` y en las versiones de
+nvm; si no encuentra uno que sirva, lo dice y explica cómo conseguirlo. Por eso
+el `.deb` depende de `nodejs` a secas y no de `nodejs (>= 22.6)`: Debian 13 trae
+un 20, y pedir 22.6 haría un paquete que no se instala en ninguna parte por una
+razón que además no es cierta —la versión nueva suele estar en nvm, que apt no
+ve—. Mejor un paquete que instala y avisa.
+
+El `.deb` se arma con `scripts/hacer-deb.sh`, que no compila nada: el paquete es
+el fuente más un enlace en `/usr/bin`, y por eso es `Architecture: all`.
+
 ## El problema
 
 Claude Code soporta varios perfiles vía `CLAUDE_CONFIG_DIR`, y cada perfil tiene
