@@ -30,7 +30,10 @@ fallar() {
   exit 1
 }
 
-python3 -m py_compile bin/qm-indicator || fallar "bin/qm-indicator no compila"
+# El .pyc va al temporal y no al lado del fuente: `python3 -m py_compile` deja un
+# bin/__pycache__ que después se cuela en el tarball de npm.
+python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], cfile=sys.argv[2], doraise=True)" \
+  bin/qm-indicator "$salida/qm-indicator.pyc" || fallar "bin/qm-indicator no compila"
 
 # node --check quiere que el archivo se vea como módulo; la extensión usa
 # import/export y con extensión .js node la lee como CommonJS.

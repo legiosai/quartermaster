@@ -1,15 +1,48 @@
 {
   "name": "@legios/quartermaster",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
+  "description": "Cuánta cuota te queda en TODOS los perfiles de Claude Code de la máquina, más Codex y los proveedores de opencode. Sin red y sin credenciales: el número sale del cache que Claude Code deja en disco.",
+  "keywords": [
+    "claude-code",
+    "claude",
+    "codex",
+    "opencode",
+    "quota",
+    "rate-limit",
+    "usage",
+    "cli",
+    "statusline",
+    "gnome",
+    "macos"
+  ],
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/legiosai/quartermaster.git" },
+  "author": "Legios",
+  "homepage": "https://github.com/legiosai/quartermaster#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/legiosai/quartermaster.git"
+  },
+  "bugs": {
+    "url": "https://github.com/legiosai/quartermaster/issues"
+  },
   "type": "module",
   "engines": {
     "node": ">=22.6"
   },
   "bin": {
     "qm": "bin/qm"
+  },
+  "files": [
+    "bin/",
+    "src/",
+    "scripts/",
+    "extension/",
+    "Makefile",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "typecheck": "node scripts/nodo.cjs && tsc --noEmit",
