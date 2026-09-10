@@ -1,0 +1,7 @@
+{
+  "uuid": "quartermaster@legios",
+  "name": "quartermaster",
+  "description": "Pone en la barra de arriba el item que dibuja qm, y le pasa el click. Existe por una razón concreta: con la extensión de AppIndicator el click izquierdo se lo queda ella —abre su propio menú y no hay forma de enterarse— así que ver el panel costaba dos clicks. Acá el item es nuestro y el primer click abre el panel.",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "url": "https://github.com/legiosai/quartermaster"
+}

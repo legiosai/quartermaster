@@ -601,18 +601,111 @@ make indicador     # lo arranca ahora
 make autostart     # y que arranque solo al iniciar sesión
 ```
 
-Queda un item en la barra que dice, por ejemplo:
+Queda un item en la barra que **se dibuja**: un medidor vertical por cuenta, en
+el orden del panel, más el glifo del producto y el número de la sesión. Es el
+mismo dibujo que el item de la barra de macOS y con las mismas medidas — tres
+cuentas entran en el ancho de una palabra:
 
 ```
-main 75%! · teams 40%
+✳ ▮ 8   ✳ ▮ 22   ‹› ▮ 42
 ```
 
-y que al desplegarlo muestra cada perfil con todas sus barras, la edad del
-cache, y el motivo cuando un perfil no tiene número. `!` es una barra que el
-servidor marcó con aviso; `~` es un cache de más de 6 horas.
+El glifo dice QUÉ suscripción es —la forma, el producto; el color, cuál de
+ellas—. El medidor es **siempre la semanal**, pintado por severidad. El número
+es **siempre la sesión de 5 h**, que es la que contesta «¿puedo seguir ahora?»,
+y se tiñe recién cuando aprieta. Sin marcas al lado del número: un `~` de
+«cache viejo» pegado a la cifra obliga a saber qué significa para poder leer la
+cifra, y la edad del cache ya está escrita con todas las letras en el panel.
 
-Tres cosas lo hacen algo más que un reloj:
+Que un dibujo entre en la barra de GNOME depende de una puerta que la extensión
+deja abierta sin documentar: si el nombre del ícono empieza con `/` lo toma como
+un archivo, y si esa imagen es **ancha** —`width >= height * 1.5`— la dibuja a
+lo ancho en vez de encajarla en el cuadrado de 16 px de un ícono. El archivo
+además tiene que estar en un directorio escribible del usuario (va a
+`~/.cache/quartermaster`), y el nombre se alterna entre dos porque el shell
+cachea la textura por ruta: reescribiendo siempre la misma, el item se queda con
+el dibujo viejo y parece que la cuota no se mueve.
 
+**Click del medio: el panel** — el anillo de «lo primero que te frena», un
+medidor de verdad por barra, la curva pegada a la que frena y el ritmo en rojo
+cuando chocás antes del reinicio. Se cierra con un click afuera, con Escape, o
+con otro click del medio.
+
+Es el mismo contenido que el panel de la barra de macOS, pero **no es una copia
+del dibujo**: acá va con la paleta de estado de Adwaita en vez de la de Apple,
+con una tarjeta redondeada por cuenta —la «boxed list» con la que GNOME agrupa
+cosas— en vez de líneas de pelo, y con cuerpos de letra más grandes, porque
+Cantarell es más grande que la tipografía del sistema de Apple y con las medidas
+de allá los renglones quedaban apretados y el texto rozando el borde.
+
+El click izquierdo lo tiene tomado la extensión de AppIndicator: abre su propio
+menú y no hay forma de enterarse de que pasó (su `AboutToShow` no llega hasta el
+proceso). Se probó también la bandeja legacy XEmbed como salida —ahí el ícono es
+una ventana nuestra— pero la bandeja lo fuerza a 16×16, que se lleva puestos los
+medidores. Así que con AppIndicator ese menú quedó en **dos renglones**
+—«Panel de cuota» y «Salir»— y ver el panel cuesta dos clicks. Para que cueste
+uno está `make extension`, más abajo.
+Antes repetía cada perfil con cada barra en bloques `█░`, que es lo único que
+GNOME sabe dibujar ahí adentro: los items viajan por DBus y del otro lado la
+extensión hace `label.set_text(...)`, texto pelado y sin markup. Un muro de
+texto delante del dibujo bueno es peor que no tener menú.
+
+**El panel es un `Gtk.Menu` propio** —popeado por este proceso, no por DBus— y
+no una ventana suelta. La razón se midió: en este escritorio ninguna ventana
+sostiene el foco. Se probaron los cuatro tipos (UTILITY, NORMAL, DIALOG,
+POPUP_MENU) y las cuatro lo pierden solas entre 0,15 s y 4,6 s después de abrir,
+sin que nadie toque nada, porque mutter se lo devuelve al lado Wayland. Cerrar
+al perder el foco cerraba el panel solo; agarrar el asiento a mano tampoco
+alcanzaba, porque un agarre de XWayland no ve los clicks que caen sobre una
+ventana Wayland. Un menú de GTK, en cambio, agarra el puntero como lo agarra
+cualquier menú del escritorio: el click afuera y el Escape salen gratis, y la
+caja redondeada, la sombra y el fondo los pone el tema.
+
+Dos detalles que cuestan una tarde si no están escritos:
+
+- **Hay que pasarle un evento de disparo** a `popup_at_rect()`. El panel lo abre
+  un mensaje de DBus, así que no hay ningún evento de GDK a mano; sin uno, GTK
+  avisa `no trigger event for menu popup` y el agarre que toma se rompe solo a
+  los pocos segundos — el menú se cerraba sin que nadie tocara nada. Con un
+  evento sintético se queda abierto indefinidamente (medido: 20 s sin
+  moverse).
+- **El tiempo de ese evento va en `CURRENT_TIME`.** Pedirle la hora al servidor
+  con `x11_get_server_time()` sobre la ventana raíz **cuelga el proceso**:
+  escribe una propiedad y espera un `PropertyNotify` que la raíz nunca manda.
+
+Y una trampa de tema que dejó el panel ilegible una tarde: GNOME dice
+`color-scheme = prefer-dark`, pero **una app GTK3 no se entera sola** — su
+`gtk-application-prefer-dark-theme` sigue en `False` y el menú que hace de fondo
+se dibuja CLARO. El panel, pintado con los colores oscuros de GNOME, quedaba
+blanco sobre blanco. Ahora se hacen las dos cosas: se le pasa la preferencia a
+GTK, y los grises del dibujo se sacan del **color de texto del propio menú** —
+que no puede mentir sobre qué fondo tiene debajo— en vez de un ajuste que puede
+no corresponderse con él.
+
+Sigue haciendo falta X11 para una sola cosa: `popup_at_rect()` contra la ventana
+raíz, que es lo que pega el panel arriba a la derecha. Por eso el proceso arranca
+con `GDK_BACKEND=x11`; al item de la barra no le cambia nada, es DBus puro.
+`QM_SIN_X11=1` lo fuerza a Wayland, donde el panel abre igual pero lo ubica el
+compositor.
+
+`bin/qm-indicator --captura panel.png` dibuja el panel a un archivo sin abrir
+ventana, y `--captura-item item.png` el item de la barra; `--claro` / `--oscuro`
+fuerzan el tema. Son las mismas funciones de dibujo que usan el panel y la
+barra, así que los PNG no son una segunda implementación que se parece.
+
+Cuatro cosas lo hacen algo más que un reloj:
+
+- **Pregunta él.** `qm --breve` lee del disco y no habla con nadie, que es lo
+  que lo hace instantáneo — pero entonces el número es tan fresco como la última
+  vez que *alguien* preguntó, y Claude Code refresca su propio cache cuando
+  quiere: medido acá, **1 día y 11 horas** sin tocarlo, con la semanal 14 puntos
+  abajo de la realidad (75 % en pantalla, 89 % de verdad). Así que el indicador
+  corre `qm --calentar` él mismo, como ya hacían la barra de macOS y la bandeja
+  de Windows, y deja el número en el cache para que las lecturas sigan siendo de
+  disco. La cadencia es la misma de macOS —300 s de base, 240 arriba del 50 %,
+  120 arriba del 75 %, 60 arriba del 90 %, con piso de 60 s— y sólo se refrescan
+  las cuentas que se mueven: pedirle el número a una que va al 9 % es gastar un
+  pedido para confirmar que no pasó nada.
 - **Se entera solo.** Vigila el `.claude.json` de cada perfil con
   `Gio.FileMonitor`: cuando Claude Code refresca la cuota, el número cambia en
   el acto. Medido: de 82 % a 96 % en menos de 5 s sin reiniciar nada. El sondeo
@@ -632,6 +725,46 @@ Necesita el soporte de AppIndicator en GNOME —la extensión
 `StatusNotifierItem` en un item de la barra. Verificado en GNOME Shell 48.7
 sobre Wayland. Para sacarlo: «Salir» en su propio menú, y
 `rm ~/.config/autostart/quartermaster.desktop`.
+
+Un detalle del click del medio que cuesta una tarde si no está escrito: el
+objetivo de `set_secondary_activate_target()` tiene que ser un item que **viva
+adentro del menú** y esté marcado visible. Con un widget suelto —o con uno sin
+`show()`— libayatana descarta el evento y no dice nada. Y como el menú se
+reconstruye en cada refresco, hay que volver a apuntarlo cada vez o el click
+deja de hacer efecto en silencio.
+
+### Un click, con extensión propia
+
+```bash
+make extension          # instala y habilita quartermaster@legios
+make extension-quitar   # y lo deshace
+```
+
+`extension/quartermaster@legios` es una extensión de GNOME Shell de unas cien
+líneas que **no sabe qué es una cuota**. Hace dos cosas: muestra el PNG que
+dibuja `qm-indicator` y, cuando le hacen click, deja un pedido en un archivo
+para que ese proceso abra su panel. Todo el dibujo y todos los números siguen
+viviendo del lado de Python. A cambio, el item es nuestro y **el primer click
+abre el panel** — y el segundo lo cierra.
+
+Mientras la extensión está habilitada escribe `~/.cache/quartermaster/extension-viva`,
+y al verlo `qm-indicator` pone su propio item de AppIndicator en `PASSIVE` para
+que no queden dos diciendo lo mismo. No lo destruye: la extensión se puede
+apagar en cualquier momento y el item vuelve solo, sin reiniciar nada.
+
+La conversación va por archivos y no por DBus a propósito: son dos procesos que
+ya comparten un directorio de cache, un `Gio.FileMonitor` de cada lado alcanza,
+y no hay que registrar un nombre de bus ni una interfaz para decir «abrí el
+panel». Con una trampa que hay que saber: **una escritura son varios eventos de
+inotify** —se midieron tres, `changed`, `changed`, `changes-done-hint`— así que
+el pedido se junta con un temporizador antes de atenderlo. Sin eso, un click
+abría el panel y los dos eventos siguientes lo cerraban en el mismo instante, y
+desde afuera parecía que el item no hacía nada.
+
+**GNOME Shell no carga una extensión recién instalada en Wayland**: hay que
+cerrar sesión y volver a entrar una vez. `ReloadExtension` está deprecada y
+devuelve error, y `EnableExtension` sobre una que el shell todavía no vio
+devuelve `false`.
 
 ## En la bandeja de Windows
 
@@ -762,6 +895,7 @@ src/adapters/     credenciales (llavero / archivo), transcripciones (JSONL),
 src/cli/          qm (el comando) y las demos de cada hito.
 src/render/       barras y formato para la terminal, y tablero.html para el
                   navegador. Sin dependencias.
+extension/        la extensión de GNOME Shell que se queda con el click
 bin/              el lanzador que encuentra un Node, el indicador de GNOME, la
                   bandeja de Windows, la barra de macOS y el servidor del
                   tablero. Todos dibujan y nada más: le piden el JSON a qm y no
