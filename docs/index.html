@@ -13,7 +13,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
   /* Los colores son los del programa: la rampa verde → ámbar → rojo con la que
@@ -25,7 +25,7 @@
   --texto:#f0ece5; --medio:rgba(240,236,229,.66); --tenue:rgba(240,236,229,.44);
   --verde:#2fbf71; --ambar:#f2b134; --rojo:#e2483d; --legios:#3FB7F0;
   --radio:14px; --ancho:1120px;
-  --serif:"Instrument Serif",Georgia,"Times New Roman",serif;
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
 }
 *{box-sizing:border-box}
@@ -37,8 +37,9 @@ body{
 }
 .env{max-width:var(--ancho);margin:0 auto;padding:0 24px}
 a{color:inherit}
-h1,h2{font-family:var(--serif);font-weight:400;line-height:1.06;letter-spacing:-.012em;margin:0}
-h1{font-size:clamp(33px,3.8vw,49px);letter-spacing:-.016em;line-height:1.1;max-width:19ch}
+h1,h2{font-family:var(--serif);font-weight:400;line-height:1.04;letter-spacing:-.015em;margin:0;
+  font-variation-settings:"SOFT" 40,"WONK" 1,"opsz" 100}
+h1{font-size:clamp(40px,5.2vw,66px);line-height:1.02;max-width:13ch}
 h2{font-size:clamp(32px,4vw,46px)}
 h3{font-size:17.5px;font-weight:600;letter-spacing:-.01em;margin:0;line-height:1.3}
 em.it{font-family:var(--serif);font-style:italic;font-size:1.06em}
@@ -78,9 +79,17 @@ header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
 .ceja{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid var(--borde2);
   border-radius:999px;font-size:12.5px;font-weight:500;color:var(--medio);margin-bottom:22px}
 .ceja b{color:var(--ambar);font-weight:600}
-.heroe p.bajada{color:var(--medio);font-size:16.5px;margin-top:24px;max-width:47ch}
-.heroe .rotulo{margin-bottom:26px}
-.heroe .rotulo b{color:var(--texto);font-weight:500}
+.heroe p.bajada{color:var(--medio);font-size:17px;margin-top:22px;max-width:46ch}
+/* El nombre, y de quién es. El logotipo de Legios va acá y no sólo en el pie:
+   es la primera cosa que se lee. */
+.lockup{display:flex;align-items:center;gap:12px;margin-bottom:30px;
+  font:500 11.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--tenue)}
+.lockup b{color:var(--texto);font-weight:500}
+.lockup img{opacity:.92;display:block}
+.lockup a{display:flex;align-items:center}
+.creditos{margin-top:20px;padding-top:16px;border-top:1px solid var(--borde);
+  font:400 12.5px/1.5 var(--mono);letter-spacing:.02em;color:var(--tenue);max-width:46ch}
+.creditos b{color:var(--medio);font-weight:500}
 .enlaces{display:flex;gap:24px;flex-wrap:wrap;margin-top:26px;font-size:14.5px}
 .enlaces a{color:var(--medio);text-decoration:none;border-bottom:1px solid var(--borde2);padding-bottom:3px}
 .enlaces a:hover{color:var(--ambar);border-color:var(--ambar)}
@@ -148,14 +157,29 @@ section{padding:76px 0}
 .mal{opacity:.5}
 
 /* ── instalación ── */
-.dos{display:grid;grid-template-columns:366px 1fr;gap:26px;margin-top:20px;align-items:start}
-.dos figure{margin:0}
-.dos img{width:100%;display:block;border-radius:12px;border:1px solid var(--borde);
-  box-shadow:0 18px 46px rgba(0,0,0,.5)}
-/* La bandeja es un recorte chico: estirado a 680 px se ve blando. */
-.dos .bandeja img{width:auto;max-width:100%;image-rendering:auto}
-.dos figcaption{color:var(--tenue);font-size:12.5px;margin-top:10px}
-@media (max-width:860px){.dos{grid-template-columns:1fr}}
+/* La galería: las capturas vienen de máquinas distintas y con tamaños
+   distintos, así que se las iguala acá en vez de dejar que cada una imponga el
+   suyo. Las tiras van a una altura fija —la barra de GNOME se dibujó a 3x, la
+   bandeja de Windows es un recorte a 1x, y a la misma altura las dos quedan
+   nítidas— y los paneles a un alto común, recortados abajo con un degradado
+   porque ninguno entra entero. */
+.galeria{display:grid;gap:20px;margin-top:22px}
+.galeria figure{margin:0}
+.galeria figcaption{color:var(--tenue);font-size:12.5px;margin-top:10px}
+.galeria figcaption b{color:var(--medio);font-weight:600}
+.tiras{grid-template-columns:repeat(2,1fr)}
+.tira{height:78px;display:grid;place-items:center;background:var(--sup);
+  border:1px solid var(--borde);border-radius:12px;overflow:hidden}
+.tira img{height:46px;width:auto;display:block}
+/* Con un ancho máximo por columna: el de Windows es un recorte a 1x y estirado
+   a 525 px se ve blando. Así entra la de macOS como tercera sin cambiar nada. */
+.paneles{grid-template-columns:repeat(auto-fit,minmax(260px,346px));justify-content:start}
+.recorte{position:relative;height:400px;overflow:hidden;border-radius:12px;
+  border:1px solid var(--borde);box-shadow:0 18px 46px rgba(0,0,0,.45)}
+.recorte img{width:100%;display:block}
+.recorte::after{content:"";position:absolute;left:0;right:0;bottom:0;height:110px;
+  background:linear-gradient(to bottom,transparent,var(--fondo))}
+@media (max-width:700px){.tiras{grid-template-columns:1fr}}
 .pestanas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
 .pestanas button{border:1px solid var(--borde);background:var(--sup);color:var(--medio);
   padding:9px 15px;border-radius:11px;cursor:pointer;font:500 14px Inter,sans-serif}
@@ -217,14 +241,17 @@ footer a:hover{color:var(--texto)}
 
 <div class="env heroe">
   <div>
-    <div class="rotulo"><b>quartermaster</b> un instrumento de Legios</div>
-    <h1>Nadie debería enterarse de que se quedó sin cuota chocándose contra el límite.</h1>
+    <div class="lockup">
+      <b>quartermaster</b>
+      <span>un instrumento de</span>
+      <a href="https://github.com/legiosai" aria-label="Legios"><img src="legios.svg" alt="Legios" width="104" height="40"></a>
+    </div>
+    <h1>Enterate antes de chocarte contra el límite.</h1>
     <p class="bajada">
-      Los monitores que hay leen una credencial: la del directorio por defecto.
-      En la máquina donde se escribió esto ese directorio está vacío y las dos
-      cuentas que se usan viven en otros dos. Éste los lee todos —más Codex y
-      los proveedores de opencode— y no necesita red ni credenciales para hacerlo.
+      Los que hay leen una credencial: la del directorio por defecto. Éste lee
+      todos tus perfiles, más Codex y opencode, sin red y sin credenciales.
     </p>
+    <p class="creditos">Ingeniería de <b>Valentín&nbsp;Torassa</b> y <b>Sol&nbsp;Soletti</b></p>
     <div class="so" role="tablist" aria-label="Sistema operativo">
       <button role="tab" aria-selected="true" data-so="mac">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h6v6H9z"/><path d="M9 9V7a2 2 0 1 0-2 2z"/><path d="M15 9V7a2 2 0 1 1 2 2z"/><path d="M9 15v2a2 2 0 1 1-2-2z"/><path d="M15 15v2a2 2 0 1 0 2-2z"/></svg>macOS</button>
@@ -352,22 +379,31 @@ footer a:hover{color:var(--texto)}
         <p><code>qm --breve</code></p>
       </div>
     </div>
-    <div class="dos aparece">
+    <div class="galeria tiras aparece">
       <figure>
-        <img src="img/windows-panel.png" alt="El panel de quartermaster corriendo en Windows, en tema claro: el anillo al 100 %, la cuenta main con sus tres barras, y abajo codex y glm.">
-        <figcaption>El mismo panel en Windows, con el tema claro del sistema.</figcaption>
+        <div class="tira"><img src="img/barra.png" alt="La barra de arriba de GNOME con tres medidores verticales y sus números."></div>
+        <figcaption><b>GNOME</b> · un medidor por cuenta, arriba a la derecha</figcaption>
       </figure>
-      <div>
-        <figure class="bandeja">
-          <img src="img/windows-bandeja.png" alt="La bandeja de Windows con los iconos de quartermaster: opencode, codex y Claude con su medidor en rojo.">
-          <figcaption>Y en la bandeja, un icono por producto.</figcaption>
-        </figure>
-        <pre style="margin-top:18px"><span class="p">$</span> qm --breve
-main 46/89%! · teams 36/60%! · codex 50/100%!
-<span class="c"># sesión/semana por cuenta.
-# «!» es una barra que el servidor marcó con aviso.</span></pre>
-      </div>
+      <figure>
+        <div class="tira"><img src="img/windows-bandeja.png" alt="La bandeja de Windows con un icono por producto: opencode, codex y Claude con su medidor."></div>
+        <figcaption><b>Windows</b> · un icono por producto en la bandeja</figcaption>
+      </figure>
     </div>
+
+    <div class="galeria paneles aparece">
+      <figure>
+        <div class="recorte"><img src="img/panel.png" alt="El panel en GNOME, tema oscuro: el anillo de lo primero que te frena y una tarjeta por cuenta."></div>
+        <figcaption><b>GNOME</b> · tema oscuro</figcaption>
+      </figure>
+      <figure>
+        <div class="recorte"><img src="img/windows-panel.png" alt="El mismo panel en Windows, tema claro, con la cuenta main al 100 % de su barra semanal."></div>
+        <figcaption><b>Windows</b> · tema claro</figcaption>
+      </figure>
+    </div>
+
+    <pre class="aparece" style="margin-top:22px"><span class="p">$</span> qm --breve
+main 46/89%! · teams 36/60%! · codex 50/100%!
+<span class="c"># sesión/semana por cuenta. «!» es una barra que el servidor marcó con aviso.</span></pre>
   </div>
 </section>
 
