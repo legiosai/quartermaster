@@ -24,6 +24,7 @@ KStatusNotifierItem en un item de la barra.
 import json
 import math
 import os
+import pathlib
 import shutil
 import subprocess
 import sys
@@ -1576,9 +1577,28 @@ def buscar_qm() -> str | None:
     return str(vecino) if vecino.is_file() else None
 
 
+def leer_desde(ruta: str) -> dict:
+    """El JSON de un archivo en vez del de qm.
+
+    Existe para el gate de dibujo: con una entrada fija, lo que sale es
+    comparable entre corridas y entre máquinas. Si el archivo no se puede leer
+    se levanta, no se devuelve una frase: una frase se dibujaría como un panel
+    chiquito y perfectamente válido, y el gate lo daría por bueno.
+    """
+    return json.loads(pathlib.Path(ruta).read_text())
+
+
 def main() -> int:
+    fijo = None
+    if "--desde" in sys.argv:
+        i = sys.argv.index("--desde")
+        if i + 1 >= len(sys.argv):
+            print("--desde necesita una ruta", file=sys.stderr)
+            return 1
+        fijo = sys.argv[i + 1]
+
     qm = buscar_qm()
-    if qm is None:
+    if qm is None and fijo is None:
         print("qm no está en el PATH. Corré `make instalar` en el repo.", file=sys.stderr)
         return 1
     global TEMA, FAMILIA
@@ -1603,7 +1623,11 @@ def main() -> int:
         if i + 1 >= len(sys.argv):
             print(f"{bandera} necesita una ruta", file=sys.stderr)
             return 1
-        datos = leer_qm(qm)
+        try:
+            datos = leer_desde(fijo) if fijo is not None else leer_qm(qm)
+        except (OSError, json.JSONDecodeError) as e:
+            print(f"no pude leer {fijo}: {e}", file=sys.stderr)
+            return 1
         if dibujo == "panel":
             capturar(datos, sys.argv[i + 1])
         else:

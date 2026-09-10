@@ -70,16 +70,37 @@ equivocarse: que el indicador compile, que la extensión parsee, y que **dibuje*
 con las medidas de siempre y con píxeles adentro—. Lo tercero es lo que no se
 puede reemplazar por un import: un error de Cairo no rompe la importación.
 
-Corrido el 2026-09-10, sabotando y restaurando.
+### El gate se estrenó mintiendo
+
+La primera versión pasaba en verde en esta máquina y fallaba en CI. La causa
+vale más que el gate: `--desde` devolvía una frase cuando no podía leer el
+archivo, en vez de levantar. Acá el archivo se leía, así que no se notaba; pero
+además —y esto es lo que hizo el diagnóstico difícil— el propio `--desde` se
+había perdido en un `git checkout` de las pruebas de sabotaje, y sin él el
+programa caía de vuelta en los datos reales de la máquina. O sea: el gate estaba
+midiendo la cuota de esta computadora y llamándola fixture. En CI no hay cuota,
+la frase de error se dibujó como un panel de 54 px, y recién ahí se vio.
+
+Dos correcciones: `--desde` levanta si no puede leer, y las pruebas de sabotaje
+restauran desde una copia y no con `git checkout`, que se lleva puesto el
+trabajo sin comitear. Y una verificación que ahora es parte del método: se
+dibujó el fixture entero (5 perfiles, 1039 px) y una copia recortada a 2
+perfiles (433 px). Si el alto no cambia, el archivo no se está leyendo.
+
+### Los sabotajes
+
+Corridos el 2026-09-10, restaurando desde copia después de cada uno. Verde antes
+y después de todos.
 
 | Sabotaje | Qué simula | Qué dijo el gate |
 |---|---|---|
-| `if True` sin dos puntos en `bin/qm-indicator` | exactamente el accidente de arriba | `GATE ROJO: bin/qm-indicator no compila` |
-| `function rota( {` en `extension.js` | un error en la extensión, que GNOME sólo mostraría al iniciar sesión | `GATE ROJO: extension.js no parsea` |
-| `ancho_total = 20` en el item | perder la proporción ancha: GNOME deja de dibujarlo a lo ancho y lo encaja en un cuadrado de 16 px, con los medidores ilegibles | `GATE ROJO: el item quedó de 20x22` |
-| `ANCHO_PANEL = 300` | una medida cambiada sin querer | `GATE ROJO: el panel salió de 300 px de ancho` |
+| `if True` sin dos puntos en `bin/qm-indicator` | exactamente el accidente de arriba | `no compila` |
+| `function rota( {` en `extension.js` | un error en la extensión, que GNOME sólo mostraría al iniciar sesión | `no parsea` |
+| `ancho_total = 20` en el item | perder la proporción ancha: GNOME deja de dibujarlo a lo ancho y lo encaja en un cuadrado de 16 px, con los medidores ilegibles | `el item quedó de 20x22` |
+| `ANCHO_PANEL = 300` | una medida cambiada sin querer | `el panel salió de 300 px de ancho` |
+| `cabecera, vistas = None, []` | el caso peor: medidas perfectas y nada dibujado | `el panel salió de 24 px de alto` |
 
-Los cuatro salieron con código 1. Verde antes y después de cada uno.
+Los cinco salieron con código 1.
 
 El chequeo de píxeles no es decorativo: un PNG del tamaño correcto y enteramente
 transparente pasa cualquier verificación de medidas y no dibujó nada. Por eso se
