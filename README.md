@@ -19,7 +19,7 @@ En Debian y Ubuntu, el `.deb` de la [última
 release](https://github.com/legiosai/quartermaster/releases/latest):
 
 ```sh
-sudo apt install ./quartermaster_0.1.1_all.deb
+sudo apt install ./quartermaster_0.1.2_all.deb
 ```
 
 O desde el repo, sin instalar nada global:
