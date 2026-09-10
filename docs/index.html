@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>quartermaster · cuánta cuota te queda, en todas tus cuentas</title>
+<meta name="description" content="Cuánta cuota te queda en todos los perfiles de Claude Code de la máquina, más Codex y opencode. Sin red y sin credenciales: el número sale del cache que Claude Code deja en disco.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="quartermaster">
+<meta property="og:description" content="Cuánta cuota te queda, en todas tus cuentas de agentes. Sin red y sin credenciales.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://legiosai.github.io/quartermaster/img/panel.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fondo:#0c0e13; --sup:#12151d; --sup2:#171b26;
+  --borde:rgba(255,255,255,.08); --borde2:rgba(255,255,255,.14);
+  --texto:#e8ecf4; --medio:rgba(232,236,244,.64); --tenue:rgba(232,236,244,.42);
+  --cian:#2ee9ff; --violeta:#a78bff; --verde:#3ddc97; --ambar:#ffa348; --rojo:#f66151;
+  --radio:16px; --ancho:1120px;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--fondo); color:var(--texto);
+  font:400 16px/1.65 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+.env{max-width:var(--ancho);margin:0 auto;padding:0 24px}
+a{color:inherit}
+h1,h2,h3{line-height:1.15;letter-spacing:-.022em;margin:0}
+h1{font-size:clamp(34px,4.4vw,50px);font-weight:700}
+h2{font-size:clamp(26px,3.4vw,38px);font-weight:600}
+h3{font-size:19px;font-weight:600}
+p{margin:0}
+code{font-family:var(--mono);font-size:.92em}
+.grad{background:linear-gradient(120deg,var(--cian),var(--violeta));-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ── luz de fondo ── */
+.aura{position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(900px 520px at 78% -8%,rgba(46,233,255,.13),transparent 62%),
+    radial-gradient(760px 480px at 8% 4%,rgba(167,139,255,.11),transparent 60%);}
+.capa{position:relative;z-index:1}
+
+/* ── barra ── */
+header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
+  background:rgba(12,14,19,.72);border-bottom:1px solid var(--borde)}
+.nav{display:flex;align-items:center;gap:14px;height:62px}
+.marca{display:flex;align-items:center;gap:10px;font-weight:600;letter-spacing:-.02em;text-decoration:none}
+.marca svg{width:26px;height:26px;flex:none}
+.nav nav{margin-left:auto;display:flex;align-items:center;gap:8px}
+.nav nav a{padding:8px 12px;border-radius:9px;color:var(--medio);text-decoration:none;font-size:14.5px;font-weight:500}
+.nav nav a:hover{color:var(--texto);background:rgba(255,255,255,.06)}
+.gh{border:1px solid var(--borde2)}
+
+/* ── héroe ── */
+.heroe{padding:88px 0 40px;display:grid;grid-template-columns:1.18fr .82fr;gap:56px;align-items:start}
+.ceja{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid var(--borde2);
+  border-radius:999px;font-size:12.5px;font-weight:500;color:var(--medio);margin-bottom:22px}
+.ceja b{color:var(--cian);font-weight:600}
+.heroe p.bajada{color:var(--medio);font-size:18.5px;margin-top:20px;max-width:37ch}
+.heroe .no{color:var(--texto);font-weight:600}
+
+.instalar{margin-top:30px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.comando{display:flex;align-items:center;gap:12px;background:var(--sup);border:1px solid var(--borde);
+  border-radius:12px;padding:12px 14px;font-family:var(--mono);font-size:14px}
+.comando .p{color:var(--cian)}
+.copiar{margin-left:4px;border:0;background:rgba(255,255,255,.07);color:var(--medio);cursor:pointer;
+  border-radius:7px;padding:5px 9px;font:500 12px Inter,sans-serif}
+.copiar:hover{background:rgba(255,255,255,.13);color:var(--texto)}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:12px 18px;border-radius:12px;
+  text-decoration:none;font-weight:600;font-size:15px}
+.btn.p{background:linear-gradient(120deg,var(--cian),var(--violeta));color:#07090d}
+.btn.s{border:1px solid var(--borde2);color:var(--texto)}
+.btn:hover{filter:brightness(1.08)}
+.nota{color:var(--tenue);font-size:13.5px;margin-top:16px}
+
+.retrato{position:relative}
+/* El panel es más alto que cualquier pantalla —ése es medio el punto— así que
+   acá se muestra el principio y se desvanece, en vez de empujar todo hacia abajo. */
+.marco{position:relative;max-width:360px;max-height:520px;overflow:hidden;border-radius:14px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6),0 0 0 1px var(--borde)}
+.marco img{width:100%;display:block}
+.marco::after{content:"";position:absolute;left:0;right:0;bottom:0;height:160px;
+  background:linear-gradient(to bottom,transparent,var(--fondo) 88%)}
+.barra-foto{margin:0 0 18px;max-width:100%}
+.barra-foto img{width:100%;max-width:360px;border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.5),0 0 0 1px var(--borde)}
+.pie{color:var(--tenue);font-size:12.5px;margin-top:10px}
+
+/* ── secciones ── */
+section{padding:76px 0}
+.titulo{max-width:60ch;margin-bottom:36px}
+.titulo p{color:var(--medio);margin-top:14px;font-size:17px}
+.rejilla{display:grid;gap:16px}
+.c3{grid-template-columns:repeat(3,1fr)}
+.c4{grid-template-columns:repeat(4,1fr)}
+.tarjeta{background:var(--sup);border:1px solid var(--borde);border-radius:var(--radio);padding:22px}
+.tarjeta .ico{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;
+  background:rgba(46,233,255,.10);border:1px solid rgba(46,233,255,.20);margin-bottom:14px}
+.tarjeta .ico svg{width:18px;height:18px;stroke:var(--cian);fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.tarjeta p{color:var(--medio);font-size:14.5px;margin-top:8px}
+.tarjeta code{color:var(--texto);background:rgba(255,255,255,.06);padding:1px 5px;border-radius:5px}
+
+/* ── el hallazgo ── */
+.hallazgo{background:var(--sup);border:1px solid var(--borde);border-radius:20px;padding:34px;
+  display:grid;grid-template-columns:1fr 1fr;gap:34px;align-items:center}
+.barras{display:grid;gap:16px}
+.fila{display:grid;gap:7px}
+.fila .et{display:flex;justify-content:space-between;font-size:13.5px;color:var(--medio)}
+.fila .et b{color:var(--texto);font-variant-numeric:tabular-nums}
+.pista{height:8px;border-radius:5px;background:rgba(255,255,255,.10);overflow:hidden}
+.pista i{display:block;height:100%;border-radius:5px}
+.mal{opacity:.5}
+
+/* ── instalación ── */
+.pestanas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.pestanas button{border:1px solid var(--borde);background:var(--sup);color:var(--medio);
+  padding:9px 15px;border-radius:11px;cursor:pointer;font:500 14px Inter,sans-serif}
+.pestanas button[aria-selected=true]{color:#07090d;background:linear-gradient(120deg,var(--cian),var(--violeta));border-color:transparent}
+pre{margin:0;background:var(--sup);border:1px solid var(--borde);border-radius:14px;padding:20px 22px;
+  overflow-x:auto;font-family:var(--mono);font-size:14px;line-height:1.75;color:var(--texto)}
+pre .c{color:var(--tenue)}
+pre .p{color:var(--cian)}
+
+/* ── pie ── */
+footer{border-top:1px solid var(--borde);padding:40px 0;color:var(--tenue);font-size:14px}
+.pie-fila{display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+footer a{color:var(--medio);text-decoration:none}
+footer a:hover{color:var(--texto)}
+
+.aparece{opacity:0;transform:translateY(14px);transition:opacity .6s ease,transform .6s ease}
+.aparece.visible{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.aparece{opacity:1;transform:none;transition:none}}
+@media (max-width:900px){
+  .heroe{grid-template-columns:1fr;gap:36px;padding-top:56px}
+  .c3,.c4{grid-template-columns:1fr 1fr}
+  .hallazgo{grid-template-columns:1fr;padding:24px}
+  .retrato img{max-width:320px;margin:0 auto}
+}
+@media (max-width:560px){.c3,.c4{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="aura"></div>
+<div class="capa">
+
+<header>
+  <div class="env nav">
+    <a class="marca" href="./">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="m" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2ee9ff"/><stop offset="1" stop-color="#a78bff"/></linearGradient></defs><circle cx="32" cy="32" r="22" fill="none" stroke="#2ee9ff" stroke-opacity=".18" stroke-width="7"/><path d="M32 10A22 22 0 1 1 10 32" fill="none" stroke="url(#m)" stroke-width="7" stroke-linecap="round"/><path d="M43.5 43.5 53 53" fill="none" stroke="url(#m)" stroke-width="7" stroke-linecap="round"/></svg>
+      quartermaster
+    </a>
+    <nav>
+      <a href="#superficies">Dónde lo ves</a>
+      <a href="#instalar">Instalar</a>
+      <a class="gh" href="https://github.com/legiosai/quartermaster">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="env heroe">
+  <div>
+    <span class="ceja"><b>Legios</b> · MIT · Node ≥ 22.6</span>
+    <h1>Cuánta cuota te queda.<br><span class="grad">En todas tus cuentas.</span></h1>
+    <p class="bajada">
+      Claude Code, Codex y los proveedores de opencode, en un solo número.
+      <span class="no">Sin red y sin credenciales</span>: sale del cache que
+      Claude Code ya dejó en tu disco, así que se lee aunque el token esté vencido.
+    </p>
+    <div class="instalar">
+      <div class="comando"><span class="p">$</span><span id="cmd">brew install legiosai/tap/quartermaster</span><button class="copiar" data-copiar="#cmd">copiar</button></div>
+    </div>
+    <div class="instalar">
+      <a class="btn p" href="#instalar">Instalar</a>
+      <a class="btn s" href="https://github.com/legiosai/quartermaster">Ver el código</a>
+    </div>
+    <p class="nota">También por npm y con un <code>.deb</code>. macOS, Linux y Windows.</p>
+  </div>
+  <div class="retrato aparece">
+    <figure class="barra-foto">
+      <img src="img/barra.png" alt="La barra de arriba de GNOME con tres medidores: una cuenta al 32 %, otra al 27 % y otra al 50 %.">
+    </figure>
+    <div class="marco"><img src="img/panel.png" alt="El panel de quartermaster: el anillo de «lo primero que te frena» al 100 %, y una tarjeta por cuenta con sus barras, la curva de las últimas horas y cuándo se reinicia."></div>
+    <p class="pie">Un medidor por cuenta arriba. El panel completo a un click.</p>
+  </div>
+</div>
+
+<section id="problema">
+  <div class="env">
+    <div class="titulo aparece">
+      <h2>Los monitores leen una credencial. Vos tenés tres cuentas.</h2>
+      <p>
+        Claude Code soporta varios perfiles con <code>CLAUDE_CONFIG_DIR</code>, y cada uno
+        tiene su cuenta y su credencial. Un asiento de trabajo y una suscripción personal
+        en la misma laptop es lo normal. Lo que existe lee <b>una</b>: la del directorio por
+        defecto — que suele ser justo el que está vacío.
+      </p>
+    </div>
+    <div class="rejilla c3">
+      <div class="tarjeta aparece">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
+        <h3>Todos los perfiles</h3>
+        <p>Descubre cada <code>CLAUDE_CONFIG_DIR</code> de la máquina, no sólo <code>~/.claude</code>. Y suma Codex y los proveedores que guarda opencode.</p>
+      </div>
+      <div class="tarjeta aparece">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/></svg></div>
+        <h3>Sin credenciales</h3>
+        <p>No abre tu llavero ni lee un token. El número sale de <code>cachedUsageUtilization</code>, donde Claude Code deja la última respuesta del servidor.</p>
+      </div>
+      <div class="tarjeta aparece">
+        <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <h3>Y te avisa</h3>
+        <p>Al cruzar el 80 % y el 95 %, cuando la proyección dice que chocás <em>antes</em> del reinicio, y —lo más útil— cuando te liberás.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="hallazgo">
+  <div class="env">
+    <div class="titulo aparece">
+      <h2>El hallazgo que lo justifica</h2>
+      <p>
+        Dentro de <code>limits[]</code> hay barras que <b>no tienen clave propia arriba</b>.
+        Leyendo sólo las dos famosas se veía una cuenta cómoda. La que realmente frenaba
+        iba 67 puntos más arriba, con aviso del servidor.
+      </p>
+    </div>
+    <div class="hallazgo aparece">
+      <div class="barras">
+        <div class="fila mal">
+          <div class="et"><span><code>five_hour</code> — lo que leen los demás</span><b>8 %</b></div>
+          <div class="pista"><i style="width:8%;background:#3ddc97"></i></div>
+        </div>
+        <div class="fila mal">
+          <div class="et"><span><code>seven_day</code> — lo que leen los demás</span><b>59 %</b></div>
+          <div class="pista"><i style="width:59%;background:#3ddc97"></i></div>
+        </div>
+        <div class="fila">
+          <div class="et"><span><code>weekly_scoped</code> — la que te frena</span><b>75 %</b></div>
+          <div class="pista"><i style="width:75%;background:linear-gradient(90deg,#ffa348,#f66151)"></i></div>
+        </div>
+      </div>
+      <div>
+        <h3>67 puntos de diferencia que se ven cómodos</h3>
+        <p style="color:var(--medio);margin-top:12px;font-size:15px">
+          Esa barra estaba marcada <code>warning</code> por el propio servidor y no aparecía
+          en ningún monitor, porque no tiene una clave con nombre propio: vive adentro de la
+          lista. quartermaster muestra la que frena <em>antes</em>, sea cual sea.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="superficies">
+  <div class="env">
+    <div class="titulo aparece">
+      <h2>Donde ya estás mirando</h2>
+      <p>El mismo número, dibujado para cada escritorio. No hay una app que abrir.</p>
+    </div>
+    <div class="rejilla c4">
+      <div class="tarjeta aparece">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8"/></svg></div>
+        <h3>GNOME</h3>
+        <p>Un medidor por cuenta en la barra, y el panel a un click con su extensión.</p>
+        <p><code>make indicador</code></p>
+      </div>
+      <div class="tarjeta aparece">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M9 9h6v6H9z"/><path d="M9 9V7a2 2 0 1 0-2 2z"/><path d="M15 9V7a2 2 0 1 1 2 2z"/><path d="M9 15v2a2 2 0 1 1-2-2z"/><path d="M15 15v2a2 2 0 1 0 2-2z"/></svg></div>
+        <h3>macOS</h3>
+        <p>La barra de menú, con el mismo panel y el mismo medidor.</p>
+        <p><code>make barra</code></p>
+      </div>
+      <div class="tarjeta aparece">
+        <div class="ico"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="7.5" height="6.5" rx="1"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="3.5" y="13" width="7.5" height="6.5" rx="1"/><rect x="13" y="13" width="7.5" height="7.5" rx="1"/></svg></div>
+        <h3>Windows</h3>
+        <p>La bandeja, con un anillo que dice cuánto queda. Anda desde WSL.</p>
+        <p><code>make tray</code></p>
+      </div>
+      <div class="tarjeta aparece">
+        <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 17l5-5-5-5"/><path d="M12 19h8"/></svg></div>
+        <h3>La terminal</h3>
+        <p>Una tabla, o una línea para tu statusline. Y <code>--json</code> para scripts.</p>
+        <p><code>qm --breve</code></p>
+      </div>
+    </div>
+    <pre class="aparece" style="margin-top:16px"><span class="p">$</span> qm --breve
+main 46/89%! · teams 36/60%! · codex 50/100%!
+<span class="c"># sesión/semana por cuenta. «!» es una barra que el servidor marcó con aviso.</span></pre>
+  </div>
+</section>
+
+<section id="instalar">
+  <div class="env">
+    <div class="titulo aparece">
+      <h2>Instalar</h2>
+      <p>No hay paso de compilación: <code>qm</code> lee el TypeScript directo, y por eso pide Node ≥ 22.6.</p>
+    </div>
+    <div class="pestanas aparece" role="tablist">
+      <button role="tab" aria-selected="true" data-t="brew">Homebrew</button>
+      <button role="tab" aria-selected="false" data-t="npm">npm</button>
+      <button role="tab" aria-selected="false" data-t="apt">Debian / Ubuntu</button>
+      <button role="tab" aria-selected="false" data-t="src">Desde el repo</button>
+    </div>
+    <pre id="t-brew"><span class="p">$</span> brew install legiosai/tap/quartermaster
+<span class="p">$</span> qm</pre>
+    <pre id="t-npm" hidden><span class="p">$</span> npm install -g @legios/quartermaster
+<span class="p">$</span> qm</pre>
+    <pre id="t-apt" hidden><span class="c"># el .deb está en la última release</span>
+<span class="p">$</span> sudo apt install ./quartermaster_0.1.2_all.deb
+<span class="p">$</span> qm</pre>
+    <pre id="t-src" hidden><span class="p">$</span> git clone https://github.com/legiosai/quartermaster
+<span class="p">$</span> cd quartermaster && npm install
+<span class="p">$</span> make instalar   <span class="c"># deja `qm` en ~/.local/bin</span></pre>
+    <p class="nota">
+      El lanzador busca un Node que sirva en el <code>PATH</code> y en nvm; si no encuentra
+      ninguno, lo dice y explica cómo conseguirlo.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <div class="env pie-fila">
+    <span>quartermaster · un instrumento de <a href="https://github.com/legiosai">Legios</a> · MIT</span>
+    <span>
+      <a href="https://github.com/legiosai/quartermaster">Código</a> ·
+      <a href="https://github.com/legiosai/quartermaster/releases">Releases</a> ·
+      <a href="https://github.com/legiosai/quartermaster/issues">Reportar algo</a>
+    </span>
+  </div>
+</footer>
+
+</div>
+<script>
+document.querySelectorAll('.copiar').forEach(b=>{
+  b.addEventListener('click',async()=>{
+    const t=document.querySelector(b.dataset.copiar).textContent.trim();
+    try{await navigator.clipboard.writeText(t);b.textContent='copiado';
+      setTimeout(()=>b.textContent='copiar',1400);}catch(e){b.textContent='no pude';}
+  });
+});
+const pest=document.querySelectorAll('.pestanas button');
+pest.forEach(b=>b.addEventListener('click',()=>{
+  pest.forEach(o=>{o.setAttribute('aria-selected',String(o===b));
+    document.getElementById('t-'+o.dataset.t).hidden=(o!==b);});
+}));
+const io=new IntersectionObserver(es=>es.forEach(e=>{
+  if(e.isIntersecting){e.target.classList.add('visible');io.unobserve(e.target);}
+}),{rootMargin:'0px 0px -8% 0px'});
+document.querySelectorAll('.aparece').forEach(e=>io.observe(e));
+</script>
+</body>
+</html>

@@ -1,7 +1,21 @@
+<div align="center">
+
+<img src="docs/img/logo-256.png" alt="" width="96" height="96">
+
 # quartermaster
 
-Cuánta cuota te queda, en todas tus cuentas de agentes: cada perfil de Claude
-Code y, si está instalado, Codex.
+**Cuánta cuota te queda, en todas tus cuentas de agentes.**
+Cada perfil de Claude Code y, si están instalados, Codex y los proveedores de opencode.
+
+[Landing](https://legiosai.github.io/quartermaster/) ·
+[Instalar](#instalar) ·
+[Releases](https://github.com/legiosai/quartermaster/releases) ·
+MIT
+
+<img src="docs/img/barra.png" alt="La barra de arriba de GNOME con un medidor por cuenta" width="480">
+
+</div>
+
 
 > **Misión.** Que nadie se entere de que se quedó sin cuota chocándose contra el
 > límite.
