@@ -143,7 +143,13 @@ footer a:hover{color:var(--texto)}
   .hallazgo{grid-template-columns:1fr;padding:24px}
   .retrato img{max-width:320px;margin:0 auto}
 }
-@media (max-width:560px){.c3,.c4{grid-template-columns:1fr}}
+@media (max-width:560px){
+  .c3,.c4{grid-template-columns:1fr}
+  /* En un teléfono el menú se apilaba en dos renglones. Los anclajes están a un
+     scroll de distancia; el link al código no. */
+  .nav nav a:not(.gh){display:none}
+  .comando{font-size:13px}
+}
 </style>
 </head>
 <body>
