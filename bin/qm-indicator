@@ -156,6 +156,8 @@ PAD_TARJETA = 14
 RADIO_TARJETA = 12
 ENTRE_TARJETAS = 8
 ALTO_CABECERA = 76
+# El renglón de abajo de todo: cuándo vuelve a preguntar.
+ALTO_PIE_LECTURA = 26
 VIEJO_SEGUNDOS = 6 * 3600
 
 
@@ -203,6 +205,39 @@ def dur_larga(segundos: int) -> str:
     if m > 0:
         return f"{m}m"
     return f"{segundos}s"
+
+
+def cuenta_regresiva(segundos: float) -> str:
+    """Como dur_larga, pero sin tirar los segundos abajo de la hora.
+
+    dur_larga habla de duraciones que se reportan —«reinicia en 2d14h»— y ahí
+    los segundos son ruido. Esto es un reloj que baja a la vista: si dijera sólo
+    los minutos cambiaría una vez por minuto, y una cuenta regresiva que no se
+    mueve no parece una cuenta regresiva, parece un número roto.
+    """
+    seg = max(0, int(segundos))
+    if seg >= 3600:
+        return dur_larga(seg)
+    if seg >= 60:
+        return f"{seg // 60}m {seg % 60:02d}s"
+    return f"{seg}s"
+
+
+def cada_cuanto(historia: list) -> float | None:
+    """Cada cuánto se lee la cuota de verdad, en segundos.
+
+    No es la cadencia que este programa se propone: es la MEDIDA. El historial
+    se indexa por `medidoEn` —el instante que informa el servidor, no el momento
+    en que qm miró el disco— así que cada muestra es una lectura real y los
+    huecos entre muestras son los intervalos entre lectura y lectura. Va la
+    mediana y no el promedio: una sola pausa larga (la máquina suspendida, por
+    ejemplo) desplaza el promedio y no dice nada del ritmo normal.
+    """
+    ts = sorted(t for t, _ in historia)
+    huecos = sorted(b - a for a, b in zip(ts, ts[1:]) if b > a)
+    if not huecos:
+        return None
+    return huecos[len(huecos) // 2] / 1000
 
 
 def reinicio(segundos: int | None) -> str:
@@ -471,9 +506,6 @@ class VistaCuenta:
         self.barras = []
         for v in (cuota.get("mostrar") or []) if self.hay_numero else []:
             pie = reinicio(faltan(v.get("reinicia")))
-            if edad is not None and frena and v.get("clave") == frena.get("clave"):
-                pie += "   ·   " if pie else ""
-                pie += f"cache de hace {dur_larga(edad)}" + (" · viejo" if edad >= VIEJO_SEGUNDOS else "")
             es_la_que_frena = bool(frena and v.get("clave") == frena.get("clave"))
             self.barras.append({
                 "nombre": nombre_ventana(v),
@@ -493,6 +525,19 @@ class VistaCuenta:
             self.ritmo = None
         self.ritmo_rojo = choca
 
+        # Cada cuánto se lee ESTA cuenta y cuándo fue la última: la pregunta
+        # «¿este número de cuándo es?» no se contesta con un porcentaje.
+        self.lecturas = None
+        if self.hay_numero:
+            partes = []
+            cada = cada_cuanto(self.historia)
+            if cada is not None:
+                partes.append(f"cada ~{dur_larga(int(cada))}")
+            if edad is not None:
+                partes.append(f"última hace {dur_larga(edad)}"
+                              + (" · viejo" if edad >= VIEJO_SEGUNDOS else ""))
+            self.lecturas = "lecturas:  " + "   ·   ".join(partes) if partes else None
+
     @staticmethod
     def _ancho_contenido() -> float:
         return ANCHO_PANEL - 2 * MARGEN - 2 * PAD_TARJETA
@@ -506,6 +551,8 @@ class VistaCuenta:
             alto += self.ALTO_CURVA
         if self.ritmo:
             alto += 20
+        if self.lecturas:
+            alto += 17
         return alto + PAD_TARJETA - 4
 
     def _curva(self, cr, pluma, caja, color) -> None:
@@ -608,6 +655,11 @@ class VistaCuenta:
             pluma.escribir(ix, y, self.ritmo, 11,
                            TEMA.nivel("critico") if self.ritmo_rojo else TEMA.terciario,
                            Pango.Weight.MEDIUM if self.ritmo_rojo else Pango.Weight.NORMAL)
+            y += 16
+        if self.lecturas:
+            if not self.ritmo:
+                y += 4
+            pluma.escribir(ix, y, self.lecturas, 10.5, TEMA.terciario)
         return arriba + alto
 
 
@@ -860,7 +912,7 @@ def _pluma_de_medir() -> Pluma:
     return Pluma(cairo.Context(cairo.ImageSurface(cairo.FORMAT_ARGB32, 1, 1)), FAMILIA)
 
 
-def medir_panel(datos) -> int:
+def medir_panel(datos, pie: bool = False) -> int:
     pluma = _pluma_de_medir()
     if isinstance(datos, str):
         return int(MARGEN * 2 + pluma.alto(datos, 11.5, ancho=ANCHO_PANEL - 2 * MARGEN))
@@ -870,10 +922,10 @@ def medir_panel(datos) -> int:
         alto += v.medir(pluma) + ENTRE_TARJETAS
     if vistas:
         alto -= ENTRE_TARJETAS
-    return int(alto + MARGEN)
+    return int(alto + MARGEN + (ALTO_PIE_LECTURA if pie else 0))
 
 
-def dibujar_panel(cr, datos, alto: float) -> None:
+def dibujar_panel(cr, datos, alto: float, proxima: float | None = None) -> None:
     pluma = Pluma(cr, FAMILIA)
     if isinstance(datos, str):
         # Silencio es el bug: si no hay número, hay una frase.
@@ -884,6 +936,13 @@ def dibujar_panel(cr, datos, alto: float) -> None:
     y = cabecera.pintar(cr, pluma, 0.0) if cabecera else float(MARGEN)
     for v in vistas:
         y = v.pintar(cr, pluma, y) + ENTRE_TARJETAS
+    if proxima is not None:
+        # Cada cuenta dice de cuándo es su número; esto dice cuándo deja de
+        # serlo. Es la otra mitad de la misma pregunta.
+        y += 4
+        pluma.escribir(MARGEN + PAD_TARJETA, y,
+                       f"próxima lectura en {cuenta_regresiva(proxima)}",
+                       10.5, TEMA.terciario)
 
 
 def fondo_panel(cr, ancho: float, alto: float) -> None:
@@ -941,8 +1000,13 @@ class Panel:
     ventana raíz, que es lo que lo pega arriba a la derecha.
     """
 
-    def __init__(self, al_actualizar) -> None:
+    def __init__(self, al_actualizar, cuanto_falta=None) -> None:
         self.al_actualizar = al_actualizar
+        # Una función y no un número: así la cuenta regresiva de abajo baja sola
+        # mientras el panel está abierto, en vez de congelarse en el valor que
+        # tenía cuando se abrió.
+        self.cuanto_falta = cuanto_falta or (lambda: None)
+        self.tictac: int | None = None
         self.datos: dict | str | None = None
         self.alto = 0
         self.cerrado = 0
@@ -993,9 +1057,21 @@ class Panel:
 
     def _al_cerrar(self, *_) -> None:
         self.cerrado = GLib.get_monotonic_time()
+        if self.tictac is not None:
+            GLib.source_remove(self.tictac)
+            self.tictac = None
+
+    def _tic(self) -> bool:
+        """Sólo redibuja: la medida no cambia, así que no hay que volver a
+        medir ni a mover nada."""
+        if not self.abierto:
+            self.tictac = None
+            return False
+        self.lienzo.queue_draw()
+        return True
 
     def _dibujar(self, _w, cr) -> bool:
-        dibujar_panel(cr, self.datos, self.alto)
+        dibujar_panel(cr, self.datos, self.alto, self.cuanto_falta())
         return False
 
     @staticmethod
@@ -1047,7 +1123,7 @@ class Panel:
         # mientras el programa corre y el dibujo tiene que seguirlo.
         TEMA = Tema.desde(self.menu)
         self.datos = datos
-        self.alto = medir_panel(datos)
+        self.alto = medir_panel(datos, self.cuanto_falta() is not None)
         self.lienzo.set_size_request(ANCHO_PANEL, self.alto)
         self.lienzo.queue_draw()
         if self.abierto:
@@ -1062,6 +1138,8 @@ class Panel:
             return
         self.menu.popup_at_rect(raiz, donde, Gdk.Gravity.NORTH_EAST,
                                 Gdk.Gravity.NORTH_EAST, self._disparo(raiz))
+        if self.tictac is None:
+            self.tictac = GLib.timeout_add_seconds(1, self._tic)
 
     def alternar(self, datos) -> None:
         """Abre o cierra.
@@ -1177,9 +1255,10 @@ class Indicador:
         self.minutos_al_techo: float | None = None
         self.calentando = False
         self.reloj: int | None = None
+        self.proxima_lectura: int | None = None
         self.turno = 0
         self.iconos = CACHE
-        self.panel = Panel(self.refrescar)
+        self.panel = Panel(self.refrescar, self.falta_para_lectura)
         self.monitores: list[Gio.FileMonitor] = []
         self.refrescar()
         self.vigilar()
@@ -1272,8 +1351,18 @@ class Indicador:
     # de la realidad. Así que el indicador pregunta él, igual que la barra de
     # macOS y la bandeja de Windows, y deja el número en el cache para que las
     # lecturas sigan siendo de disco.
+    @staticmethod
+    def _tope(t: dict) -> int:
+        return max(t["sesion"] or 0, t["semanal"] or 0)
+
     def cadencia(self) -> int:
-        alto = max((max(t["sesion"] or 0, t["semanal"] or 0) for t in self.piezas), default=0)
+        # Una barra que ya está en 100 no puede subir: hasta el reinicio no hay
+        # nada nuevo que leer, y el instante del reinicio ya lo sabemos sin
+        # preguntar. Contarla como «alto» hacía que el sondeo se fuera al piso
+        # de 60 s para mirar un número congelado — un pedido por minuto a un
+        # endpoint que no es nuestro, para confirmar que seguís frenado.
+        moviles = [self._tope(t) for t in self.piezas if self._tope(t) < 100]
+        alto = max(moviles, default=0)
         seg = SEGUNDOS_SONDEO
         if alto >= 90:
             seg = MINIMO_RED
@@ -1293,9 +1382,17 @@ class Indicador:
     def programar_calentado(self, segundos: int | None = None) -> None:
         if self.reloj is not None:
             GLib.source_remove(self.reloj)
-        self.reloj = GLib.timeout_add_seconds(
-            self.cadencia() if segundos is None else segundos, self.calentar
-        )
+        cuanto = self.cadencia() if segundos is None else segundos
+        self.proxima_lectura = GLib.get_monotonic_time() + cuanto * 1_000_000
+        self.reloj = GLib.timeout_add_seconds(cuanto, self.calentar)
+
+    def falta_para_lectura(self) -> float | None:
+        """Segundos hasta la próxima vez que se le pregunta al servidor."""
+        if self.proxima_lectura is None:
+            return None
+        if self.calentando:
+            return 0.0
+        return max(0.0, (self.proxima_lectura - GLib.get_monotonic_time()) / 1_000_000)
 
     def calentar(self) -> bool:
         self.reloj = None
@@ -1304,8 +1401,7 @@ class Indicador:
         args = [self.qm, "--calentar"]
         # Sólo las cuentas que se mueven: refrescar una que va al 9 % es gastar
         # un pedido para confirmar que no pasó nada.
-        mueven = [t["perfil"] for t in self.piezas
-                  if max(t["sesion"] or 0, t["semanal"] or 0) >= 40]
+        mueven = [t["perfil"] for t in self.piezas if 40 <= self._tope(t) < 100]
         if mueven and len(mueven) != len(self.piezas):
             args.append("--cuentas=" + ",".join(mueven))
         try:

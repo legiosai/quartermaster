@@ -706,6 +706,20 @@ Cuatro cosas lo hacen algo más que un reloj:
   120 arriba del 75 %, 60 arriba del 90 %, con piso de 60 s— y sólo se refrescan
   las cuentas que se mueven: pedirle el número a una que va al 9 % es gastar un
   pedido para confirmar que no pasó nada.
+
+  Con una corrección sobre la política de macOS: **una barra en 100 no cuenta
+  como alta**. Ya no puede subir, así que hasta el reinicio no hay nada nuevo
+  que leer —y el instante del reinicio se sabe sin preguntar—. Contándola, el
+  sondeo se iba al piso de 60 s para mirar un número congelado: un pedido por
+  minuto, a un endpoint que no es nuestro, para confirmar que seguís frenado.
+- **Dice de cuándo es cada número.** Cada tarjeta cierra con `lecturas: cada
+  ~4m · última hace 42s`, y el panel con `próxima lectura en 3m 16s`, que baja a
+  la vista mientras lo mirás. El «cada cuánto» no es la cadencia que el programa
+  se propone sino la **medida**: el historial se indexa por `medidoEn` —el
+  instante que informa el servidor, no el momento en que qm miró el disco— así
+  que cada muestra es una lectura real y los huecos entre muestras son los
+  intervalos entre lectura y lectura. Va la mediana y no el promedio, porque una
+  sola pausa larga (la máquina suspendida) no dice nada del ritmo normal.
 - **Se entera solo.** Vigila el `.claude.json` de cada perfil con
   `Gio.FileMonitor`: cuando Claude Code refresca la cuota, el número cambia en
   el acto. Medido: de 82 % a 96 % en menos de 5 s sin reiniciar nada. El sondeo
