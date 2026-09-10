@@ -187,6 +187,35 @@ codex              vos@ejemplo.com                · plus
                    local: 13,0M en 7d · 5,3M en 5h · 443 requests
 ```
 
+### Con qué está autenticado manda sobre lo que dejó escrito
+
+Reportado a mano: la bandeja decía **`plus`** en una máquina sin ninguna
+suscripción. La causa estaba entera en el disco:
+
+- ocho rollouts en `~/.codex/sessions` con `"plan_type": "plus"` y barras de
+  hasta el **94 %**, todos de **mayo de 2026**;
+- un `~/.codex/auth.json` que dice `"auth_mode": "apikey"` y no tiene `tokens`
+  ni `id_token`, sólo una `OPENAI_API_KEY`.
+
+O sea: la suscripción existió, se dio de baja, y los rollouts de cuando existía
+no se borran nunca. `codexEnDisco()` buscaba el rollout más nuevo **que tuviera
+barras** y encontraba el del 5 de mayo, así que reportaba un plan que ya no está
+y un porcentaje de hace **127 días** como si fuera de ahora. Peor: en una cuenta
+que paga por uso y por lo tanto **no tiene barras**, mostraba barras.
+
+`auth_mode` es la señal autoritativa y ahora se mira **antes** que los rollouts.
+Con `apikey` la fila dice `sin-suscripcion` —«la cuenta no tiene límites de
+suscripción que reportar (API key o enterprise)»— y el plan pasa a ser
+`api key`. Es el mismo caso que las filas de opencode: un plan por API key cuyo
+porcentaje sólo existe del otro lado. Y de paso deja de levantarse un
+`app-server` con 20 s de timeout para preguntar algo que no puede contestar.
+
+La regla está clavada en `test/codex.test.ts`, incluidos los dos bordes que
+importan: un `auth.json` viejo sin `auth_mode` se deduce de qué guardó, y si
+están la key **y** el `id_token` —Codex deja la key vieja cuando entrás con la
+cuenta— gana el `id_token`, porque al revés una cuenta con suscripción de verdad
+quedaría reportada como si no la tuviera.
+
 ### Una corrección
 
 La primera versión de este README decía, en negrita, que **Codex no deja la
@@ -334,6 +363,25 @@ falló acá.
 
 Ojo con esto último si tenés scripts: la cuenta ahora se llama `glm`, así que un
 `--solo=zai` o un `--ocultar=zai` hay que actualizarlo.
+
+### Y una tercera: la fila no aparecía en ninguna pantalla
+
+Reportado a mano también: «no aparece lo de opencode que tengo una key de
+z.ai». Y era cierto — `filasOpencode()` arrancaba con
+`if (!hayOpencode() || o.breve) return []`, y **todas las pantallas piden
+`--breve`**: la barra de macOS, la bandeja de Windows, el panel de GNOME y la
+statusline. La fila existía sólo si corrías `qm` a mano en una terminal. Una
+cuenta que se usó ayer y no aparece es, literalmente, el bug de la primera
+sección de este README, con otro vendor.
+
+Lo que costaba se midió antes de decidir: de los ~460 ms de leer opencode,
+**439 eran `limitesOpencode()`** —la consulta que busca los 429 hace
+`json_extract` del blob de cada mensaje, 10 173 en esta máquina— y el consumo
+apenas 1,4 ms. Así que se arregló la consulta en vez de esconder la fila:
+acotada por fecha baja a **3 ms**, y no se pierde nada que se use, porque lo
+único que produce una barra es un límite cuyo reinicio todavía no pasó y ningún
+proveedor reinicia en más de un mes. Con eso opencode entero son ~25 ms, que sí
+entran en el contrato de `--breve`.
 
 ### Se probó de verdad antes de rendirse
 

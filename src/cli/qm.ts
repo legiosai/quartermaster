@@ -23,6 +23,7 @@ import { consultarCuota } from '../adapters/cuota.ts';
 import {
   codexEnCache,
   codexEnDisco,
+  modoCodex,
   consultarCodex,
   consumoCodex,
   duenoCodex,
@@ -213,7 +214,9 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     cuenta: {
       email: dueno?.email ?? info?.accountId ?? null,
       organizacion: null,
-      plan: info?.plan ?? dueno?.plan ?? null,
+      // El modo va al final y no antes: si hay suscripción de verdad, el plan
+      // que informa el rollout o el id_token es más preciso que «api key».
+      plan: info?.plan ?? dueno?.plan ?? (modoCodex() === 'apikey' ? 'api key' : null),
     },
   };
 
@@ -269,7 +272,13 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
  * el bug original de este repo, con otro vendor.
  */
 function filasOpencode(o: Opciones): FilaPerfil[] {
-  if (!hayOpencode() || o.breve) return [];
+  // Antes esto salía en --breve, y con eso la fila desaparecía de TODAS las
+  // pantallas: todas piden --breve. Una cuenta con una key de z.ai que se usó
+  // ayer y no aparece es, literalmente, el bug que da nombre a la primera
+  // sección del README. Lo que costaba era limitesOpencode() —439 ms—, así que
+  // se arregló la consulta en vez de esconder la fila: opencode entero son
+  // ~25 ms, que sí entran en el contrato de --breve.
+  if (!hayOpencode()) return [];
   // Las dos formas del mismo proveedor. opencode no usa un `providerID` estable
   // entre instalaciones: en la máquina donde se escribió esto la base guarda
   // `zai` a secas, y el mapa original sólo tenía `zai-coding-plan` — así que la
