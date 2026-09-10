@@ -1,0 +1,20 @@
+Architectures: all
+Codename: stable
+Components: main
+Date: Thu, 10 Sep 2026 14:54:12 +0000
+Description: quartermaster · Legios
+Label: quartermaster
+Origin: Legios
+Suite: stable
+MD5Sum:
+ b135cb47224f83506150e8037fdfbbf5             1073 main/binary-all/Packages
+ b080b8d0e9f35d3f2555f8ad886e718b              734 main/binary-all/Packages.gz
+SHA1:
+ 6234280c15c1fff65fe5356a694bf4fdbbc15525             1073 main/binary-all/Packages
+ 78e23735109e892d18a1e8478e2b9912611f94ba              734 main/binary-all/Packages.gz
+SHA256:
+ 241066ac475230d876f49001f34102aeba0de3f2c5000a86d39cb07df68a8346             1073 main/binary-all/Packages
+ 7435bb53067f3db98af7ecf5effaacfea7efc1eb8dcf5c706dc83a28b1d73274              734 main/binary-all/Packages.gz
+SHA512:
+ afc591fd61235ee59893eac9dc792d73f3d4c1cb376fe3cc4eeeb72e31cce225cfeaa8ec7678fe4e079831737807de69825b33c723819ab84a80212719e7ce79             1073 main/binary-all/Packages
+ 198a24641905727c1c18ea961bb6a246646f8eda379f9e223baf19a041d77e60e71367beea43ce4c40aa980ca8fe8144906b39c9c631f174dd0b506133533be3              734 main/binary-all/Packages.gz

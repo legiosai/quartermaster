@@ -38,7 +38,7 @@ body{
 .env{max-width:var(--ancho);margin:0 auto;padding:0 24px}
 a{color:inherit}
 h1,h2{font-family:var(--serif);font-weight:400;line-height:1.06;letter-spacing:-.012em;margin:0}
-h1{font-size:clamp(44px,5.6vw,68px)}
+h1{font-size:clamp(33px,3.8vw,49px);letter-spacing:-.016em;line-height:1.1;max-width:19ch}
 h2{font-size:clamp(32px,4vw,46px)}
 h3{font-size:17.5px;font-weight:600;letter-spacing:-.01em;margin:0;line-height:1.3}
 em.it{font-family:var(--serif);font-style:italic;font-size:1.06em}
@@ -78,7 +78,12 @@ header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
 .ceja{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;border:1px solid var(--borde2);
   border-radius:999px;font-size:12.5px;font-weight:500;color:var(--medio);margin-bottom:22px}
 .ceja b{color:var(--ambar);font-weight:600}
-.heroe p.bajada{color:var(--medio);font-size:18.5px;margin-top:20px;max-width:37ch}
+.heroe p.bajada{color:var(--medio);font-size:16.5px;margin-top:24px;max-width:47ch}
+.heroe .rotulo{margin-bottom:26px}
+.heroe .rotulo b{color:var(--texto);font-weight:500}
+.enlaces{display:flex;gap:24px;flex-wrap:wrap;margin-top:26px;font-size:14.5px}
+.enlaces a{color:var(--medio);text-decoration:none;border-bottom:1px solid var(--borde2);padding-bottom:3px}
+.enlaces a:hover{color:var(--ambar);border-color:var(--ambar)}
 .heroe .no{color:var(--texto);font-weight:600}
 
 .instalar{margin-top:22px;display:flex;flex-wrap:wrap;gap:10px;align-items:center}
@@ -143,6 +148,14 @@ section{padding:76px 0}
 .mal{opacity:.5}
 
 /* ── instalación ── */
+.dos{display:grid;grid-template-columns:366px 1fr;gap:26px;margin-top:20px;align-items:start}
+.dos figure{margin:0}
+.dos img{width:100%;display:block;border-radius:12px;border:1px solid var(--borde);
+  box-shadow:0 18px 46px rgba(0,0,0,.5)}
+/* La bandeja es un recorte chico: estirado a 680 px se ve blando. */
+.dos .bandeja img{width:auto;max-width:100%;image-rendering:auto}
+.dos figcaption{color:var(--tenue);font-size:12.5px;margin-top:10px}
+@media (max-width:860px){.dos{grid-template-columns:1fr}}
 .pestanas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
 .pestanas button{border:1px solid var(--borde);background:var(--sup);color:var(--medio);
   padding:9px 15px;border-radius:11px;cursor:pointer;font:500 14px Inter,sans-serif}
@@ -204,12 +217,13 @@ footer a:hover{color:var(--texto)}
 
 <div class="env heroe">
   <div>
-    <span class="ceja"><b>Legios</b> · MIT · Node ≥ 22.6</span>
-    <h1>Cuánta cuota te queda.<br><span class="grad">En todas tus cuentas.</span></h1>
+    <div class="rotulo"><b>quartermaster</b> un instrumento de Legios</div>
+    <h1>Nadie debería enterarse de que se quedó sin cuota chocándose contra el límite.</h1>
     <p class="bajada">
-      Claude Code, Codex y los proveedores de opencode, en un solo número.
-      <span class="no">Sin red y sin credenciales</span>: sale del cache que
-      Claude Code ya dejó en tu disco, así que se lee aunque el token esté vencido.
+      Los monitores que hay leen una credencial: la del directorio por defecto.
+      En la máquina donde se escribió esto ese directorio está vacío y las dos
+      cuentas que se usan viven en otros dos. Éste los lee todos —más Codex y
+      los proveedores de opencode— y no necesita red ni credenciales para hacerlo.
     </p>
     <div class="so" role="tablist" aria-label="Sistema operativo">
       <button role="tab" aria-selected="true" data-so="mac">
@@ -221,10 +235,10 @@ footer a:hover{color:var(--texto)}
     </div>
     <div class="comando"><span class="p">$</span><span id="cmd">brew install legiosai/tap/quartermaster</span><button class="copiar" data-copiar="#cmd">copiar</button></div>
     <p class="nota" id="nota-so">Homebrew. También por npm.</p>
-    <div class="instalar">
-      <a class="btn p" href="#instalar">Todas las formas</a>
-      <a class="btn s" href="https://github.com/legiosai/quartermaster">Ver el código</a>
-    </div>
+    <p class="enlaces">
+      <a href="#instalar">Las otras formas de instalarlo</a>
+      <a href="https://github.com/legiosai/quartermaster">El código, en GitHub &rsaquo;</a>
+    </p>
   </div>
   <div class="retrato aparece">
     <figure class="barra-foto">
@@ -338,9 +352,22 @@ footer a:hover{color:var(--texto)}
         <p><code>qm --breve</code></p>
       </div>
     </div>
-    <pre class="aparece" style="margin-top:16px"><span class="p">$</span> qm --breve
+    <div class="dos aparece">
+      <figure>
+        <img src="img/windows-panel.png" alt="El panel de quartermaster corriendo en Windows, en tema claro: el anillo al 100 %, la cuenta main con sus tres barras, y abajo codex y glm.">
+        <figcaption>El mismo panel en Windows, con el tema claro del sistema.</figcaption>
+      </figure>
+      <div>
+        <figure class="bandeja">
+          <img src="img/windows-bandeja.png" alt="La bandeja de Windows con los iconos de quartermaster: opencode, codex y Claude con su medidor en rojo.">
+          <figcaption>Y en la bandeja, un icono por producto.</figcaption>
+        </figure>
+        <pre style="margin-top:18px"><span class="p">$</span> qm --breve
 main 46/89%! · teams 36/60%! · codex 50/100%!
-<span class="c"># sesión/semana por cuenta. «!» es una barra que el servidor marcó con aviso.</span></pre>
+<span class="c"># sesión/semana por cuenta.
+# «!» es una barra que el servidor marcó con aviso.</span></pre>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -354,22 +381,31 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
     <div class="pestanas aparece" role="tablist">
       <button role="tab" aria-selected="true" data-t="brew">Homebrew</button>
       <button role="tab" aria-selected="false" data-t="npm">npm</button>
-      <button role="tab" aria-selected="false" data-t="apt">Debian / Ubuntu</button>
+      <button role="tab" aria-selected="false" data-t="apt">apt · Debian / Ubuntu</button>
       <button role="tab" aria-selected="false" data-t="src">Desde el repo</button>
     </div>
     <pre id="t-brew"><span class="p">$</span> brew install legiosai/tap/quartermaster
 <span class="p">$</span> qm</pre>
     <pre id="t-npm" hidden><span class="p">$</span> npm install -g @legios/quartermaster
 <span class="p">$</span> qm</pre>
-    <pre id="t-apt" hidden><span class="c"># el .deb está en la última release</span>
-<span class="p">$</span> sudo apt install ./quartermaster_0.1.2_all.deb
-<span class="p">$</span> qm</pre>
+    <pre id="t-apt" hidden><span class="c"># una vez: la clave y el repo</span>
+<span class="p">$</span> sudo install -d -m 0755 /etc/apt/keyrings
+<span class="p">$</span> curl -fsSL https://legiosai.github.io/quartermaster/apt/legios.gpg \
+    | sudo tee /etc/apt/keyrings/legios.asc &gt;/dev/null
+<span class="p">$</span> echo "deb [signed-by=/etc/apt/keyrings/legios.asc] \
+    https://legiosai.github.io/quartermaster/apt stable main" \
+    | sudo tee /etc/apt/sources.list.d/legios.list &gt;/dev/null
+
+<span class="c"># y desde ahí, como cualquier otro paquete</span>
+<span class="p">$</span> sudo apt update &amp;&amp; sudo apt install quartermaster</pre>
     <pre id="t-src" hidden><span class="p">$</span> git clone https://github.com/legiosai/quartermaster
 <span class="p">$</span> cd quartermaster && npm install
 <span class="p">$</span> make instalar   <span class="c"># deja `qm` en ~/.local/bin</span></pre>
     <p class="nota">
-      El lanzador busca un Node que sirva en el <code>PATH</code> y en nvm; si no encuentra
-      ninguno, lo dice y explica cómo conseguirlo.
+      El repo de apt está firmado y vive en esta misma página, así que
+      <code>apt upgrade</code> trae la versión nueva sola. El lanzador busca un Node
+      que sirva en el <code>PATH</code> y en nvm; si no encuentra ninguno, lo dice y
+      explica cómo conseguirlo.
     </p>
   </div>
 </section>
@@ -407,7 +443,7 @@ document.querySelectorAll('.copiar').forEach(b=>{
 });
 const CMD={
   mac:['brew install legiosai/tap/quartermaster','Homebrew. También por npm.'],
-  linux:['brew install legiosai/tap/quartermaster','Homebrew, npm, o el <code>.deb</code> de la release.'],
+  linux:['sudo apt install quartermaster','Del repo de Legios — se agrega con <a href="#instalar">dos líneas</a>. También Homebrew y npm.'],
   win:['npm install -g @legios/quartermaster','npm. La bandeja anda desde WSL.']
 };
 const sos=document.querySelectorAll('.so button');

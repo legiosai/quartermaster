@@ -1,0 +1,24 @@
+Package: quartermaster
+Version: 0.1.2
+Architecture: all
+Maintainer: Legios <valentintorassacolombero@gmail.com>
+Depends: nodejs
+Suggests: python3-gi, python3-cairo, gir1.2-gtk-3.0, gir1.2-ayatanaappindicator3-0.1
+Filename: pool/main/q/quartermaster/quartermaster_0.1.2_all.deb
+Size: 110632
+MD5sum: 269cf765be14f6d0fd059f49726410a4
+SHA1: ebabca9d7e0531be4e510e594b48d67914db6d85
+SHA256: fb66d0f87cec1faf2e7d37afbf713ce13ddcf446662c18426f02ecde9bfddcaf
+Section: devel
+Priority: optional
+Homepage: https://github.com/legiosai/quartermaster
+Description: Cuánta cuota te queda en todos tus perfiles de Claude Code
+ Lee TODOS los CLAUDE_CONFIG_DIR de la máquina, no sólo el directorio por
+ defecto, y suma Codex y los proveedores que guarda opencode.
+ .
+ El número no necesita red ni credenciales: sale del cache que Claude Code deja
+ en el .claude.json de cada perfil, así que se lee aunque el token esté vencido.
+ .
+ Necesita Node >= 22.6, porque qm lee el TypeScript sin paso de build. El
+ lanzador lo busca en el PATH y en nvm; si no encuentra uno que sirva, lo dice.
+
