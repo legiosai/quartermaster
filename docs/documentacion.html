@@ -1,0 +1,494 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentación · quartermaster</title>
+<meta name="description" content="Todas las banderas de qm, cómo leer la salida, el contrato de --json, las cinco superficies y de dónde sale cada número.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="Documentación · quartermaster">
+<meta property="og:description" content="Todas las banderas, el contrato de --json y de dónde sale cada número.">
+<meta property="og:type" content="article">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fondo:#0e0d0c; --sup:#171512; --sup2:#1f1c18;
+  --borde:rgba(240,236,229,.09); --borde2:rgba(240,236,229,.16);
+  --texto:#f0ece5; --medio:rgba(240,236,229,.66); --tenue:rgba(240,236,229,.44);
+  --verde:#2fbf71; --ambar:#f2b134; --rojo:#e2483d; --legios:#3FB7F0;
+  --radio:14px; --ancho:1120px;
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--fondo);color:var(--texto);
+  font:400 16px/1.7 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+.env{max-width:var(--ancho);margin:0 auto;padding:0 24px}
+a{color:inherit}
+h1,h2{font-family:var(--serif);font-weight:500;line-height:1.06;letter-spacing:-.012em;margin:0;
+  font-optical-sizing:auto;font-variation-settings:"SOFT" 60,"WONK" 0}
+h1{font-size:clamp(38px,4.6vw,58px);line-height:1.03}
+h2{font-size:clamp(27px,3vw,34px)}
+h3{font-size:17px;font-weight:600;letter-spacing:-.01em;margin:0;line-height:1.35}
+p{margin:0}
+code{font-family:var(--mono);font-size:.9em;background:var(--sup2);
+  border:1px solid var(--borde);border-radius:6px;padding:.12em .38em}
+pre{margin:0;background:var(--sup);border:1px solid var(--borde);border-radius:var(--radio);
+  padding:18px 20px;overflow-x:auto;font:400 13.5px/1.75 var(--mono);color:var(--medio)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+pre .p{color:var(--tenue)}
+pre .ok{color:var(--verde)}
+pre .w{color:var(--ambar)}
+pre .r{color:var(--rojo)}
+pre b{color:var(--texto);font-weight:400}
+
+/* grano y aura, iguales a la portada */
+.grano{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:.033;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.aura{position:fixed;top:-30vh;left:50%;transform:translateX(-50%);width:120vw;height:70vh;
+  pointer-events:none;z-index:0;opacity:.5;
+  background:radial-gradient(50% 50% at 50% 50%,rgba(242,177,52,.09),transparent 70%)}
+.capa{position:relative;z-index:1}
+
+header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
+  background:color-mix(in srgb,var(--fondo) 82%,transparent);border-bottom:1px solid var(--borde)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:62px;gap:20px}
+.marca{display:flex;align-items:center;gap:10px;font:600 15px/1 Inter;letter-spacing:-.02em;text-decoration:none}
+.marca svg{width:23px;height:23px;flex:none}
+.nav nav{display:flex;align-items:center;gap:22px;font-size:14px}
+.nav nav a{color:var(--medio);text-decoration:none}
+.nav nav a:hover,.nav nav a[aria-current]{color:var(--texto)}
+.nav .gh{border:1px solid var(--borde2);border-radius:999px;padding:7px 14px}
+
+.tapa{padding:64px 0 40px;border-bottom:1px solid var(--borde)}
+.tapa p{color:var(--medio);max-width:62ch;margin-top:16px;font-size:17px}
+.migas{font:500 11.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--tenue);margin-bottom:18px}
+.migas a{text-decoration:none;color:var(--tenue)}
+.migas a:hover{color:var(--ambar)}
+
+.cuerpo{display:grid;grid-template-columns:224px minmax(0,1fr);gap:56px;padding:44px 0 96px;align-items:start}
+@media (max-width:900px){.cuerpo{grid-template-columns:1fr;gap:32px}.toc{position:static!important;max-height:none!important}}
+.toc{position:sticky;top:88px;max-height:calc(100vh - 120px);overflow:auto;font-size:13.5px}
+.toc p{font:500 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--tenue);margin-bottom:14px}
+.toc a{display:block;color:var(--medio);text-decoration:none;padding:5px 0 5px 13px;
+  border-left:1px solid var(--borde);line-height:1.4}
+.toc a:hover{color:var(--texto);border-color:var(--borde2)}
+.toc a.act{color:var(--ambar);border-color:var(--ambar)}
+
+section{scroll-margin-top:88px;padding-bottom:52px}
+section+section{border-top:1px solid var(--borde);padding-top:44px}
+.rotulo{display:flex;align-items:center;gap:14px;font:500 11.5px/1 var(--mono);
+  letter-spacing:.16em;text-transform:uppercase;color:var(--tenue);margin-bottom:18px}
+.rotulo::after{content:"";flex:1;height:1px;background:var(--borde)}
+.rotulo b{color:var(--ambar);font-weight:500}
+section > p{color:var(--medio);max-width:68ch;margin-top:16px}
+section h3{margin-top:30px}
+section h3+p{margin-top:8px}
+.nota{border-left:2px solid var(--ambar);padding:2px 0 2px 16px;color:var(--medio);
+  max-width:66ch;margin-top:22px;font-size:15px}
+.nota b{color:var(--texto);font-weight:600}
+ul{margin:14px 0 0;padding-left:20px;color:var(--medio);max-width:68ch}
+li{margin:7px 0}
+li b,p b{color:var(--texto);font-weight:600}
+
+table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14.5px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--borde);vertical-align:top}
+th{font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+td:first-child{white-space:nowrap;font-family:var(--mono);font-size:13px;color:var(--texto)}
+td{color:var(--medio)}
+@media (max-width:640px){td:first-child{white-space:normal}}
+
+.cajas{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:22px}
+.caja{background:var(--sup);border:1px solid var(--borde);border-radius:var(--radio);padding:18px 20px}
+.caja h3{font-size:15px}
+.caja p{color:var(--medio);font-size:14px;margin-top:7px}
+.pre-mas{margin-top:18px}
+
+footer{border-top:1px solid var(--borde);padding:34px 0 60px;color:var(--tenue);font-size:14px}
+footer a{color:var(--medio)}
+.pie-fila{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="aura"></div>
+<div class="grano"></div>
+<div class="capa">
+
+<header>
+  <div class="env nav">
+    <a class="marca" href="./">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="m" gradientUnits="userSpaceOnUse" x1="14" y1="46" x2="50" y2="14"><stop offset="0" stop-color="#2fbf71"/><stop offset=".5" stop-color="#f2b134"/><stop offset="1" stop-color="#e2483d"/></linearGradient></defs><circle cx="32" cy="32" r="20" fill="none" stroke="currentColor" stroke-opacity=".16" stroke-width="9"/><path d="M32 12A20 20 0 1 1 14.8 42" fill="none" stroke="url(#m)" stroke-width="9" stroke-linecap="round"/><path d="M41 41 51.5 51.5" fill="none" stroke="url(#m)" stroke-width="9" stroke-linecap="round"/></svg>
+      quartermaster
+    </a>
+    <nav>
+      <a href="./#superficies">Dónde lo ves</a>
+      <a href="./#instalar">Instalar</a>
+      <a href="documentacion.html" aria-current="page">Documentación</a>
+      <a class="gh" href="https://github.com/legiosai/quartermaster">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="env tapa">
+  <div class="migas"><a href="./">quartermaster</a> · Documentación</div>
+  <h1>Documentación</h1>
+  <p>
+    Todas las banderas, cómo se lee la salida, el contrato de <code>--json</code>
+    y de dónde sale cada número. Si algo de acá no coincide con lo que hace el
+    programa, el programa tiene razón y esta página es un bug:
+    <a href="https://github.com/legiosai/quartermaster/issues">contalo</a>.
+  </p>
+</div>
+
+<div class="env cuerpo">
+
+<aside class="toc">
+  <p>En esta página</p>
+  <a href="#empezar">Empezar</a>
+  <a href="#uso">Todas las banderas</a>
+  <a href="#leer">Cómo leer la salida</a>
+  <a href="#ritmo">El ritmo, y cuándo no se dibuja</a>
+  <a href="#json">El contrato de --json</a>
+  <a href="#superficies">Las cinco superficies</a>
+  <a href="#lee">De dónde sale cada número</a>
+  <a href="#no-hace">Lo que no hace, a propósito</a>
+  <a href="#salida">Códigos de salida</a>
+  <a href="#problemas">Si algo no anda</a>
+</aside>
+
+<main>
+
+<section id="empezar">
+  <div class="rotulo"><b>01</b> Empezar</div>
+  <h2>Instalar y correrlo</h2>
+  <p>
+    Necesita <b>Node ≥ 22.6</b>. No hay paso de build: el CLI se ejecuta desde
+    TypeScript directamente.
+  </p>
+
+  <h3>Linux — apt</h3>
+  <pre><span class="p">$</span> curl -fsSL https://legiosai.github.io/quartermaster/apt/legios.asc \
+    | sudo tee /etc/apt/keyrings/legios.asc &gt;/dev/null
+<span class="p">$</span> echo "deb [signed-by=/etc/apt/keyrings/legios.asc] \
+    https://legiosai.github.io/quartermaster/apt stable main" \
+    | sudo tee /etc/apt/sources.list.d/legios.list &gt;/dev/null
+<span class="p">$</span> sudo apt update &amp;&amp; sudo apt install quartermaster</pre>
+
+  <h3>macOS — Homebrew</h3>
+  <pre><span class="p">$</span> brew install legiosai/tap/quartermaster</pre>
+
+  <h3>Cualquier sistema — npm</h3>
+  <pre><span class="p">$</span> npm install -g @legios/quartermaster</pre>
+
+  <h3>Desde el código</h3>
+  <pre><span class="p">$</span> git clone https://github.com/legiosai/quartermaster
+<span class="p">$</span> cd quartermaster &amp;&amp; make instalar</pre>
+
+  <div class="nota">
+    <b>Se actualiza solo por el gestor que lo instaló.</b> apt con
+    <code>apt upgrade</code>, Homebrew con <code>brew upgrade</code>, npm con
+    <code>npm update -g</code>. Ninguno de los tres se actualiza solo sin que
+    corras ese comando, y el programa no se auto-actualiza: no tiene ningún
+    canal para hacerlo, y no lo va a tener.
+  </div>
+</section>
+
+<section id="uso">
+  <div class="rotulo"><b>02</b> Uso</div>
+  <h2>Todas las banderas</h2>
+  <p>
+    Sin argumentos lee del disco y no toca la red. Todo lo que sale por red está
+    detrás de una bandera explícita.
+  </p>
+
+  <table>
+    <tr><th>Bandera</th><th>Qué hace</th></tr>
+    <tr><td>qm</td><td>Cuota y consumo de cada perfil. Sin red y sin credencial: la cuota sale de la que Claude Code ya dejó en <code>.claude.json</code>.</td></tr>
+    <tr><td>--refrescar</td><td>Además le pide el número al endpoint. Necesita un token vigente.</td></tr>
+    <tr><td>--json</td><td>La misma información como JSON, para scripts y statuslines. Es un contrato: ver más abajo.</td></tr>
+    <tr><td>--breve</td><td>Un renglón y nada más. No lee transcripciones, así que tarda ~85 ms en vez de un segundo. Es lo que va en una statusline.</td></tr>
+    <tr><td>--watch [seg]</td><td>Se redibuja cada N segundos. Mínimo 30, por defecto 60.</td></tr>
+    <tr><td>--dias=N</td><td>Ventana del consumo local. Por defecto 7.</td></tr>
+    <tr><td>--umbral=N</td><td>Sale con código 3 si alguna barra pasa el N %.</td></tr>
+    <tr><td>--esperar</td><td>No vuelve hasta que la cuota baje del umbral (80 por defecto). Para encadenar: <code>qm --esperar &amp;&amp; codex …</code></td></tr>
+    <tr><td>--cuenta=NOMBRE</td><td>Con <code>--esperar</code>: mirar sólo esa cuenta.</td></tr>
+    <tr><td>--solo=a,b</td><td>Mostrar sólo esas cuentas.</td></tr>
+    <tr><td>--ocultar=a,b</td><td>Mostrar todas menos esas.</td></tr>
+    <tr><td>--sin-codex</td><td>No mirar la cuenta de Codex.</td></tr>
+    <tr><td>--redactado</td><td>Con <code>--json</code>: saca mails y rutas de casa. Para comitear una salida.</td></tr>
+    <tr><td>--calentar</td><td>Refresca el endpoint de cada perfil y el de Codex, guarda lo que vuelve y no imprime nada. Es lo que corre el item de la barra.</td></tr>
+    <tr><td>--cuentas=a,b</td><td>Con <code>--calentar</code>: sólo esas. Cada cuenta salteada es un pedido menos a un endpoint que no es nuestro.</td></tr>
+    <tr><td>--calentar-codex</td><td>Igual, pero sólo Codex y sin tocar el llavero.</td></tr>
+    <tr><td>-h, --help</td><td>La misma lista, en la terminal.</td></tr>
+  </table>
+</section>
+
+<section id="leer">
+  <div class="rotulo"><b>03</b> La salida</div>
+  <h2>Cómo leer lo que muestra</h2>
+  <p>
+    Cada cuenta trae <b>dos números a propósito</b>. El primero es la sesión y el
+    segundo la barra que te frena antes. Contestan preguntas distintas —«¿puedo
+    seguir ahora?» y «¿llego al final de la semana?»— y una sola de las dos deja
+    media respuesta. Cuando la que frena <em>es</em> la sesión, se muestra un
+    número solo.
+  </p>
+
+  <pre class="pre-mas"><span class="p">$</span> qm --breve
+personal 23/75%<span class="w">!</span> · teams 9/42% · codex 49/59%</pre>
+
+  <table>
+    <tr><th>Marca</th><th>Qué significa</th></tr>
+    <tr><td>23/75%</td><td>Sesión al 23 %, la barra que frena al 75 %.</td></tr>
+    <tr><td>!</td><td>El servidor marcó esa barra con aviso — no es un umbral nuestro, viene en la respuesta.</td></tr>
+    <tr><td>~</td><td>El cache tiene más de 6 horas. El número es viejo, no falso.</td></tr>
+    <tr><td>42%</td><td>Un número solo: la barra que frena es la de sesión.</td></tr>
+  </table>
+
+  <div class="nota">
+    <b>La barra que se ve no siempre es la que frena.</b> Dentro de
+    <code>cachedUsageUtilization</code> hay barras que no tienen clave propia
+    arriba. Leyendo sólo las dos famosas —<code>five_hour</code> y
+    <code>seven_day</code>— se veía 8 % y 59 % mientras la que realmente frenaba
+    iba al 75 % con aviso del servidor. Un error de 67 puntos, y cómodo.
+  </div>
+</section>
+
+<section id="ritmo">
+  <div class="rotulo"><b>04</b> El ritmo</div>
+  <h2>¿Te vas a chocar antes de que se reinicie?</h2>
+  <p>
+    Es la pregunta que ni el porcentaje ni el consumo contestan solos: «vas 75 %»
+    no dice nada sin saber a qué velocidad subís. qm guarda una serie de lecturas
+    por barra y le ajusta una recta.
+  </p>
+
+  <pre class="pre-mas">ritmo: 12.4 pts/h · <b>100 % en 1h58m</b> — antes del reinicio</pre>
+
+  <p style="margin-top:20px">
+    Lo importante no es la recta: es <b>cuándo no se dibuja</b>. Con dos lecturas,
+    o con una ventana que recién arranca, cualquier extrapolación es un número
+    inventado con cara de dato. Entonces dice esto, que es otra cosa:
+  </p>
+
+  <pre class="pre-mas">ritmo: todavía no sé el ritmo: hacen falta 3 lecturas y hay 1</pre>
+
+  <ul>
+    <li>Se descartan las lecturas de más de <b>2 horas</b>: el ritmo de hace cuatro no predice el de ahora.</li>
+    <li>No se proyecta sobre un movimiento menor a <b>2 puntos</b>, porque el servidor manda enteros y subir uno no se distingue de un redondeo.</li>
+    <li>La serie vive en <code>~/.cache/quartermaster/historial.jsonl</code> y se indexa por el <code>medidoEn</code> de la cuota, no por cuándo miró qm: leer diez veces el mismo cache deja <b>una</b> muestra.</li>
+  </ul>
+</section>
+
+<section id="json">
+  <div class="rotulo"><b>05</b> El contrato</div>
+  <h2><code>--json</code> emite la respuesta, no los datos crudos</h2>
+  <p>
+    Las cuatro superficies —GNOME, la barra de macOS, la bandeja de Windows y el
+    navegador— dibujan lo mismo porque <b>ninguna decide nada</b>. La regla que
+    elige qué barra mostrar vivía copiada en Python, JavaScript y Swift, y una
+    regla en tres lenguajes es una respuesta distinta por pantalla el día que
+    alguien edita una. Ahora el CLI emite la respuesta ya resuelta y los
+    dibujantes leen campos.
+  </p>
+
+  <pre class="pre-mas"><span class="p">$</span> qm --json --redactado
+{
+  "generado": "2026-09-10T23:04:07.315Z",
+  "plataforma": "linux",
+  "ventanaDias": 7,
+  "perfiles": [
+    {
+      "producto": "claude",
+      "perfil": ".claude",
+      "directorio": "~/.claude",
+      "cuenta": "***@ejemplo.com",
+      "plan": "claude_max",
+      "credencial": "vigente (4h29m)",
+      "cuota": {
+        "estado": "ok",
+        "origen": "endpoint",
+        "medidoEn": "2026-09-10T22:56:23.201Z",
+        "edadSegundos": 464,
+        "ventanas": [ … ],
+        <b>"mostrar"</b>: [ … ],
+        <b>"frena"</b>:   { "clave": "weekly_scoped", "porcentaje": 89, … },
+        <b>"sesion"</b>:  { "clave": "session",       "porcentaje": 36, … },
+        <b>"semanal"</b>: { "clave": "weekly_scoped", "porcentaje": 89, … },
+        "historia": [ … ]
+      },
+      "proyeccion": { … },
+      "local": { … }
+    }
+  ]
+}</pre>
+
+  <h3>La raíz</h3>
+  <table>
+    <tr><th>Campo</th><th>Qué es</th></tr>
+    <tr><td>generado</td><td>ISO 8601. Cuándo corrió qm — no cuándo se midió la cuota.</td></tr>
+    <tr><td>plataforma</td><td><code>linux</code>, <code>darwin</code> o <code>win32</code>.</td></tr>
+    <tr><td>ventanaDias</td><td>La ventana del consumo local. Lo que puso <code>--dias</code>.</td></tr>
+    <tr><td>perfiles</td><td>Un elemento por cuenta encontrada. <b>Puede ser <code>[]</code></b> en una máquina sin nada instalado, y eso no es un error: el código de salida sigue siendo 0.</td></tr>
+  </table>
+
+  <h3>Cada perfil</h3>
+  <table>
+    <tr><th>Campo</th><th>Qué es</th></tr>
+    <tr><td>producto</td><td><code>claude</code>, <code>codex</code> o el proveedor que guarda opencode.</td></tr>
+    <tr><td>perfil / directorio</td><td>El nombre del perfil y de dónde se leyó. Con <code>--redactado</code> la ruta de casa sale como <code>~</code>.</td></tr>
+    <tr><td>cuenta / plan</td><td>El mail y el plan. Con <code>--redactado</code> el mail sale enmascarado.</td></tr>
+    <tr><td>credencial</td><td>Frase en castellano: vigente y cuánto le queda, o vencida y qué comando la arregla.</td></tr>
+    <tr><td>cuota.estado</td><td><code>ok</code>, o el motivo por el que no hay número.</td></tr>
+    <tr><td>cuota.origen</td><td><code>endpoint</code> o <code>cache</code>: si el número se pidió o se leyó del disco.</td></tr>
+    <tr><td>cuota.medidoEn</td><td>Cuándo se midió <b>la cuota</b>. Es la fecha que importa.</td></tr>
+    <tr><td>cuota.edadSegundos</td><td>Cuán viejo es ese número. Arriba de 6 h la superficie le pone <code>~</code>.</td></tr>
+    <tr><td>cuota.ventanas</td><td>Todas las barras, incluidas las que no tienen clave propia arriba.</td></tr>
+    <tr><td>cuota.mostrar</td><td><b>Las que hay que dibujar.</b> Un dibujante que filtra por su cuenta está reimplementando la regla.</td></tr>
+    <tr><td>cuota.frena</td><td>La barra que va a frenar primero. Es la que decide el color y el aviso.</td></tr>
+    <tr><td>cuota.sesion / semanal</td><td>Las dos que contestan las dos preguntas. Pueden ser la misma.</td></tr>
+    <tr><td>proyeccion</td><td>El ritmo, o el motivo por el que todavía no hay ritmo.</td></tr>
+    <tr><td>local</td><td>El consumo leído de las transcripciones, en la ventana de <code>--dias</code>.</td></tr>
+  </table>
+
+  <div class="nota">
+    <b>Si un dibujante necesita reimplementar una regla, el CLI no está emitiendo
+    suficiente.</b> Esa es la regla del repo, y la bandeja de Windows es la prueba
+    de que se sostiene: dibuja los mismos medidores que la vista de macOS sin una
+    sola línea que decida qué barra gana. Lee <code>mostrar</code> y
+    <code>frena</code>.
+  </div>
+</section>
+
+<section id="superficies">
+  <div class="rotulo"><b>06</b> Superficies</div>
+  <h2>Las cinco pantallas</h2>
+  <p>
+    Todas salen de <code>qm --json</code>. Ninguna sabe qué es una credencial.
+  </p>
+
+  <div class="cajas">
+    <div class="caja">
+      <h3>La statusline de Claude Code</h3>
+      <p>Donde la herramienta cumple su misión: el número deja de ser algo que te acordás de mirar.</p>
+    </div>
+    <div class="caja">
+      <h3>GNOME</h3>
+      <p><code>qm-indicator</code> dibuja un medidor por cuenta en la barra de arriba, y el panel vive dentro de una extensión propia.</p>
+    </div>
+    <div class="caja">
+      <h3>La barra de menú de macOS</h3>
+      <p><code>qm-barra</code>. Texto vivo, con el título medido y no elegido a ojo.</p>
+    </div>
+    <div class="caja">
+      <h3>La bandeja de Windows</h3>
+      <p><code>qm-tray.ps1</code>. Dibuja un arco: a 16 px un dígito se lee y dos son una mancha.</p>
+    </div>
+    <div class="caja">
+      <h3>El navegador</h3>
+      <p><code>qm-web</code>. Un tablero que se redibuja cada 30 s.</p>
+    </div>
+  </div>
+
+  <h3>La statusline, en el <code>settings.json</code> del perfil</h3>
+  <pre class="pre-mas">{
+  "statusLine": { "type": "command", "command": "qm --breve" }
+}</pre>
+  <p style="margin-top:18px">
+    Ojo con lo que <b>no</b> hace: el cache se refresca cuando ese perfil corre
+    Claude Code, así que la statusline de un perfil se actualiza usándolo.
+    Alcanza para enterarte de que vas al 75 % mientras trabajás, y no para
+    vigilar un perfil que no estás usando.
+  </p>
+</section>
+
+<section id="lee">
+  <div class="rotulo"><b>07</b> Procedencia</div>
+  <h2>De dónde sale cada número</h2>
+  <ul>
+    <li><b>La cuota</b> sale de <code>cachedUsageUtilization</code>, dentro del <code>.claude.json</code> de cada perfil. Ya está en el disco: no hace falta ni red ni credencial, y por eso se lee aunque el token esté vencido.</li>
+    <li><b>Los perfiles</b> se descubren mirando todos los <code>CLAUDE_CONFIG_DIR</code> de la máquina, no sólo el directorio por defecto. Un asiento de trabajo y una suscripción personal son dos perfiles, y las demás herramientas ven uno.</li>
+    <li><b>El consumo</b> sale de las transcripciones locales, en la ventana de <code>--dias</code>. Es el piso: siempre hay un número, aun con todos los tokens vencidos.</li>
+    <li><b>Codex</b> no deja la cuota en el disco, así que ese cache es nuestro: se refresca solo si está viejo, salvo en <code>--breve</code>, que tiene que seguir tardando milisegundos.</li>
+    <li><b>opencode</b> aporta los proveedores que tenga configurados, con el mismo tratamiento.</li>
+  </ul>
+</section>
+
+<section id="no-hace">
+  <div class="rotulo"><b>08</b> Límites</div>
+  <h2>Lo que no hace, a propósito</h2>
+  <ul>
+    <li><b>Nunca refresca un token.</b> Lee credenciales, no las escribe. Refrescar sería correr una carrera contra la escritura del propio Claude Code y arriesgar el refresh token del usuario: cambiar una comodidad de monitoreo por un login roto. Cuando una credencial vence, lo dice y sigue con el resto.</li>
+    <li><b>Sin cuenta, sin nube, sin telemetría.</b> Todo se lee del disco y de la credencial del usuario. Lo único que sale de la máquina es el sondeo de cuota, al mismo host con el que Claude Code ya habla.</li>
+    <li><b>Ese sondeo tiene piso: 60 segundos.</b> Una cadencia adaptativa llegó a bajar a 20 s por cuenta —unas 360 consultas por hora, sostenidas, contra un endpoint no documentado—. Que te limiten por leer tu propia cuota sería una versión autoinfligida del silencio que la herramienta existe para arreglar.</li>
+    <li><b>El adaptador de transcripciones no es opcional.</b> El endpoint no está documentado y puede desaparecer sin aviso; el piso local es lo que garantiza que siempre haya un número.</li>
+  </ul>
+</section>
+
+<section id="salida">
+  <div class="rotulo"><b>09</b> Scripting</div>
+  <h2>Códigos de salida</h2>
+  <table>
+    <tr><th>Código</th><th>Cuándo</th></tr>
+    <tr><td>0</td><td>Todo bien. También en una máquina sin perfiles: la respuesta es <code>"perfiles": []</code>, no un error.</td></tr>
+    <tr><td>2</td><td>Argumentos inválidos. El mensaje dice cuál.</td></tr>
+    <tr><td>3</td><td>Con <code>--umbral=N</code>: alguna barra llegó o pasó ese N %.</td></tr>
+  </table>
+  <pre class="pre-mas"><span class="p">#</span> no arrancar un trabajo largo si ya vamos al 80
+<span class="p">$</span> qm --umbral=80 &gt;/dev/null || exit 0
+
+<span class="p">#</span> o directamente esperar a que baje
+<span class="p">$</span> qm --esperar --cuenta=codex &amp;&amp; codex exec "…"</pre>
+</section>
+
+<section id="problemas">
+  <div class="rotulo"><b>10</b> Problemas</div>
+  <h2>Si algo no anda</h2>
+
+  <h3>Dice que la credencial está vencida</h3>
+  <p>Es correcto y no rompe nada: la cuota igual se lee, porque sale del disco. El mensaje dice qué comando la arregla. qm no lo corre por vos a propósito.</p>
+
+  <h3>El número tiene un <code>~</code> al lado</h3>
+  <p>El cache tiene más de 6 horas. Corré <code>qm --refrescar</code>, o simplemente usá ese perfil: Claude Code reescribe el cache cuando corre.</p>
+
+  <h3>Falta una cuenta</h3>
+  <p>Fijate con <code>qm --json</code> si aparece en <code>perfiles</code>. Si no está, su <code>CLAUDE_CONFIG_DIR</code> no está en el ambiente desde el que corrés qm.</p>
+
+  <h3>En GNOME no aparece la barra de arriba</h3>
+  <p>Hace falta la extensión y una sesión nueva: GNOME carga extensiones al iniciar sesión, así que después de instalarla hay que salir y volver a entrar.</p>
+
+  <h3>Otra cosa</h3>
+  <p><a href="https://github.com/legiosai/quartermaster/issues">Abrí un issue.</a> Si podés, pegá la salida de <code>qm --json --redactado</code>: está pensada exactamente para eso — saca mails y rutas de casa para que se pueda comitear.</p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <div class="env pie-fila">
+    <span>MIT · <a href="https://github.com/legiosai/quartermaster">Código</a> · <a href="https://github.com/legiosai/quartermaster/releases">Releases</a></span>
+    <span>Un instrumento de <a href="https://github.com/legiosai">Legios</a></span>
+  </div>
+</footer>
+
+</div>
+<script>
+// Marca en el índice la sección que se está leyendo. Sin librería: el índice
+// es una lista de anclas y esto sólo le pone una clase.
+const enlaces = [...document.querySelectorAll('.toc a')];
+const mapa = new Map(enlaces.map((a) => [a.getAttribute('href').slice(1), a]));
+const obs = new IntersectionObserver((entradas) => {
+  for (const e of entradas) {
+    if (!e.isIntersecting) continue;
+    for (const a of enlaces) a.classList.remove('act');
+    mapa.get(e.target.id)?.classList.add('act');
+  }
+}, { rootMargin: '-88px 0px -70% 0px', threshold: 0 });
+for (const s of document.querySelectorAll('main section')) obs.observe(s);
+</script>
+</body>
+</html>
