@@ -828,8 +828,15 @@ if (typeof opciones === 'string') {
 const unaVuelta = async (): Promise<number> => {
   const filas = await medir(opciones);
   if (filas.length === 0) {
-    console.log('No se encontró ninguna cuenta de Claude Code ni de Codex en esta máquina.');
-    return 1;
+    // --json es un contrato, y tiene que devolver JSON también cuando la
+    // respuesta es «ninguna». Antes escupía una frase en castellano, así que
+    // cualquier statusline o script que lo parseara se rompía justo en la
+    // máquina donde todavía no hay nada instalado — que es la primera vez que
+    // alguien lo corre.
+    if (opciones.json) console.log(JSON.stringify(comoJson(filas, opciones), null, 2));
+    else console.log('No se encontró ninguna cuenta de Claude Code ni de Codex en esta máquina.');
+    // Y no es un error: que no haya cuentas es una respuesta, no una falla.
+    return 0;
   }
   if (opciones.json) console.log(JSON.stringify(comoJson(filas, opciones), null, 2));
   else if (opciones.breve) pintarBreve(filas);
