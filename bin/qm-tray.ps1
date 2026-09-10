@@ -239,16 +239,24 @@ function Corto([string]$nombre) {
 }
 
 function Dur([int]$segundos) {
-  # La misma escalera que duracion() en qm-barra.swift, incluidos los días: sin
-  # ellos un reinicio semanal se lee "168h00m", que no es una duración, es una
-  # cuenta de horas.
-  if ($segundos -lt 0) { return 'ya' }
-  if ($segundos -lt 60) { return "${segundos}s" }
-  if ($segundos -lt 3600) { return "$([int][math]::Floor($segundos / 60))m" }
+  # La escalera de duración del proyecto. El canon es duracion() en
+  # src/render/barras.ts —por donde pasa todo lo que imprime el CLI— y está
+  # congelado en test/fixtures/duraciones.json; make gate-duraciones corre las
+  # cuatro implementaciones y las compara.
+  #
+  # Antes esta decía 'ya', '1h' y '1d0h' donde el CLI decía 'vencido', '1h00m' y
+  # '1d'. Eran dos convenciones conviviendo, y sobrevivieron porque nadie había
+  # comparado una GUI contra el CLI.
+  if ($segundos -lt 0) { return 'vencido' }
   $h = [int][math]::Floor($segundos / 3600)
   $m = [int][math]::Floor(($segundos % 3600) / 60)
-  if ($h -lt 24) { if ($m -eq 0) { return "${h}h" } else { return "${h}h${m}m" } }
-  return "$([int][math]::Floor($h / 24))d$($h % 24)h"
+  if ($h -ge 24) {
+    $d = [int][math]::Floor($h / 24)
+    if (($h % 24) -eq 0) { return "${d}d" } else { return "${d}d$($h % 24)h" }
+  }
+  if ($h -gt 0) { return ('{0}h{1:d2}m' -f $h, $m) }
+  if ($m -gt 0) { return "${m}m" }
+  return "${segundos}s"
 }
 
 function Faltan($iso) {

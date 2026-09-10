@@ -132,6 +132,10 @@ autostart:  ## que el indicador arranque solo al iniciar sesión
 deb:  ## arma el .deb en dist/
 	@./scripts/hacer-deb.sh
 
+.PHONY: gate-duraciones
+gate-duraciones:  ## que las cuatro escaleras de duración den lo mismo
+	@python3 scripts/gate-duraciones.py
+
 .PHONY: gate-dibujo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh

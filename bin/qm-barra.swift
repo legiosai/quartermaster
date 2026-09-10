@@ -160,13 +160,22 @@ func corto(_ nombre: String) -> String {
     return n.isEmpty ? "main" : n
 }
 
+/// La escalera de duración del proyecto.
+///
+/// El canon es `duracion()` en src/render/barras.ts —por donde pasa todo lo que
+/// imprime el CLI— y está congelado en test/fixtures/duraciones.json.
+/// `make gate-duraciones` corre las cuatro implementaciones y las compara.
+///
+/// Antes esta decía "ya", "1h" y "1d0h" donde el CLI decía "vencido", "1h00m" y
+/// "1d". Eran dos convenciones conviviendo, y sobrevivieron porque nadie había
+/// comparado una GUI contra el CLI.
 func duracion(_ segundos: Int) -> String {
-    if segundos < 0 { return "ya" }
-    if segundos < 60 { return "\(segundos)s" }
-    if segundos < 3600 { return "\(segundos / 60)m" }
+    if segundos < 0 { return "vencido" }
     let h = segundos / 3600, m = (segundos % 3600) / 60
-    if h < 24 { return m == 0 ? "\(h)h" : "\(h)h\(m)m" }
-    return "\(h / 24)d\(h % 24)h"
+    if h >= 24 { return h % 24 == 0 ? "\(h / 24)d" : "\(h / 24)d\(h % 24)h" }
+    if h > 0 { return String(format: "%dh%02dm", h, m) }
+    if m > 0 { return "\(m)m" }
+    return "\(segundos)s"
 }
 
 func barraTexto(_ pct: Int) -> String {

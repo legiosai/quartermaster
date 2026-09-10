@@ -33,7 +33,7 @@ En Debian y Ubuntu, el `.deb` de la [última
 release](https://github.com/legiosai/quartermaster/releases/latest):
 
 ```sh
-sudo apt install ./quartermaster_0.1.2_all.deb
+sudo apt install ./quartermaster_0.1.3_all.deb
 ```
 
 O desde el repo, sin instalar nada global:
@@ -53,6 +53,28 @@ ve—. Mejor un paquete que instala y avisa.
 
 El `.deb` se arma con `scripts/hacer-deb.sh`, que no compila nada: el paquete es
 el fuente más un enlace en `/usr/bin`, y por eso es `Architecture: all`.
+
+### ¿Se actualiza solo?
+
+**Los archivos, cuando vos se lo pedís al gestor**; ninguno de los tres baja
+versiones nuevas por su cuenta:
+
+| | trae la versión nueva con | automático de fábrica |
+|---|---|---|
+| apt | `sudo apt update && sudo apt upgrade` | no — `unattended-upgrades` sólo toca los orígenes que le configures |
+| Homebrew | `brew upgrade` | no — salvo que instales `brew autoupdate` |
+| npm | `npm update -g @legios/quartermaster` | no |
+
+**El indicador que ya está corriendo sí se actualiza solo.** Ése era el agujero
+real: `apt upgrade` reemplaza los archivos y se va, pero el proceso que está
+andando tiene el módulo cargado en memoria y sigue con el código viejo hasta que
+alguien lo reinicie — y no lo reinicia nadie, porque el indicador es justo lo que
+se deja andando y se olvida. Así que se vigila a sí mismo y se vuelve a lanzar
+con `execv` en cuanto su archivo cambia.
+
+Con una condición que no es opcional: **compila la versión nueva antes de
+saltar**. Si está rota, se queda con la que anda y lo dice. Reiniciar a ciegas
+dejaría al usuario sin indicador, que es peor que tenerlo desactualizado.
 
 ## El problema
 
@@ -900,6 +922,30 @@ desde afuera parecía que el item no hacía nada.
 cerrar sesión y volver a entrar una vez. `ReloadExtension` está deprecada y
 devuelve error, y `EnableExtension` sobre una que el shell todavía no vio
 devuelve `false`.
+
+### Las cuatro escaleras de duración
+
+Hay una implementación de la misma escalera por lenguaje —TypeScript, Python,
+Swift, PowerShell— y la regla de que todas den lo mismo estaba escrita en los
+comentarios pero no comprobada. El resultado: **convivieron dos convenciones**,
+tres GUIs de un lado y el CLI del otro, en tres puntos a la vez.
+
+| segundos | el CLI decía | las tres GUIs decían |
+|---|---|---|
+| −1 | `vencido` | `ya` |
+| 3600 | `1h00m` | `1h` |
+| 86400 | `1d` | `1d0h` |
+
+Sobrevivió porque nadie había comparado **una GUI contra el CLI**: la
+comparación que lo encontró fue entre dos GUIs. Ganó el CLI —`src/render/barras.ts`
+es donde el propio repo dice que pasa todo lo que se imprime, y es la única con
+tests— y las otras tres se alinearon.
+
+`make gate-duraciones` congela el canon en `test/fixtures/duraciones.json` y
+**corre las cuatro** contra esa tabla. Las que no tienen intérprete en la máquina
+se saltean diciéndolo; en CI cada job exige los suyos con `QM_GATE_EXIGE`, así
+que Ubuntu comprueba PowerShell y un runner de macOS comprueba Swift. Saltear en
+silencio convertiría el gate en un adorno.
 
 ### El gate que faltaba
 

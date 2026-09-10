@@ -26,8 +26,10 @@ import math
 import os
 import pathlib
 import shutil
+import py_compile
 import subprocess
 import sys
+import tempfile
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -79,6 +81,10 @@ PEDIDO = CACHE / "pedido"
 # item escondido más de minuto y medio si del otro lado ya no hay nadie.
 VIVA_SEGUNDOS = 90
 
+# Este mismo archivo, resuelto: se instala enlazado desde ~/.local/bin y desde
+# /usr/bin, y hay que vigilar el de verdad, no el enlace.
+YO = pathlib.Path(__file__).resolve()
+
 ICONO_OK = "utilities-system-monitor-symbolic"
 ICONO_AVISO = "dialog-warning-symbolic"
 ICONO_GRAVE = "dialog-error-symbolic"
@@ -88,33 +94,6 @@ ICONO_GRAVE = "dialog-error-symbolic"
 def corto(nombre: str) -> str:
     """`.claude-teams` -> `teams`; el perfil por defecto -> `main`."""
     return nombre.removeprefix(".claude").lstrip("-") or "main"
-
-
-def dur(segundos: int) -> str:
-    """La misma escalera que duracion() en Swift y Dur() en PowerShell.
-
-    OJO: hoy no la llama nadie —el panel usa dur_larga()— y las dos NO dan lo
-    mismo: ésta sigue a las GUIs y dur_larga() sigue al CLI, que son dos
-    convenciones distintas. Está medido y sin resolver en numeros/duraciones.md.
-    Antes de tocar cualquiera de las dos, leer eso.
-
-    Incluidos los días: sin ellos un reinicio semanal se lee "168h00m", que no
-    es una duración, es una cuenta de horas. Esta era la única de las tres sin
-    esa rama, y se vio poniendo este panel al lado del de Windows: donde uno
-    decía "cache de hace 127d19h" el otro decía "3067h28m". Los minutos
-    tampoco se rellenan con cero, por lo mismo: "3h08m" contra "3h8m" es la
-    misma clase de diferencia.
-    """
-    if segundos < 0:
-        return "ya"
-    if segundos < 60:
-        return f"{segundos}s"
-    if segundos < 3600:
-        return f"{segundos // 60}m"
-    h, m = segundos // 3600, (segundos % 3600) // 60
-    if h < 24:
-        return f"{h}h" if m == 0 else f"{h}h{m}m"
-    return f"{h // 24}d{h % 24}h"
 
 
 def faltan(iso: str | None) -> int | None:
@@ -211,11 +190,19 @@ def nivel_de(pct: float, preocupa: bool) -> str:
     return "ok"
 
 
-def dur_larga(segundos: int) -> str:
-    """La misma duración que imprime el CLI (src/render/barras.ts).
+def duracion(segundos: int) -> str:
+    """La escalera de duración del proyecto.
 
-    Si acá dijera otra cosa, el panel y la terminal contarían distinto el mismo
-    reinicio y no habría manera de saber cuál de los dos miente.
+    El canon es `duracion()` en src/render/barras.ts, que es por donde pasa todo
+    lo que imprime el CLI, y está congelado en test/fixtures/duraciones.json.
+    Las cuatro implementaciones —ésta, la de TypeScript, la de Swift y la de
+    PowerShell— tienen que dar exactamente lo mismo, y `make gate-duraciones` lo
+    comprueba corriéndolas, no leyéndolas.
+
+    Había dos convenciones conviviendo: las tres GUIs decían `ya`, `1h` y `1d0h`
+    donde el CLI decía `vencido`, `1h00m` y `1d`. Sobrevivió porque nadie había
+    comparado una GUI contra el CLI. Ganó el CLI: es donde el propio repo dice
+    que pasa todo lo que se imprime, y es la única con tests.
     """
     if segundos < 0:
         return "vencido"
@@ -240,7 +227,7 @@ def cuenta_regresiva(segundos: float) -> str:
     """
     seg = max(0, int(segundos))
     if seg >= 3600:
-        return dur_larga(seg)
+        return duracion(seg)
     if seg >= 60:
         return f"{seg // 60}m {seg % 60:02d}s"
     return f"{seg}s"
@@ -267,7 +254,7 @@ def reinicio(segundos: int | None) -> str:
     """«reinicia en vencido» no es castellano. Cuando ya pasó, se dice que pasó."""
     if segundos is None:
         return ""
-    return "reinicio vencido" if segundos < 0 else f"reinicia en {dur_larga(segundos)}"
+    return "reinicio vencido" if segundos < 0 else f"reinicia en {duracion(segundos)}"
 
 
 class Tema:
@@ -557,7 +544,7 @@ class VistaCuenta:
             # contesta la cabecera.
             if seg is not None and seg > 0:
                 self.ritmo = (f"{proy.get('ritmoPuntosPorHora', 0):.1f} pts/h · 100 % en "
-                              f"{dur_larga(seg)}"
+                              f"{duracion(seg)}"
                               + (" — antes del reinicio" if choca else ""))
         self.ritmo_rojo = choca
 
@@ -568,9 +555,9 @@ class VistaCuenta:
             partes = []
             cada = cada_cuanto(self.historia)
             if cada is not None:
-                partes.append(f"cada ~{dur_larga(int(cada))}")
+                partes.append(f"cada ~{duracion(int(cada))}")
             if edad is not None:
-                partes.append(f"última hace {dur_larga(edad)}"
+                partes.append(f"última hace {duracion(edad)}"
                               + (" · viejo" if edad >= VIEJO_SEGUNDOS else ""))
             self.lecturas = "lecturas:  " + "   ·   ".join(partes) if partes else None
 
@@ -827,7 +814,7 @@ class VistaResumen:
         elif self.pct >= 95:
             # Cuando ya te frenó, lo que importa no es cuándo «reinicia»: es
             # cuándo volvés a poder trabajar. Misma fecha, otra pregunta.
-            texto, urgente = f"libre en {dur_larga(seg)}", True
+            texto, urgente = f"libre en {duracion(seg)}", True
         else:
             texto, urgente = reinicio(seg), False
         pluma.escribir(x, arriba + 54, texto, 11, color if urgente else TEMA.terciario,
@@ -1452,6 +1439,7 @@ class Indicador:
         self.previos = Previos()
         self.pendiente: int | None = None
         self.pedido_pendiente: int | None = None
+        self.reinicio_pendiente: int | None = None
         self.menu = Gtk.Menu()
         self.ind = AppIndicator.Indicator.new(
             ID, ICONO_OK, AppIndicator.IndicatorCategory.SYSTEM_SERVICES
@@ -1473,6 +1461,7 @@ class Indicador:
         self.vigilar()
         self.vigilar_extension()
         self.vigilar_tema()
+        self.vigilar_version()
         GLib.timeout_add_seconds(SEGUNDOS_SONDEO, self.refrescar)
         self.programar_calentado(5)
 
@@ -1507,6 +1496,56 @@ class Indicador:
         # Un archivo que se quedó viejo no dispara ningún evento, así que hay
         # que ir a mirarlo.
         GLib.timeout_add_seconds(VIVA_SEGUNDOS // 2, self.mandar_en_la_barra)
+
+    def vigilar_version(self) -> None:
+        """Cuando el paquete se actualiza, este proceso sigue con el código viejo.
+
+        `apt upgrade`, `brew upgrade` y `npm update` reemplazan los archivos y se
+        van; el proceso que ya está corriendo tiene el módulo cargado en memoria
+        y sigue igual hasta que alguien lo reinicie a mano — que no lo hace
+        nadie, porque el indicador es justamente lo que se deja andando y se
+        olvida. Así que se mira a sí mismo y se vuelve a lanzar.
+        """
+        try:
+            mon = Gio.File.new_for_path(str(YO)).monitor_file(
+                Gio.FileMonitorFlags.NONE, None)
+        except GLib.Error:
+            return
+        mon.connect("changed", self._quizas_reiniciar)
+        self.monitores.append(mon)
+
+    def _quizas_reiniciar(self, _mon, _f, _o, evento) -> None:
+        if evento not in (Gio.FileMonitorEvent.CHANGES_DONE_HINT,
+                          Gio.FileMonitorEvent.CREATED,
+                          Gio.FileMonitorEvent.RENAMED,
+                          Gio.FileMonitorEvent.MOVED_IN):
+            return
+        # Un gestor de paquetes escribe en varios pasos; se espera a que pare.
+        if self.reinicio_pendiente is not None:
+            GLib.source_remove(self.reinicio_pendiente)
+        self.reinicio_pendiente = GLib.timeout_add_seconds(3, self._reiniciar)
+
+    def _reiniciar(self) -> bool:
+        self.reinicio_pendiente = None
+        # Compila antes de saltar. Si la versión nueva está rota, reiniciar deja
+        # al usuario SIN indicador; quedarse con la vieja lo deja con una que
+        # anda. Entre las dos, la que anda.
+        # El .pyc va a un temporal de verdad: py_compile se niega a escribir en
+        # /dev/null —«is a non-regular file»— y con eso el chequeo fallaba
+        # SIEMPRE, así que nunca reiniciaba y parecía que la vigilancia no
+        # andaba. La red de seguridad tapaba la puerta.
+        try:
+            with tempfile.NamedTemporaryFile(suffix=".pyc", delete=True) as tmp:
+                py_compile.compile(str(YO), cfile=tmp.name, doraise=True)
+        except (py_compile.PyCompileError, OSError, ValueError) as e:
+            print(f"la versión nueva no compila, me quedo con ésta: {e}", file=sys.stderr)
+            return False
+        self.panel.menu.popdown()
+        try:
+            os.execv(sys.executable, [sys.executable, str(YO), *sys.argv[1:]])
+        except OSError as e:
+            print(f"no pude reiniciarme: {e}", file=sys.stderr)
+        return False
 
     def vigilar_tema(self) -> None:
         """El tema del escritorio se cambia con esto andando.
@@ -1799,7 +1838,7 @@ class Indicador:
             for u in UMBRALES:
                 if pct >= u:
                     seg = faltan(v.get("reinicia"))
-                    cola = f" Se reinicia en {dur_larga(seg)}." if seg is not None else ""
+                    cola = f" Se reinicia en {duracion(seg)}." if seg is not None else ""
                     self.avisos.avisar(
                         f"{base}|{u}",
                         f"{perfil}: {pct:.0f}% de {nombre}",
@@ -1814,7 +1853,7 @@ class Indicador:
                 f"{perfil}|{nombre_ventana(frena)}|{al_minuto(frena.get('reinicia'))}|choque",
                 f"{perfil}: a este ritmo llegás al 100%",
                 f"{proy['ritmoPuntosPorHora']:.1f} pts/h — tocás el techo en "
-                f"{dur_larga(faltan(proy['techo']) or 0)}, antes de que la ventana se reinicie.",
+                f"{duracion(faltan(proy['techo']) or 0)}, antes de que la ventana se reinicie.",
                 urgente=True,
             )
         self.previos.guardar()
