@@ -140,6 +140,26 @@ gate-duraciones:  ## que las cuatro escaleras de duración den lo mismo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
 
+.PHONY: construir
+construir:  ## compila src/ a dist/ — sólo hace falta para el tarball de npm
+	@npm run --silent construir
+
+.PHONY: gate-npm
+gate-npm:  ## que el tarball de npm se INSTALE y CORRA, no sólo que exista
+	@./scripts/el-paquete-de-npm-corre.sh
+
+.PHONY: gate-npm-rojo
+gate-npm-rojo:  ## el rojo de gate-npm: el paquete como estaba, con src/ y sin dist/
+	@cp package.json .package.json.gate
+	@python3 -c "import json,collections;from pathlib import Path;p=Path('package.json');d=json.loads(p.read_text(),object_pairs_hook=collections.OrderedDict);d['files']=['bin/','src/','LICENSE','README.md'];p.write_text(json.dumps(d,ensure_ascii=False,indent=2)+chr(10))"
+	@if ./scripts/el-paquete-de-npm-corre.sh >/dev/null 2>&1; then \
+	  mv .package.json.gate package.json; \
+	  echo "✗ gate-npm NO falló con un paquete sin dist/. El gate no sirve."; exit 1; \
+	else \
+	  mv .package.json.gate package.json; \
+	  echo "✓ gate-npm falla en rojo con el paquete sin dist/ (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING)"; \
+	fi
+
 .PHONY: test
 test:  ## los tests
 	@npm run --silent test

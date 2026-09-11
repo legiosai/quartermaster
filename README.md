@@ -121,6 +121,7 @@ multi-perfil en un cálculo, no en una heurística.
 | **H5** cuota sin red ni credencial | ✅ **número** | [`numeros/h5-cuota.md`](numeros/h5-cuota.md) · [`h5-cuota.json`](numeros/h5-cuota.json) |
 | **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `make tray` en Windows · `make web` en el navegador · `qm --breve` en la statusline de Claude Code |
 | **H7** que te avise antes de chocar | ✅ mecanismo | proyección por mínimos cuadrados + avisos al 80/95 % y al detectar choque |
+| **H9** el paquete de npm se instala y corre | ✅ **número** | [`numeros/h9-npm.json`](numeros/h9-npm.json) — instalado en un prefix limpio y ejecutado; `make gate-npm-rojo` muestra el rojo |
 
 **Advertencias, para que el README no mienta:**
 
@@ -1203,6 +1204,35 @@ Code, así que la statusline de un perfil se actualiza usándolo. Es suficiente
 para la mecánica que importa —enterarte de que vas al 75 % mientras trabajás—
 y no para vigilar un perfil que no estás usando.
 
+## El build, y por qué es opcional
+
+El repo lee el TypeScript directo: no hay paso de build y `make instalar`, el
+`.deb` y Homebrew funcionan así. **npm es la excepción, y no por gusto.** Node
+se niega a hacer type stripping de cualquier archivo bajo `node_modules`:
+
+```
+ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING
+Stripping types is currently unsupported for files under node_modules
+```
+
+Y un `npm install -g` deja el paquete exactamente ahí. Medido: se empaquetó el
+tarball, se instaló en un prefix limpio y `qm` murió; se copió *ese mismo
+directorio* fuera de `node_modules` y corrió perfecto. Mismo código, mismo Node,
+misma versión — cambia sólo la ruta.
+
+Así que `npm run construir` compila `src/` a `dist/` y **sólo el tarball de npm
+lleva `dist/`**. `bin/qm` prefiere `dist/cli/qm.js` si existe y si no lee
+`src/cli/qm.ts`, de modo que un clone sigue sin necesitar build.
+
+```sh
+make construir     # compila a dist/ — sólo hace falta para publicar
+make gate-npm      # empaqueta, instala en un prefix limpio y CORRE qm
+make gate-npm-rojo # el rojo: el paquete sin dist/, que es como estaba
+```
+
+El piso de Node **no** baja con el build: sigue en 22.6 porque
+`src/adapters/opencode.ts` usa `node:sqlite`.
+
 ## Diseño
 
 ```
@@ -1212,6 +1242,8 @@ src/adapters/     credenciales (llavero / archivo), transcripciones (JSONL),
                   parser de la forma de utilización que comparten los dos, y
                   codex (JSON-RPC contra su app-server, con cache propio).
 src/cli/          qm (el comando) y las demos de cada hito.
+dist/             el JS compilado. No se comitea; sólo viaja en el tarball de
+                  npm, porque Node no lee TypeScript bajo node_modules.
 src/render/       barras y formato para la terminal, y tablero.html para el
                   navegador. Sin dependencias.
 extension/        la extensión de GNOME Shell que se queda con el click

@@ -54,4 +54,13 @@ while [ -L "$AQUI" ]; do
 done
 RAIZ=$(cd "$(dirname "$AQUI")/.." && pwd)
 
+# dist/ si está, src/ si no. No es una optimización: Node se NIEGA a hacer type
+# stripping de archivos bajo node_modules, y un `npm install -g` deja el paquete
+# justo ahí. El tarball de npm lleva dist/ y ninguna de las otras vías lo lleva,
+# así que un clone, `make instalar`, el .deb y brew siguen leyendo el TypeScript
+# directo como siempre.
+if [ -f "$RAIZ/dist/cli/qm.js" ]; then
+  exec "$NODO" "$RAIZ/dist/cli/qm.js" "$@"
+fi
+
 exec "$NODO" "$RAIZ/src/cli/qm.ts" "$@"

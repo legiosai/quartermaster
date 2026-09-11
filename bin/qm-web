@@ -21,7 +21,12 @@ import { fileURLToPath } from 'node:url';
 
 const AQUI = path.dirname(fileURLToPath(import.meta.url));
 const RAIZ = path.resolve(AQUI, '..');
-const PAGINA = path.join(RAIZ, 'src', 'render', 'tablero.html');
+// Igual que bin/qm: dist/ si está (el tarball de npm), src/ si no (clone,
+// .deb, brew). El tablero es un archivo estático, así que el build lo copia.
+const PAGINA = [
+  path.join(RAIZ, 'dist', 'render', 'tablero.html'),
+  path.join(RAIZ, 'src', 'render', 'tablero.html'),
+].find((p) => fs.existsSync(p)) ?? path.join(RAIZ, 'src', 'render', 'tablero.html');
 const QM = path.join(RAIZ, 'bin', 'qm');
 
 const AYUDA = `qm-web · el tablero de quartermaster en el navegador

@@ -1,0 +1,22 @@
+// El build existe por UNA razón: Node se niega a hacer type stripping de nada
+// que viva bajo node_modules (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING), y
+// un `npm install -g` deja el paquete exactamente ahí. Las otras tres vías de
+// instalación —make instalar, el .deb y brew— corren el TypeScript directo y
+// siguen sin necesitar esto.
+//
+// rewriteRelativeImportExtensions es lo que hace que los imports './x.ts' del
+// fuente salgan como './x.js' en dist/. Sin eso el JS emitido pide archivos .ts
+// que no existen en el paquete.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "rewriteRelativeImportExtensions": true,
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": ["src"],
+  "exclude": ["test"]
+}

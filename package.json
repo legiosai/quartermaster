@@ -30,16 +30,15 @@
     "node": ">=22.6"
   },
   "bin": {
-    "qm": "bin/qm"
+    "qm": "bin/qm",
+    "qm-web": "bin/qm-web"
   },
   "files": [
     "bin/",
-    "src/",
-    "scripts/",
-    "extension/",
-    "Makefile",
-    "README.md",
-    "LICENSE"
+    "dist/",
+    "src/render/tablero.html",
+    "LICENSE",
+    "README.md"
   ],
   "publishConfig": {
     "access": "public"
@@ -49,7 +48,9 @@
     "test": "node scripts/nodo.cjs && node --experimental-strip-types --test test/*.test.ts",
     "qm": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/qm.ts",
     "demo-h0": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/preflight.ts",
-    "demo-h1": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/demo-h1.ts"
+    "demo-h1": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/demo-h1.ts",
+    "construir": "node scripts/construir.mjs",
+    "prepublishOnly": "node scripts/nodo.cjs && npm run typecheck && npm test && npm run construir"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
