@@ -1,6 +1,6 @@
 {
   "name": "@legios/quartermaster",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Cuánta cuota te queda en TODOS los perfiles de Claude Code de la máquina, más Codex y los proveedores de opencode. Sin red y sin credenciales: el número sale del cache que Claude Code deja en disco.",
   "keywords": [
     "claude-code",
@@ -32,11 +32,13 @@
   },
   "bin": {
     "qm": "bin/qm",
-    "qm-web": "bin/qm-web"
+    "qm-web": "bin/qm-web",
+    "qm-barra": "bin/qm-barra"
   },
   "files": [
     "bin/",
     "dist/",
+    "scripts/",
     "src/render/tablero.html",
     "LICENSE",
     "README.md"
@@ -51,7 +53,8 @@
     "demo-h0": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/preflight.ts",
     "demo-h1": "node scripts/nodo.cjs && node --experimental-strip-types src/cli/demo-h1.ts",
     "construir": "node scripts/construir.mjs",
-    "prepublishOnly": "node scripts/nodo.cjs && npm run typecheck && npm test && npm run construir"
+    "prepublishOnly": "node scripts/nodo.cjs && npm run typecheck && npm test && npm run construir",
+    "postinstall": "node scripts/instalar-barra.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
