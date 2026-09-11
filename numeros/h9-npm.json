@@ -1,0 +1,42 @@
+{
+  "hito": "H9 — el paquete de npm se instala y CORRE",
+  "fecha": "2026-09-11",
+  "porQue": "`npm install -g @legios/quartermaster` estaba publicado como instrucción en seis lugares (README del repo, las dos páginas del sitio, el perfil de la organización y la landing) y el paquete no existía: 404. Al ir a publicarlo apareció que tampoco PODÍA publicarse.",
+  "elDEFECTO": {
+    "que": "Node se niega a hacer type stripping de cualquier archivo bajo node_modules: ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING. Un `npm install -g` deja el paquete exactamente ahí.",
+    "porQueNO_se_veia": "El repo lee el TypeScript directo, sin paso de build, y eso es CIERTO y anda para las otras tres vías: `make instalar` enlaza desde el repo, el .deb instala en /usr/lib y brew en su Cellar. Ninguna cae bajo node_modules. El defecto vive en la ruta de instalación, no en el código.",
+    "laPRUEBA": "Se empaquetó el tarball, se instaló en un prefix limpio y `qm` murió. Se copió ESE MISMO directorio fuera de node_modules y corrió perfecto. Mismo código, mismo Node (v26.8.1), misma versión: cambia sólo la ruta.",
+    "loQueHABRIA_pasado_al_publicar": "Cambiar un 404 por algo peor. `npm install -g` decía «added 1 package» y después reventaba en cada invocación con un error interno de Node que no le dice nada a nadie — que es exactamente el monitor mudo que este repo existe para no ser."
+  },
+  "elARREGLO": {
+    "que": "Un build opcional: tsconfig.build.json compila src/ a dist/ con rewriteRelativeImportExtensions (los imports './x.ts' salen como './x.js'), y scripts/construir.mjs copia el tablero, que es HTML plano y tsc no ve.",
+    "loQueNO_cambia": "bin/qm prefiere dist/cli/qm.js SI EXISTE y si no lee src/cli/qm.ts. Sólo el tarball de npm lleva dist/, así que un clone, `make instalar`, el .deb y brew siguen sin paso de build. La propiedad de «sin build» se mantiene donde ya era cierta.",
+    "prepublishOnly": "typecheck + tests + build. El tarball no puede salir sin dist/ recién compilado.",
+    "elPISO_de_Node_no_baja": "Sigue en 22.6, y no por el TypeScript: src/adapters/opencode.ts usa node:sqlite, que no existe antes. El build resuelve node_modules, no la versión."
+  },
+  "medido": {
+    "archivosEnElTarball": 46,
+    "tamanoEmpaquetado_kB": 165.2,
+    "tamanoDesempaquetado_kB": 556.1,
+    "testsEnVerde": 74,
+    "comandosVerificadosDesdeElPaqueteInstalado": [
+      "qm --breve",
+      "qm --json --redactado",
+      "qm-web --ayuda"
+    ],
+    "nota": "Medido el 2026-09-11 con `npm publish --dry-run --access public`, que es el camino real de publicación y corre prepublishOnly (typecheck + tests + build) antes de medir. `npm pack --dry-run` da ~0,7 kB menos porque no rehace dist/: los .js.map se reescriben en cada build. Se toma el del publish porque es el tarball que sale.",
+    "queDejoDeViajar": "src/ entero, salvo src/render/tablero.html que qm-web necesita. El README sigue yendo: npm lo incluye siempre, y son 66 kB de los 164,5.",
+    "desempaquetadoSube_empaquetadoBaja": "dist/ agrega el JS compilado y sus .js.map, así que el desempaquetado sube; el empaquetado baja porque src/ dejó de viajar entero."
+  },
+  "elGATE": {
+    "cual": "scripts/el-paquete-de-npm-corre.sh, en CI y en `make gate-npm`.",
+    "queNO_comprueba": "Que el tarball exista o que tenga los archivos. Los tenía. Por eso el gate INSTALA en un prefix limpio y EJECUTA: es la única forma de ver un defecto que vive en la ruta de instalación.",
+    "probadoEnRojo": "`make gate-npm-rojo` devuelve `files` al estado del 2026-09-11 (src/, sin dist/) y el gate falla con el mismo ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING que se midió. Verificado antes de confiarle nada.",
+    "porQueNPM_TEST_no_alcanzaba": "`npm test` corre el TypeScript desde el fuente, que es justo el caso que NO se parece a un install global. El verde de CI convivió con un paquete que no arrancaba."
+  },
+  "loQueESTE_hito_NO_hizo": {
+    "publicar": "El `npm publish` en sí necesita `npm login` en la máquina, y no había sesión. El paquete está listo y verificado; falta el login.",
+    "elREADME_sigue_diciendo_npm": "Y ahora va a ser cierto en cuanto se publique. Hasta entonces la instrucción sigue rota en los seis lugares."
+  },
+  "como": "make gate-npm  ·  make gate-npm-rojo"
+}
