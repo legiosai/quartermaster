@@ -12,6 +12,15 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+      # `npm test` corre el TypeScript DESDE EL FUENTE, que es justo el caso
+      # que no se parece a un `npm install -g`: ahí el paquete cae bajo
+      # node_modules y Node se niega a hacer type stripping. El verde de arriba
+      # convivió con un paquete que reventaba en cada invocación.
+      - name: el paquete de npm se instala y corre
+        run: ./scripts/el-paquete-de-npm-corre.sh
+      - name: y ese gate falla en rojo sin dist/
+        run: make gate-npm-rojo
+
   # El panel y el item de GNOME son Python + Cairo, y la extensión es JavaScript:
   # nada de eso lo toca `npm test`. Sin este job, borrar medio bin/qm-indicator
   # deja el CI en verde — ya pasó.
