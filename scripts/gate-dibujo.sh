@@ -63,6 +63,32 @@ else
   echo "  · salteada: la bandeja de Windows (no hay pwsh en esta máquina)"
 fi
 
+# Y la barra de menú de macOS, que era el ÚNICO fuente del repo que no abría
+# ningún gate: gate-duraciones.py le extrae una función y compila esa sola, así
+# que el resto del archivo podía tener un error de sintaxis y el CI no se
+# enteraba. Es el mismo agujero que tenían el indicador de GNOME y la bandeja de
+# Windows, contado dos veces en este archivo.
+#
+# AppKit es de macOS, pero `swiftc -parse` sólo PARSEA: no carga módulos ni
+# chequea tipos, así que el error más barato de cometer —y el más caro de
+# descubrir, porque hoy se ve recién cuando alguien compila en una Mac— se
+# agarra desde Ubuntu. Si este swiftc igual no puede, lo dice y se saltea: nunca
+# se da por bueno en silencio.
+if command -v swiftc >/dev/null 2>&1; then
+  if swift_salida=$(swiftc -parse bin/qm-barra.swift 2>&1); then
+    echo "barra de macOS: bin/qm-barra.swift parsea"
+  elif echo "$swift_salida" | grep -qi "no such module"; then
+    echo "  · salteada: la barra de macOS (este swiftc no parsea sin AppKit)"
+  else
+    echo "$swift_salida" | head -5 >&2
+    fallar "bin/qm-barra.swift no parsea"
+  fi
+elif [ -n "$QM_GATE_EXIGE_SWIFT" ]; then
+  fallar "falta swiftc y este job lo exige"
+else
+  echo "  · salteada: la barra de macOS (no hay swiftc en esta máquina)"
+fi
+
 python3 bin/qm-indicator --desde test/fixtures/panel.json --oscuro \
   --captura "$salida/panel.png" >/dev/null || fallar "no dibujó el panel"
 python3 bin/qm-indicator --desde test/fixtures/panel.json --oscuro \

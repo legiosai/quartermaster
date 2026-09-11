@@ -204,6 +204,19 @@ struct Proyeccion {
     let chocas: Bool
 }
 
+/// El presupuesto diario, ya repartido por qm: cuánto se puede gastar por día
+/// para que la ventana larga llegue justa al reinicio, y cuánto de eso queda
+/// hoy. Cuál ventana se reparte lo decide el núcleo —la larga, nunca la de
+/// 5 h—, así que acá no hay ni una división.
+///
+/// Es un enum y no un par de opcionales porque el caso «no se puede repartir»
+/// tiene que producir una FRASE: un renglón en blanco es el bug que esta
+/// herramienta existe para no cometer.
+enum Presupuesto {
+    case reparte(porDia: Double, quedaHoy: Double)
+    case no(String)
+}
+
 /// Lo que hay que decir de una cuenta arriba: la sesión de 5 h, la barra que
 /// frena antes, y dos banderas que NO son lo mismo.
 ///
@@ -252,6 +265,7 @@ struct PerfilVista {
     let semanal: Ventana?
     let edadSegundos: Int?
     let proyeccion: Proyeccion?
+    let presupuesto: Presupuesto?
 }
 
 // Las reglas del núcleo no se reimplementan acá: `qm` manda `mostrar`, `frena`,
@@ -326,6 +340,15 @@ func leer() -> Lectura {
                               techo: techo,
                               chocas: pr["chocasAntesDelReinicio"] as? Bool ?? false)
         }
+        var pre: Presupuesto? = nil
+        if let pp = p["presupuesto"] as? [String: Any] {
+            if (pp["estado"] as? String) == "ok" {
+                pre = .reparte(porDia: pp["porDia"] as? Double ?? 0,
+                               quedaHoy: pp["quedaHoy"] as? Double ?? 0)
+            } else if let motivo = pp["motivo"] as? String {
+                pre = .no(motivo)
+            }
+        }
         return PerfilVista(
             producto: p["producto"] as? String ?? "claude",
             nombre: p["perfil"] as? String ?? "?",
@@ -338,7 +361,8 @@ func leer() -> Lectura {
             mostrar: mostrar, historia: historia,
             frena: una("frena"), sesion: una("sesion"), semanal: una("semanal"),
             edadSegundos: cuota["edadSegundos"] as? Int,
-            proyeccion: proy)
+            proyeccion: proy,
+            presupuesto: pre)
     }
     return .ok(perfiles)
 }
@@ -456,6 +480,7 @@ final class VistaCuenta: NSView {
     private let frase: String?
     private let ritmo: String?
     private let ritmoRojo: Bool
+    private let presupuesto: String?
 
     private static let ANCHO: CGFloat = 340
     private static let MARGEN: CGFloat = 15
@@ -502,11 +527,28 @@ final class VistaCuenta: NSView {
             self.ritmoRojo = false
         }
 
+        // El ritmo dice hacia dónde vas; el presupuesto, a cuánto tendrías que
+        // ir para que la cuota llegue al reinicio. Van pegados: son la misma
+        // pregunta. Sólo en las cuentas CON número — las otras dibujan su frase
+        // y vuelven antes de llegar hasta acá.
+        if let pre = p.presupuesto, p.hayNumero {
+            switch pre {
+            case .reparte(let porDia, let quedaHoy):
+                self.presupuesto = String(format: "podés gastar %.1f %%/día · hoy te queda %.1f %%",
+                                          porDia, quedaHoy)
+            case .no(let motivo):
+                self.presupuesto = "presupuesto: \(motivo)"
+            }
+        } else {
+            self.presupuesto = nil
+        }
+
         var alto = VistaCuenta.MARGEN + 16 + 15 + 6
         alto += CGFloat(barras.count) * VistaCuenta.ALTO_BARRA
         if historia.count >= 3 { alto += VistaCuenta.ALTO_CURVA }
         if frase != nil { alto += 34 }
         if ritmo != nil { alto += 16 }
+        if presupuesto != nil { alto += 16 }
         alto += 12
         super.init(frame: NSRect(x: 0, y: 0, width: VistaCuenta.ANCHO, height: alto))
     }
@@ -614,6 +656,11 @@ final class VistaCuenta: NSView {
             y -= 16
             escribir(r, m, y, .systemFont(ofSize: 10.5, weight: ritmoRojo ? .medium : .regular),
                      ritmoRojo ? Nivel.critico.color : .tertiaryLabelColor)
+        }
+
+        if let pre = presupuesto {
+            y -= 16
+            escribir(pre, m, y, .systemFont(ofSize: 10.5), .secondaryLabelColor)
         }
     }
 }

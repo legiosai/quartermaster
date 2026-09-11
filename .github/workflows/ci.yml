@@ -41,6 +41,7 @@ jobs:
       - run: ./scripts/gate-dibujo.sh
         env:
           QM_GATE_EXIGE_PWSH: '1'   # el runner de Ubuntu lo trae; saltearlo acá sería un adorno
+          QM_GATE_EXIGE_SWIFT: '1'  # y Swift también: la barra de macOS se parsea acá
       # El runner de Ubuntu trae Swift Y PowerShell, así que las cuatro
       # implementaciones se comprueban acá. Se llegó a agregar un job de macOS
       # para Swift antes de mirar qué había en el de Ubuntu: sobraba, y encima

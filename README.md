@@ -567,9 +567,10 @@ Dos decisiones que no son obvias:
   del reinicio, que está al lado.
 
 Cuando no se puede repartir sale la frase que dice por qué —«esta cuenta no
-informa una ventana larga que repartir»— y no un cero con cara de dato. Va en
-`qm`, en el tablero, en el panel de GNOME y en el de la bandeja de Windows,
-leyendo el mismo campo `presupuesto` del JSON: acá tampoco divide nadie.
+informa una ventana larga que repartir»— y no un cero con cara de dato. Va en las
+cinco pantallas —`qm`, el tablero, la barra de menú de macOS, el panel de GNOME y
+el de la bandeja de Windows—, leyendo el mismo campo `presupuesto` del JSON: acá
+tampoco divide nadie.
 
 ## En el navegador
 
@@ -630,6 +631,16 @@ un vistazo, que es lo único que hace la barra de menú.
 
 `~` va pegado al número, porque califica a *ese* número: `~37` es «esta sesión
 es de hace rato».
+
+Hasta acá este archivo era **el único fuente del repo que no abría ningún
+gate**: `gate-duraciones.py` le extrae una función y compila esa sola, así que
+el resto podía tener un error de sintaxis y el CI pasaba en verde — el mismo
+agujero que tuvieron el indicador de GNOME y la bandeja de Windows, contado dos
+veces más abajo. Ahora `gate-dibujo.sh` le corre `swiftc -parse` desde Ubuntu:
+AppKit es de macOS, pero `-parse` sólo parsea —no carga módulos ni chequea
+tipos—, así que el error más barato de cometer deja de descubrirse recién cuando
+alguien compila en una Mac. Si ese `swiftc` igual no puede, el gate lo dice y se
+saltea; nunca se da por bueno en silencio.
 
 Cuando no entra, la escalera saca primero los glifos y **el número es lo último
 que se cae**. Antes era al revés y el item quedaba mudo justo en la parte que se
