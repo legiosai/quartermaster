@@ -176,10 +176,10 @@ footer a{color:var(--medio)}
   <h3>Linux — apt</h3>
   <pre><span class="c"># una vez: la clave y el repo</span>
 <span class="p">$</span> sudo install -d -m 0755 /etc/apt/keyrings
-<span class="p">$</span> curl -fsSL https://legiosai.github.io/quartermaster/apt/legios.gpg \
+<span class="p">$</span> curl -fsSL https://quartermaster.legios.com.ar/apt/legios.gpg \
     | sudo tee /etc/apt/keyrings/legios.asc &gt;/dev/null
 <span class="p">$</span> echo "deb [signed-by=/etc/apt/keyrings/legios.asc] \
-    https://legiosai.github.io/quartermaster/apt stable main" \
+    https://quartermaster.legios.com.ar/apt stable main" \
     | sudo tee /etc/apt/sources.list.d/legios.list &gt;/dev/null
 <span class="p">$</span> sudo apt update &amp;&amp; sudo apt install quartermaster</pre>
 

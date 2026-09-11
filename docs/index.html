@@ -9,7 +9,7 @@
 <meta property="og:title" content="quartermaster">
 <meta property="og:description" content="Cuánta cuota te queda, en todas tus cuentas de agentes. Sin red y sin credenciales.">
 <meta property="og:type" content="website">
-<meta property="og:image" content="https://legiosai.github.io/quartermaster/img/panel.png">
+<meta property="og:image" content="https://quartermaster.legios.com.ar/img/panel.png">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -432,10 +432,10 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
 <span class="p">$</span> qm</pre>
     <pre id="t-apt" hidden><span class="c"># una vez: la clave y el repo</span>
 <span class="p">$</span> sudo install -d -m 0755 /etc/apt/keyrings
-<span class="p">$</span> curl -fsSL https://legiosai.github.io/quartermaster/apt/legios.gpg \
+<span class="p">$</span> curl -fsSL https://quartermaster.legios.com.ar/apt/legios.gpg \
     | sudo tee /etc/apt/keyrings/legios.asc &gt;/dev/null
 <span class="p">$</span> echo "deb [signed-by=/etc/apt/keyrings/legios.asc] \
-    https://legiosai.github.io/quartermaster/apt stable main" \
+    https://quartermaster.legios.com.ar/apt stable main" \
     | sudo tee /etc/apt/sources.list.d/legios.list &gt;/dev/null
 
 <span class="c"># y desde ahí, como cualquier otro paquete</span>

@@ -7,7 +7,7 @@
 **Cuánta cuota te queda, en todas tus cuentas de agentes.**
 Cada perfil de Claude Code y, si están instalados, Codex y los proveedores de opencode.
 
-[Landing](https://legiosai.github.io/quartermaster/) ·
+[Landing](https://quartermaster.legios.com.ar/) ·
 [Instalar](#instalar) ·
 [Releases](https://github.com/legiosai/quartermaster/releases) ·
 MIT
