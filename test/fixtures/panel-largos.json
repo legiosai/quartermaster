@@ -244,6 +244,17 @@
                 "estado": "plano",
                 "muestras": 27
             },
+            "presupuesto": {
+                "estado": "ok",
+                "barra": "weekly_scoped (Fable)",
+                "clave": "weekly_scoped",
+                "alcance": "Fable",
+                "porDia": 4.2,
+                "quedaHoy": 1.8,
+                "restante": 11,
+                "horasHoy": 10.3,
+                "horasRestantes": 62.3
+            },
             "local": null
         }
     ]

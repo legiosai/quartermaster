@@ -244,6 +244,17 @@
                 "estado": "plano",
                 "muestras": 27
             },
+            "presupuesto": {
+                "estado": "ok",
+                "barra": "weekly_scoped (Fable)",
+                "clave": "weekly_scoped",
+                "alcance": "Fable",
+                "porDia": 4.2,
+                "quedaHoy": 1.8,
+                "restante": 11,
+                "horasHoy": 10.3,
+                "horasRestantes": 62.3
+            },
             "local": null
         },
         {
@@ -258,6 +269,10 @@
                 "frase": "Claude Code todav\u00eda no dej\u00f3 cuota en .claude.json para este perfil (usalo una vez)"
             },
             "proyeccion": null,
+            "presupuesto": {
+                "estado": "sin-datos",
+                "motivo": "esta cuenta no tiene n\u00famero de cuota"
+            },
             "local": null
         },
         {
@@ -272,6 +287,10 @@
                 "frase": "Claude Code todav\u00eda no dej\u00f3 cuota en .claude.json para este perfil (usalo una vez)"
             },
             "proyeccion": null,
+            "presupuesto": {
+                "estado": "sin-datos",
+                "motivo": "esta cuenta no tiene n\u00famero de cuota"
+            },
             "local": null
         },
         {
@@ -514,6 +533,17 @@
             "proyeccion": {
                 "estado": "plano",
                 "muestras": 27
+            },
+            "presupuesto": {
+                "estado": "ok",
+                "barra": "weekly_scoped (Fable)",
+                "clave": "weekly_scoped",
+                "alcance": "Fable",
+                "porDia": 13.9,
+                "quedaHoy": 5.9,
+                "restante": 40,
+                "horasHoy": 10.3,
+                "horasRestantes": 69.3
             },
             "local": null
         },
@@ -791,6 +821,17 @@
                 "techo": "2026-09-10T13:44:14.067Z",
                 "chocasAntesDelReinicio": true,
                 "muestras": 43
+            },
+            "presupuesto": {
+                "estado": "ok",
+                "barra": "weekly_all",
+                "clave": "weekly_all",
+                "alcance": null,
+                "porDia": 0,
+                "quedaHoy": 0,
+                "restante": 0,
+                "horasHoy": 10.3,
+                "horasRestantes": 117.2
             },
             "local": null
         }

@@ -557,6 +557,18 @@ class VistaCuenta:
                               + (" — antes del reinicio" if choca else ""))
         self.ritmo_rojo = choca
 
+        # El presupuesto diario: cuánto por día para que la ventana larga
+        # llegue entera al reinicio, y cuánto de eso queda hoy. La cuenta
+        # —incluido CUÁL ventana se reparte— viene hecha del núcleo.
+        self.presupuesto = None
+        if self.hay_numero:
+            pre = p.get("presupuesto") or {}
+            if pre.get("estado") == "ok":
+                self.presupuesto = (f"podés gastar {pre.get('porDia', 0):.1f} %/día"
+                                    f" · hoy te queda {pre.get('quedaHoy', 0):.1f} %")
+            elif pre.get("motivo"):
+                self.presupuesto = f"presupuesto: {pre['motivo']}"
+
         # Cada cuánto se lee ESTA cuenta y cuándo fue la última: la pregunta
         # «¿este número de cuándo es?» no se contesta con un porcentaje.
         self.lecturas = None
@@ -582,6 +594,8 @@ class VistaCuenta:
         if self.clave_frena and len(self.historia) >= 3:
             alto += self.ALTO_CURVA
         if self.ritmo:
+            alto += 20
+        if self.presupuesto:
             alto += 20
         if self.lecturas:
             alto += 17
@@ -695,8 +709,16 @@ class VistaCuenta:
                            Pango.Weight.MEDIUM if self.ritmo_rojo else Pango.Weight.NORMAL,
                            ancho=ancho, elipsis=True)
             y += 16
-        if self.lecturas:
+        # El ritmo dice hacia dónde vas; el presupuesto, a cuánto tendrías que
+        # ir para que la cuota llegue al reinicio. Van pegados.
+        if self.presupuesto:
             if not self.ritmo:
+                y += 4
+            pluma.escribir(ix, y, self.presupuesto, 11, TEMA.secundario,
+                           ancho=ancho, elipsis=True)
+            y += 16
+        if self.lecturas:
+            if not self.ritmo and not self.presupuesto:
                 y += 4
             pluma.escribir(ix, y, self.lecturas, 10.5, TEMA.terciario, ancho=ancho, elipsis=True)
         return arriba + alto

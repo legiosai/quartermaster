@@ -19,6 +19,7 @@ import { consumoDesde, transcripciones } from '../adapters/transcripciones.ts';
 import { cuotaEnCache } from '../adapters/cache-cuota.ts';
 import { anotar, claveBarra, muestras, type Lectura } from '../adapters/historial.ts';
 import { proyectar, VENTANA_AJUSTE_MS, type Proyeccion } from '../core/proyeccion.ts';
+import { frasePresupuesto, presupuestoDiario, type Presupuesto } from '../core/presupuesto.ts';
 import { consultarCuota } from '../adapters/cuota.ts';
 import {
   codexEnCache,
@@ -568,6 +569,16 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
     if (f.proyeccion !== null) {
       console.log(`  ${relleno('', 18)} ${tenue('ritmo: ')}${fraseProyeccion(f.proyeccion)}`);
     }
+    // El ritmo dice hacia dónde vas; el presupuesto, a cuánto tenés que ir.
+    if (f.cuota.estado === 'ok') {
+      const pre = presupuestoDiario(f.cuota.ventanas);
+      console.log(
+        `  ${relleno('', 18)} ${tenue('presupuesto: ')}` +
+          (pre.estado === 'ok'
+            ? `${frasePresupuesto(pre)}${tenue(` · ${nombreVentana(pre.ventana)}`)}`
+            : tenue(pre.motivo)),
+      );
+    }
     if (f.notaRefresco !== null) {
       console.log(`  ${relleno('', 18)} ${tenue(`--refrescar no sirvió: ${f.notaRefresco}`)}`);
     }
@@ -675,6 +686,29 @@ function ventanaJson(v: VentanaCuota): Record<string, unknown> {
 const ventanaJson0 = (v: VentanaCuota | null): Record<string, unknown> | null =>
   v === null ? null : ventanaJson(v);
 
+/**
+ * El presupuesto diario, masticado igual que `frena` y `semanal`: qué ventana se
+ * repartió, cuánto por día y cuánto queda de hoy. Los que dibujan no dividen
+ * nada — la cuenta, incluido CUÁL ventana se reparte, vive en el núcleo.
+ */
+function presupuestoJson(cuota: ResultadoCuota): Record<string, unknown> {
+  if (cuota.estado !== 'ok') return { estado: 'sin-datos', motivo: 'esta cuenta no tiene número de cuota' };
+  const p: Presupuesto = presupuestoDiario(cuota.ventanas);
+  if (p.estado !== 'ok') return { estado: 'sin-datos', motivo: p.motivo };
+  const un = (n: number): number => Number(n.toFixed(1));
+  return {
+    estado: 'ok',
+    barra: nombreVentana(p.ventana),
+    clave: p.ventana.clave,
+    alcance: p.ventana.alcance,
+    porDia: un(p.porDia),
+    quedaHoy: un(p.quedaHoy),
+    restante: un(p.restante),
+    horasHoy: un(p.horasHoy),
+    horasRestantes: un(p.horasRestantes),
+  };
+}
+
 function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
   return {
     generado: new Date().toISOString(),
@@ -728,6 +762,11 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
             : f.proyeccion.estado === 'plano'
               ? { estado: 'plano', muestras: f.proyeccion.muestras }
               : { estado: 'sin-datos', motivo: f.proyeccion.motivo },
+      // Cuánto se puede gastar por día para que la ventana larga llegue entera
+      // al reinicio, y cuánto de eso queda hoy. Va al lado de la proyección
+      // porque contesta la otra mitad de la misma pregunta: el ritmo dice hacia
+      // dónde vas, el presupuesto a cuánto tendrías que ir.
+      presupuesto: presupuestoJson(f.cuota),
       // En --breve no se leyeron las transcripciones. Informar 0 sería decir
       // "no consumiste nada" cuando lo que pasa es "no lo medí".
       local: o.breve || !f.localMedido

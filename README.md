@@ -531,6 +531,46 @@ La serie vive en `~/.cache/quartermaster/historial.jsonl` y se indexa por el
 `medidoEn` de la cuota, no por el momento en que qm miró: leer diez veces el
 mismo cache deja **una** muestra.
 
+## ¿Y cuánto me puedo gastar hoy?
+
+La proyección contesta «a este ritmo, cuándo choco». Es la pregunta del que ya
+va rápido. La del que todavía no chocó y quiere no chocar es otra: **cuánto
+puedo gastar por día para que la cuota llegue justa al reinicio, y cuánto de eso
+me queda hoy.** Un 78 % con reinicio el sábado no dice si mañana hay que frenar;
+repartirlo sí, y en la misma unidad que todo lo demás:
+
+```
+presupuesto: podés gastar 4.2 %/día · hoy te queda 1.8 % · weekly_scoped (Fable)
+```
+
+La cuenta es de dos renglones y está en `src/core/presupuesto.ts`:
+
+```
+porDia    = (100 − porcentaje) / días hasta el reinicio
+quedaHoy  = porDia × (horas que le quedan al día / 24)
+```
+
+Mira **hacia adelante**, y eso es lo que la hace honesta sin historial: todo lo
+que ya gastaste hoy está adentro del porcentaje actual, así que no hay que
+restarlo ni ir a buscarlo a un JSONL que puede no cubrir la medianoche. Si te
+pasaste de rosca a la mañana, `porDia` baja solo en la lectura siguiente y
+`quedaHoy` con él; si no tocaste nada, sube. Nunca da negativo.
+
+Dos decisiones que no son obvias:
+
+- **Se reparte la ventana larga, no la que frena.** Una de 5 h se reinicia
+  cuatro veces por día: «cuánto por día» ahí no quiere decir nada, y un número
+  que no quiere decir nada al lado de uno que sí es peor que no mostrarlo.
+- **A menos de una hora del reinicio no se reparte.** Cuatro puntos en veinte
+  minutos dan «288 %/día», que es cierto y no le sirve a nadie. A esa altura la
+  pregunta ya no es cómo dosificar sino cuánto falta, y ésa la contesta el reloj
+  del reinicio, que está al lado.
+
+Cuando no se puede repartir sale la frase que dice por qué —«esta cuenta no
+informa una ventana larga que repartir»— y no un cero con cara de dato. Va en
+`qm`, en el tablero, en el panel de GNOME y en el de la bandeja de Windows,
+leyendo el mismo campo `presupuesto` del JSON: acá tampoco divide nadie.
+
 ## En el navegador
 
 El indicador de GNOME es la respuesta para GNOME. `qm-web` es la misma idea
@@ -544,9 +584,10 @@ qm-web --sin-abrir    # sólo imprime la URL
 ```
 
 Muestra, de arriba abajo: **lo primero que te frena** —la peor barra de toda la
-máquina, con su cuenta regresiva al reinicio corriendo en vivo y la proyección
-si la hay—, y después una tarjeta por perfil con todas sus barras, la edad del
-cache, el consumo local de la ventana y el desglose por modelo. Un perfil sin
+máquina, con su cuenta regresiva al reinicio corriendo en vivo, la proyección
+si la hay y el presupuesto del día—, y después una tarjeta por perfil con todas
+sus barras, su presupuesto diario, la edad del cache, el consumo local de la
+ventana y el desglose por modelo. Un perfil sin
 número muestra la frase que dice por qué, igual que en la terminal.
 
 Vale la misma regla que el indicador: **sólo dibuja**. `bin/qm-web` le pide el

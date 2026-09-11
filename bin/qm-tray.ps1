@@ -439,6 +439,26 @@ function FraseRitmo($p) {
   return "todavía no sé el ritmo: $($p.motivo)"
 }
 
+# El presupuesto diario: cuánto se puede gastar por día para que la ventana
+# larga llegue entera al reinicio, y cuánto de eso queda hoy.
+#
+# Llega dividido del núcleo, incluido CUÁL ventana se reparte —la larga, nunca
+# la de 5 h, que se reinicia cuatro veces por día y ahí «por día» no quiere
+# decir nada—. Acá no se divide: se escribe.
+function FrasePresupuesto($pre) {
+  if (-not $pre) { return $null }
+  # El JSON de una versión anterior de `qm` no trae el campo, y con StrictMode
+  # leer una propiedad que no está es una excepción en el hilo de la interfaz.
+  if (-not $pre.PSObject.Properties['estado']) { return $null }
+  if ($pre.estado -ne 'ok') { return "presupuesto: $($pre.motivo)" }
+  # Invariante y no la cultura de la máquina, por lo mismo que el ritmo: el
+  # separador decimal acá es parte del dibujo y tiene que coincidir entre
+  # pantallas.
+  $porDia = ([double]$pre.porDia).ToString('0.0', [cultureinfo]::InvariantCulture)
+  $hoy = ([double]$pre.quedaHoy).ToString('0.0', [cultureinfo]::InvariantCulture)
+  return "podés gastar $porDia %/día · hoy te queda $hoy %"
+}
+
 # ── avisos ──────────────────────────────────────────────────────────────
 # La clave incluye el instante de reinicio: cuando la ventana se reinicia la
 # clave cambia sola y el mismo umbral puede volver a avisar. Sin eso, o
@@ -555,6 +575,8 @@ $MARGEN = 15
 $ALTO_CABECERA = 17 + 14 + 8   # título + subtítulo + aire
 $ALTO_BARRA = 15 + 3 + 5 + 4 + 12 + 7
 $ALTO_RITMO = 16
+# El renglón del presupuesto diario, debajo del ritmo: mismo cuerpo de letra.
+$ALTO_PRESUPUESTO = 16
 # 6 de aire + 16 de curva + 12 para los rótulos de abajo, igual que
 # VistaCuenta.ALTO_CURVA en Swift. Si esto no coincide con lo que dibuja
 # DibujarPerfil, los rótulos se comen el renglón siguiente.
@@ -758,6 +780,11 @@ function FraseLecturas($cuota) {
   return 'lecturas:  ' + ($partes -join '   ·   ')
 }
 
+function Presupuesto($p) {
+  if (-not $p.PSObject.Properties['presupuesto']) { return $null }
+  return $p.presupuesto
+}
+
 function AltoPerfil($p) {
   $alto = (Px $MARGEN) + (Px $ALTO_CABECERA)
   $cuota = $p.cuota
@@ -765,6 +792,7 @@ function AltoPerfil($p) {
   # La curva es de la barra que frena, así que suma una vez y no por barra.
   if ((@($cuota.historia)).Count -ge 3) { $alto += (Px $ALTO_CURVA) }
   if (FraseRitmo $p.proyeccion) { $alto += (Px $ALTO_RITMO) }
+  if (FrasePresupuesto (Presupuesto $p)) { $alto += (Px $ALTO_PRESUPUESTO) }
   if (FraseLecturas $cuota) { $alto += (Px $ALTO_LECTURAS) }
   return [int]($alto + (Px 10))
 }
@@ -852,6 +880,14 @@ function DibujarPerfil($p, [int]$indice) {
     Escribir $g $ritmo $m $y $script:FPie `
       $(if ($chocas) { $PALETA['critico'] } else { $script:Tinta3 }) -1 ($der - $m)
     $y += Px $ALTO_RITMO
+  }
+
+  # El ritmo dice hacia dónde vas; el presupuesto, a cuánto tendrías que ir para
+  # que la cuota llegue al reinicio. Van pegados: son la misma pregunta.
+  $presupuesto = FrasePresupuesto (Presupuesto $p)
+  if ($presupuesto) {
+    Escribir $g $presupuesto $m $y $script:FPie $script:Tinta2 -1 ($der - $m)
+    $y += Px $ALTO_PRESUPUESTO
   }
 
   $lecturas = FraseLecturas $cuota

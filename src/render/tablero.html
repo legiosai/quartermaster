@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>quartermaster</title>
+<!-- El mismo medidor al que le falta un cuarto que es docs/favicon.svg, acá
+     adentro: qm-web sirve UN archivo y nada más, así que un <link> a un .svg
+     del repo daría 404 en toda instalación que no sea el clon. -->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><defs><linearGradient id='qm' gradientUnits='userSpaceOnUse' x1='14' y1='46' x2='50' y2='14'><stop offset='0' stop-color='%232fbf71'/><stop offset='.5' stop-color='%23f2b134'/><stop offset='1' stop-color='%23e2483d'/></linearGradient></defs><path d='M32 11A21 21 0 1 1 13.9 43' fill='none' stroke='url(%23qm)' stroke-width='11' stroke-linecap='round'/><path d='M41 41 52 52' fill='none' stroke='url(%23qm)' stroke-width='11' stroke-linecap='round'/></svg>">
 <style>
 /* ── Tokens ───────────────────────────────────────────────────────────────
    Paleta de estado fija (good/warning/serious/critical): el color nunca va
@@ -73,10 +77,8 @@ header.barra {
   padding: 28px 0 20px; border-bottom: 1px solid var(--linea); margin-bottom: 28px;
 }
 .marca { font-size: 15px; font-weight: 620; letter-spacing: -0.01em; }
-.marca .punto {
-  display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-  background: var(--acento); margin-right: 8px; vertical-align: 1px;
-}
+.marca { display: flex; align-items: center; gap: 8px; }
+.marca .logo { flex: none; display: block; }
 .lema { color: var(--tinta-3); font-size: 13px; }
 .barra .derecha { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .chip {
@@ -177,6 +179,25 @@ button.chip:focus-visible { outline: 2px solid var(--acento); outline-offset: 2p
              color: var(--tinta-3); margin-top: 2px; }
 .heroe .detalle .choque { color: var(--critico); font-weight: 550; }
 
+/* ── Presupuesto diario ───────────────────────────────────────────────── */
+.presupuesto {
+  display: flex; align-items: baseline; gap: 6px 18px; flex-wrap: wrap;
+  border-top: 1px solid var(--linea); padding-top: 11px; font-size: 12.5px;
+  color: var(--tinta-2);
+}
+.presupuesto .par { display: inline-flex; align-items: baseline; gap: 6px; }
+.presupuesto .k {
+  font-size: 11px; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--tinta-3); font-weight: 600;
+}
+.presupuesto .v {
+  font-size: 15px; font-weight: 640; color: var(--tinta);
+  font-variant-numeric: tabular-nums; letter-spacing: -0.015em;
+}
+.presupuesto .ventana { color: var(--tinta-3); }
+.presupuesto .motivo { color: var(--tinta-3); }
+.heroe .presupuesto { border-top: none; padding-top: 12px; }
+
 /* ── Frase: todo estado sin número produce una oración ────────────────── */
 .frase {
   font-size: 13px; color: var(--tinta-2); background: var(--sup-2);
@@ -239,7 +260,15 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
 <div class="envoltorio">
   <header class="barra">
     <div>
-      <div class="marca"><span class="punto"></span>quartermaster</div>
+      <div class="marca">
+        <svg class="logo" viewBox="0 0 64 64" width="18" height="18" aria-hidden="true">
+          <defs><linearGradient id="grad-qm" gradientUnits="userSpaceOnUse" x1="14" y1="46" x2="50" y2="14">
+            <stop offset="0" stop-color="#2fbf71"/><stop offset=".5" stop-color="#f2b134"/><stop offset="1" stop-color="#e2483d"/>
+          </linearGradient></defs>
+          <circle cx="32" cy="32" r="20" fill="none" stroke="currentColor" stroke-opacity=".14" stroke-width="9"/>
+          <path d="M32 12A20 20 0 1 1 14.8 42" fill="none" stroke="url(#grad-qm)" stroke-width="9" stroke-linecap="round"/>
+          <path d="M41 41 51.5 51.5" fill="none" stroke="url(#grad-qm)" stroke-width="9" stroke-linecap="round"/>
+        </svg>quartermaster</div>
       <div class="lema">Cuánta cuota te queda, en todas tus cuentas de agentes.</div>
     </div>
     <div class="derecha">
@@ -447,6 +476,37 @@ function curva(historia, nivel) {
   </div>`;
 }
 
+// ── presupuesto diario ─────────────────────────────────────────────────
+// «vas 78 %» no dice si mañana hay que frenar. Repartir lo que queda entre los
+// días que faltan sí, y eso llega masticado del núcleo: qué ventana se reparte
+// —la larga, nunca la de 5 h—, cuánto por día y cuánto de eso queda hoy. Acá no
+// se divide nada, igual que con `frena` y `semanal`.
+const unDecimal = (n) => Number(n).toFixed(1).replace('.', ',');
+
+function presupuesto(pre) {
+  if (!pre) return '';
+  if (pre.estado !== 'ok') {
+    return `<div class="presupuesto">
+      <span class="k">presupuesto diario</span>
+      <span class="motivo">${esc(pre.motivo)}</span>
+    </div>`;
+  }
+  const tip = esc(JSON.stringify({
+    t: 'presupuesto diario · ' + pre.barra,
+    l: [
+      `queda ${unDecimal(pre.restante)} % de la ventana y faltan ${unDecimal(pre.horasRestantes / 24)} días para el reinicio`,
+      `gastando ${unDecimal(pre.porDia)} % por día llegás justo al reinicio con la cuota consumida`,
+      `hoy le quedan ${unDecimal(pre.horasHoy)} h: de ahí sale el ${unDecimal(pre.quedaHoy)} % que te queda hoy`,
+      'se recalcula en cada lectura: si hoy gastaste de más, el ritmo baja solo',
+    ],
+  }));
+  return `<div class="presupuesto" data-tip='${tip}'>
+    <span class="par"><span class="k">podés gastar</span><span class="v">${unDecimal(pre.porDia)} %/día</span></span>
+    <span class="par"><span class="k">te queda hoy</span><span class="v">${unDecimal(pre.quedaHoy)} %</span></span>
+    <span class="ventana">${esc(pre.barra)}</span>
+  </div>`;
+}
+
 function desglose(porModelo) {
   const pares = Object.entries(porModelo).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
   if (!pares.length) return '';
@@ -482,7 +542,8 @@ function tarjeta(p) {
     ? `<div class="medidores">${vs.map(v => medidor(v, proy, proyectada !== null && v.clave === proyectada.clave)).join('')}</div>` +
       (p.proyeccion && p.proyeccion.estado !== 'sube'
         ? `<div class="frase">ritmo: ${p.proyeccion.estado === 'plano'
-             ? 'plano, no sube' : 'todavía no sé el ritmo — ' + esc(p.proyeccion.motivo)}</div>` : '')
+             ? 'plano, no sube' : 'todavía no sé el ritmo — ' + esc(p.proyeccion.motivo)}</div>` : '') +
+      presupuesto(p.presupuesto)
     : `<div class="frase">${esc(c.frase)}</div>`;
 
   return `
@@ -560,6 +621,7 @@ function heroe() {
         ${proy ? `<span class="sep">·</span><span class="${proy.chocasAntesDelReinicio ? 'choque' : ''}">${esc(fraseProy(proy))}</span>` : ''}
       </div>
       ${curva(p.cuota.historia, n)}
+      ${p.presupuesto && p.presupuesto.estado === 'ok' ? presupuesto(p.presupuesto) : ''}
     </div>
   </div>`;
 }
