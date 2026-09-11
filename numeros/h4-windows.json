@@ -1,0 +1,134 @@
+{
+  "generado": "2026-09-11T13:08:03.988Z",
+  "plataforma": "win32",
+  "ventanaDias": 7,
+  "perfiles": [
+    {
+      "producto": "claude",
+      "perfil": ".claude",
+      "directorio": "~\\.claude",
+      "cuenta": null,
+      "plan": null,
+      "credencial": "ilegible · Windows sin verificar: no hay .credentials.json y puede que use DPAPI",
+      "cuota": {
+        "estado": "sin-cache",
+        "frase": "Claude Code todavía no dejó cuota en .claude.json para este perfil (usalo una vez)"
+      },
+      "proyeccion": null,
+      "local": {
+        "tokens": 0,
+        "tokensVentana": 0,
+        "requests": 0,
+        "transcripciones": 0,
+        "porModelo": {}
+      }
+    },
+    {
+      "producto": "codex",
+      "perfil": "codex",
+      "directorio": "~\\.codex",
+      "cuenta": "***@gmail.com",
+      "plan": "plus",
+      "credencial": "la pone codex · 0 reset(s) sin usar",
+      "cuota": {
+        "estado": "ok",
+        "origen": "cache",
+        "medidoEn": "2026-06-18T13:38:35.312Z",
+        "edadSegundos": 7342169,
+        "ventanas": [
+          {
+            "clave": "session",
+            "alcance": null,
+            "grupo": "session",
+            "porcentaje": 2,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": "2026-06-18T18:11:16.000Z",
+            "nombre": "session",
+            "preocupa": false
+          },
+          {
+            "clave": "weekly_all",
+            "alcance": null,
+            "grupo": "weekly",
+            "porcentaje": 0,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": "2026-06-25T13:11:16.000Z",
+            "nombre": "weekly_all",
+            "preocupa": false
+          }
+        ],
+        "mostrar": [
+          {
+            "clave": "session",
+            "alcance": null,
+            "grupo": "session",
+            "porcentaje": 2,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": "2026-06-18T18:11:16.000Z",
+            "nombre": "session",
+            "preocupa": false
+          },
+          {
+            "clave": "weekly_all",
+            "alcance": null,
+            "grupo": "weekly",
+            "porcentaje": 0,
+            "severidad": "normal",
+            "activa": false,
+            "reinicia": "2026-06-25T13:11:16.000Z",
+            "nombre": "weekly_all",
+            "preocupa": false
+          }
+        ],
+        "frena": {
+          "clave": "session",
+          "alcance": null,
+          "grupo": "session",
+          "porcentaje": 2,
+          "severidad": "normal",
+          "activa": false,
+          "reinicia": "2026-06-18T18:11:16.000Z",
+          "nombre": "session",
+          "preocupa": false
+        },
+        "sesion": {
+          "clave": "session",
+          "alcance": null,
+          "grupo": "session",
+          "porcentaje": 2,
+          "severidad": "normal",
+          "activa": false,
+          "reinicia": "2026-06-18T18:11:16.000Z",
+          "nombre": "session",
+          "preocupa": false
+        },
+        "semanal": {
+          "clave": "weekly_all",
+          "alcance": null,
+          "grupo": "weekly",
+          "porcentaje": 0,
+          "severidad": "normal",
+          "activa": false,
+          "reinicia": "2026-06-25T13:11:16.000Z",
+          "nombre": "weekly_all",
+          "preocupa": false
+        },
+        "historia": []
+      },
+      "proyeccion": {
+        "estado": "sin-datos",
+        "motivo": "hacen falta 3 lecturas y hay 0"
+      },
+      "local": {
+        "tokens": 0,
+        "tokensVentana": 0,
+        "requests": 0,
+        "transcripciones": 0,
+        "porModelo": {}
+      }
+    }
+  ]
+}

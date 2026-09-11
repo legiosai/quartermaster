@@ -116,7 +116,7 @@ multi-perfil en un cálculo, no en una heurística.
 | **H1** consumo local real | ✅ **número** | [`numeros/h1.json`](numeros/h1.json) — 9 340 requests deduplicados, 2,8 G de tokens en 7 días, 946 ms |
 | **H2** poll de cuota en vivo | ✅ **número** | [`numeros/h2-endpoint.md`](numeros/h2-endpoint.md) — ejecutado por fin: con 95 min de cache, la sesión estaba **11 puntos** abajo y las semanales 0-2 |
 | **H3** `--watch` y `--json` | ✅ mecanismo | `make qm`, `qm --json`, `qm --watch`, `qm --umbral=N` |
-| **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ⏳ | [`numeros/h4-linux.md`](numeros/h4-linux.md) |
+| **H4** Linux y Windows verificados | 🟨 Linux ✅, Windows ✅ el CLI · ⏳ la credencial | [`numeros/h4-linux.md`](numeros/h4-linux.md) · [`h4-windows.md`](numeros/h4-windows.md) |
 | **H8** Codex en la misma tabla | ✅ mecanismo | cuota del disco (rollouts) + refresco por app-server + consumo local; `src/adapters/codex.ts` |
 | **H5** cuota sin red ni credencial | ✅ **número** | [`numeros/h5-cuota.md`](numeros/h5-cuota.md) · [`h5-cuota.json`](numeros/h5-cuota.json) |
 | **H6** verlo sin ir a buscarlo | ✅ mecanismo | `make indicador` en GNOME · `make tray` en Windows · `make web` en el navegador · `qm --breve` en la statusline de Claude Code |
@@ -140,9 +140,15 @@ multi-perfil en un cálculo, no en una heurística.
 - **El número del cache puede estar viejo.** Claude Code lo refresca cuando
   quiere —medido: reescribió `.claude.json` 19 s antes y el bloque de cuota
   seguía siendo de hacía 83 minutos—. `qm` imprime la edad siempre.
-- **Windows no está verificado.** El adaptador asume
-  `<directorio>/.credentials.json` igual que Linux. Es posible que Claude Code
-  use DPAPI o el Credential Manager. Hay que probarlo antes de afirmar nada.
+- **En Windows nativo el CLI anda; la credencial sigue sin verificarse.**
+  Medido y comiteado en [`numeros/h4-windows.md`](numeros/h4-windows.md): con
+  Node nativo, `qm` contesta `plataforma: win32`, descubre los perfiles en rutas
+  de Windows y lee la cuota de Codex del disco sin red ni credencial. Lo que
+  sigue abierto es si Claude Code guarda la suya en `.credentials.json` o en
+  DPAPI, y **no se pudo contestar porque en esa máquina Claude Code nunca corrió
+  nativo**: no está en el PATH, no hay `.claude.json`, y el Credential Manager
+  no tiene ninguna entrada de Anthropic. El adaptador sigue diciendo «sin
+  verificar» en vez de inventar un diagnóstico.
 - **macOS va a abrir un prompt del llavero por perfil** si se usa `--refrescar`.
   El camino por defecto ya no toca el llavero.
 
