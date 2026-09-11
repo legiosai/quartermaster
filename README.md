@@ -1083,19 +1083,72 @@ diagonal es lo que lo distingue de un anillo cualquiera— cuyo panel es el de
 siempre, con todas las cuentas y la cabecera de lo primero que te frena. Y el
 de cada cuenta abre **esa cuenta sola**.
 
-Se elige con `-Iconos`, separando por coma:
+**Y se eligen desde el ícono, no desde un flag.** Cuatro cuentas son cuatro
+cuadraditos, y en una barra de tareas llena eso es una inundación. Cualquiera de
+los paneles —el general y el de cada cuenta— tiene **«Íconos en la bandeja»**:
+un tilde por cuenta más el general. Destildar uno lo saca en el acto, sin
+reiniciar nada, y la elección se guarda en
+`%LOCALAPPDATA%\quartermaster\iconos.json`.
+
+**Y el panel no se cierra al tildar.** WinForms cierra el menú al clickear
+cualquier item, y acá eso es peor que en ningún otro lado: elegir íconos es
+justamente la tarea en la que uno toca varios seguidos, y cerrar el panel
+después de cada tilde obliga a reabrirlo una vez por cuenta. Va el mismo
+mecanismo que «Actualizar ahora» —cancelar el cierre, y sólo para eso— con una
+diferencia que hay que conocer: los eventos de un `ToolStripDropDown` **no suben**
+al `ContextMenuStrip`, así que el padre nunca se entera de qué nieto se clickeó.
+La bandera la prende `AlternarIcono`, que es quien sabe; el que cancela sigue
+siendo el handler del padre. Y `AlClickear` ahora sólo PRENDE la bandera y nunca
+la apaga: con un `=` la apagaba justo antes de que el otro handler la mirara.
+
+Va en TODOS los paneles a propósito: el ícono que sobra suele ser justo el que
+estás mirando, y si el ajuste viviera sólo en el general, esconder el general te
+dejaría sin forma de volver atrás. Por lo mismo, **el último no se puede
+esconder**: una bandeja vacía no es una preferencia, es la herramienta apagada
+sin decirlo, y desde una bandeja vacía no hay menú desde donde volver a
+prenderla. Y una cuenta escondida sigue LISTADA en el submenú, destildada, que es
+lo que permite traerla de vuelta.
+
+Lo que se guarda es la lista de los ESCONDIDOS y no la de los visibles, y la
+diferencia importa: guardando los visibles, un perfil que aparece después nacería
+invisible, y una cuenta que no se ve es exactamente igual a una cuenta que va
+bien. El silencio otra vez, y encima permanente.
+
+`-Iconos` sigue existiendo para arrancar con una combinación, separando por coma:
 
 ```
-(vacío)        el general MÁS uno por cuenta — lo que se ve por defecto
+(vacío)        lo que el usuario haya elegido; la primera vez, todos
 general        sólo el general, con todas las cuentas adentro
 main,codex     sólo esas dos cuentas, sin general
 general,codex  el general y codex
 ```
 
-El filtro se aplica a la TIRA y no a los paneles: el panel general sigue
-mostrando todas las cuentas aunque no tengan ícono propio. Y si `-Iconos` no
-coincide con nada queda el general igual, diciéndolo — una bandeja vacía sería
-otra vez el silencio, y encima uno que se causó el usuario con un typo.
+Siembra la elección **una vez** y después manda el menú: un flag que se impusiera
+en cada arranque sería un ajuste que se deshace solo, que es peor que no tenerlo.
+
+El filtro se aplica a la TIRA y no a los paneles: el general sigue mostrando
+todas las cuentas aunque no tengan ícono propio. Y si `-Iconos` no coincide con
+nada queda el general igual, diciéndolo — una bandeja vacía sería otra vez el
+silencio, y encima uno que se causó el usuario con un typo.
+
+**`-Iconos` es la única forma de sacar uno solo, y conviene decir por qué.**
+Arrastrar un ícono al desplegable de escondidos, que es lo que uno haría, no
+funciona de a uno: se llevan todos. La causa se midió y no se supone. Windows
+identifica un ícono de bandeja por `(ruta del ejecutable, UID)` —o por un
+`guidItem` propio, si la aplicación se lo da— y los cuatro nuestros salen del
+mismo `powershell.exe`. Con la bandeja andando y sus cuatro íconos visibles
+(UID 1, 2, 3 y 4, comprobado por reflexión sobre el campo privado `id` del
+`NotifyIcon`), `HKCU\Control Panel\NotifyIconSettings` tenía **dos** entradas
+para esos cuatro íconos: los que no tienen entrada propia no tienen ajuste
+propio, y la decisión de esconderlos cae sobre la aplicación entera.
+
+Lo que lo arreglaría de verdad es darle a cada ícono un `guidItem` estable, que
+es justamente para esto. **`NotifyIcon` de WinForms no lo expone** —se listaron
+sus campos: hay `icon`, `text`, `id`, `contextMenuStrip`, y ningún `guid`— así
+que habría que dejar de usarlo y hablar con `Shell_NotifyIcon` directamente, lo
+que implica reescribir a mano la recepción de los clicks y los globos. No está
+hecho: es la parte más probada de este archivo y reemplazarla a ciegas sería
+cambiar un problema de acomodo por uno de funcionamiento.
 
 Verificado por UI Automation contra el fixture de cinco perfiles: la bandeja
 queda con `quartermaster · 3 cuenta(s) · lo peor 100%` más `main`, `teams`,

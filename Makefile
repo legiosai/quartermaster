@@ -63,8 +63,8 @@ barra-quitar:  ## saca la barra del arranque automático y la cierra
 	@echo "barra sacada"
 
 .PHONY: tray
-tray:  ## arranca el item en la bandeja de Windows (desde WSL)
-	@setsid nohup "$(CURDIR)/bin/qm-tray" >/dev/null 2>&1 < /dev/null & \
+tray:  ## arranca el item en la bandeja de Windows (ARGS="-Iconos general,main")
+	@setsid nohup "$(CURDIR)/bin/qm-tray" $(ARGS) >/dev/null 2>&1 < /dev/null & \
 	 sleep 3; echo "tray arrancado · se sale desde su propio menú"
 
 .PHONY: tray-autostart

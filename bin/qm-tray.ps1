@@ -1539,7 +1539,11 @@ function ActualizarTira($tira) {
     $ni.ContextMenuStrip = $script:Menus[$t.clave]
     $anterior = $ni.Icon
     $ni.Icon = $t.icono
-    if ($anterior) { $anterior.Dispose() }
+    # El mismo objeto no se libera: con una tira reusada —que es lo que pasa si
+    # alguien llama a esto dos veces con la misma lectura— `$anterior` ES el
+    # ícono recién asignado, y soltarlo dejaría el item apuntando a un handle
+    # muerto. Es el mismo error que ya costó dos bugs con los mapas de bits.
+    if ($anterior -and -not [object]::ReferenceEquals($anterior, $t.icono)) { $anterior.Dispose() }
     # NotifyIcon.Text no acepta más de 63 caracteres.
     $texto = [string]$t.texto
     if ($texto.Length -gt 63) { $texto = $texto.Substring(0, 60) + '...' }
@@ -1620,6 +1624,26 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
     $mn.Items.Add($filaPie) | Out-Null
   }
 
+  # El elegí-tus-íconos, en TODOS los paneles: se llega desde cualquier ícono,
+  # que es lo que hace falta cuando el que sobra es justo el que estás mirando.
+  # Un tilde por cuenta, más el general; clickear uno lo esconde o lo trae, se
+  # guarda y se aplica en el acto — sin reiniciar nada.
+  if (@($script:ClavesConocidas).Count) {
+    $sub = New-Object System.Windows.Forms.ToolStripMenuItem('Íconos en la bandeja')
+    $sub.ForeColor = $script:Tinta
+    foreach ($k in @($script:ClavesConocidas)) {
+      $rotulo = if ($k -eq 'general') { 'general  (todas las cuentas)' } else { $k }
+      $it = New-Object System.Windows.Forms.ToolStripMenuItem($rotulo)
+      $it.Checked = QuieroIcono $k
+      $it.ForeColor = $script:Tinta
+      $it.Tag = $k
+      $it.Add_Click({ AlternarIcono ([string]$this.Tag) })
+      $sub.DropDownItems.Add($it) | Out-Null
+    }
+    VestirMenu $sub.DropDown ([bool]$script:MenuOscuro)
+    $mn.Items.Add($sub) | Out-Null
+  }
+
   # El item que se apretó volvió a nacer con su texto normal, así que no hay
   # que deshacer el «Actualizando…»: se fue con el item viejo.
   foreach ($par in @(
@@ -1641,10 +1665,67 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
   }
 }
 
-# ¿Va este ícono en la bandeja? Lo decide -Iconos; vacío quiere decir todos.
-function QuieroIcono([string]$clave) {
-  if (-not $script:BandejaPedidos.Count) { return $true }
-  return ($script:BandejaPedidos -contains $clave.ToLower())
+# ── qué íconos quiere el usuario, y que lo pueda decidir él ─────────────
+# Se guarda la lista de los ESCONDIDOS y no la de los visibles, a propósito: así
+# una cuenta nueva aparece sola. Al revés —guardando los visibles— un perfil que
+# se agrega después nacería invisible, y una cuenta que no se ve es exactamente
+# igual a una cuenta que va bien. El silencio otra vez, y encima permanente.
+$script:RutaIconos = Join-Path $env:LOCALAPPDATA 'quartermaster\iconos.json'
+$script:Ocultos = @{}
+$script:ClavesConocidas = @()
+try {
+  if (Test-Path $script:RutaIconos) {
+    $m = Get-Content $script:RutaIconos -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($m.PSObject.Properties['ocultos']) {
+      foreach ($k in @($m.ocultos)) { $script:Ocultos[[string]$k] = $true }
+    }
+  }
+} catch { $script:Ocultos = @{} }   # sin memoria se ven todos, que es lo seguro
+
+function GuardarOcultos {
+  try {
+    $dir = Split-Path $script:RutaIconos -Parent
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    @{ ocultos = @($script:Ocultos.Keys | Sort-Object) } | ConvertTo-Json -Compress |
+      Set-Content $script:RutaIconos -Encoding UTF8
+  } catch { }
+}
+
+function QuieroIcono([string]$clave) { return -not $script:Ocultos.ContainsKey($clave) }
+
+function AlternarIcono([string]$clave) {
+  if ($script:Ocultos.ContainsKey($clave)) {
+    $script:Ocultos.Remove($clave)
+  } else {
+    # El último no se puede esconder. Una bandeja vacía no es una preferencia,
+    # es la herramienta apagada sin decirlo — y desde una bandeja vacía no hay
+    # menú desde donde volver a prenderla.
+    $quedan = @(@($script:ClavesConocidas) | Where-Object { QuieroIcono $_ })
+    if ($quedan.Count -le 1) { return }
+    $script:Ocultos[$clave] = $true
+  }
+  GuardarOcultos
+
+  # Que el panel NO se cierre al tildar. Es el mismo mecanismo que «Actualizar
+  # ahora»: WinForms cierra el menú al clickear cualquier item, y acá eso es
+  # peor que en ningún lado — elegir qué íconos querés es justamente la tarea en
+  # la que uno toca varios seguidos, y cerrar el panel después de cada tilde
+  # obliga a volver a abrirlo una vez por cuenta.
+  #
+  # La bandera se prende acá y no en un handler del submenú: los eventos de un
+  # ToolStripDropDown no suben al ContextMenuStrip, así que el padre nunca se
+  # entera de qué nieto se clickeó. Quien sabe es esta función. El que cancela
+  # sigue siendo AlCerrar, en el padre.
+  $script:MantenerAbierto = $true
+
+  # Refrescar destruye los items del menú, incluido ÉSTE, que es desde donde
+  # estamos corriendo. Se difiere un turno del bucle de mensajes — y para
+  # entonces el cierre ya se canceló, así que rehace un menú VISIBLE, que es el
+  # camino que ArmarMenu ya sabe manejar (SuspendLayout / PerformLayout).
+  $t = New-Object System.Windows.Forms.Timer
+  $t.Interval = 1
+  $t.Add_Tick({ $this.Stop(); $this.Dispose(); Refrescar })
+  $t.Start()
 }
 
 # El modelo del panel: qué tarjetas van en cada ícono.
@@ -1824,15 +1905,32 @@ function Refrescar {
   $paneles = $m.paneles
   $frases = $m.frases
 
-  # El filtro de -Iconos. Se aplica a la TIRA y no a los paneles: el panel
-  # general sigue mostrando todas las cuentas aunque no tengan ícono propio.
+  # Todas las claves que existen en esta lectura, escondidas o no: es lo que
+  # lista el submenú, y sin esto no habría cómo volver a traer una escondida.
+  $script:ClavesConocidas = @($m.tira | ForEach-Object { $_.clave })
+
+  # -Iconos siembra la elección UNA vez y después manda el menú. Así el flag
+  # sigue sirviendo para arrancar con una combinación, pero no pelea contra lo
+  # que el usuario elija después: sería un ajuste que se deshace solo en cada
+  # arranque, que es peor que no tenerlo.
+  if (@($script:BandejaPedidos).Count -and -not $script:PedidosAplicados) {
+    $script:PedidosAplicados = $true
+    $script:Ocultos = @{}
+    foreach ($k in $script:ClavesConocidas) {
+      if ($script:BandejaPedidos -notcontains $k.ToLower()) { $script:Ocultos[$k] = $true }
+    }
+    GuardarOcultos
+  }
+
+  # El filtro. Se aplica a la TIRA y no a los paneles: el panel general sigue
+  # mostrando todas las cuentas aunque no tengan ícono propio.
   $tira = @($m.tira | Where-Object { QuieroIcono $_.clave })
   if (-not $tira.Count) {
     # Una bandeja vacía es el silencio otra vez, y acá sería un silencio que se
     # causó el usuario con un -Iconos que no coincide con nada. Queda el general
     # y se dice por qué.
     $tira = @(@{ clave = 'general'; icono = (IconoGeneral 0 'atento')
-                 texto = 'quartermaster · -Iconos no coincidió con ninguna cuenta' })
+                 texto = 'quartermaster · no quedó ningún ícono elegido' })
     if (-not $paneles.Contains('general')) { $paneles['general'] = @() }
   }
 
@@ -1944,6 +2042,7 @@ if (-not $Captura) {
 # Qué íconos pidió el usuario. Vacío = todos, que es el caso normal.
 $script:BandejaPedidos = @(
   $Iconos -split ',' | ForEach-Object { $_.Trim().ToLower() } | Where-Object { $_ })
+$script:PedidosAplicados = $false
 
 # Los handlers que comparten todos los menús. Se arman UNA vez y MenuDe los
 # engancha en cada menú nuevo.
@@ -1956,8 +2055,13 @@ $script:BandejaPedidos = @(
 # Hacen falta los dos handlers y no uno: ItemClicked corre antes que Closing y
 # es el único que sabe QUÉ se clickeó; Closing es el único que puede cancelar.
 $script:MantenerAbierto = $false
+# Sólo PRENDE la bandera, nunca la apaga: apagarla acá era un peligro de orden.
+# Un tilde del submenú la prende desde AlternarIcono, y si después llegara este
+# handler —por el item padre, o por la cascada de cierres— con un `=` la
+# apagaría justo antes de que AlCerrar la mire, y el panel se cerraría igual.
+# La apaga AlCerrar, que es el único que sabe que el cierre ya se resolvió.
 $script:AlClickear = {
-  $script:MantenerAbierto = ($_.ClickedItem.Text -eq $ETIQUETA_ACTUALIZAR)
+  if ($_.ClickedItem.Text -eq $ETIQUETA_ACTUALIZAR) { $script:MantenerAbierto = $true }
 }
 $script:AlCerrar = {
   if ($script:MantenerAbierto -and
