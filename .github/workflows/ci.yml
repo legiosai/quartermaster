@@ -39,6 +39,8 @@ jobs:
             gir1.2-gtk-3.0 gir1.2-ayatanaappindicator3-0.1 \
             fonts-cantarell
       - run: ./scripts/gate-dibujo.sh
+        env:
+          QM_GATE_EXIGE_PWSH: '1'   # el runner de Ubuntu lo trae; saltearlo acá sería un adorno
       # El runner de Ubuntu trae Swift Y PowerShell, así que las cuatro
       # implementaciones se comprueban acá. Se llegó a agregar un job de macOS
       # para Swift antes de mirar qué había en el de Ubuntu: sobraba, y encima
@@ -46,3 +48,18 @@ jobs:
       - run: python3 scripts/gate-duraciones.py
         env:
           QM_GATE_EXIGE: swift,pwsh
+
+  # La bandeja DIBUJA con System.Drawing y WinForms, que son de Windows: parsear
+  # se puede en Ubuntu (lo hace gate-dibujo.sh) pero comprobar que salga un panel
+  # de 340 px con píxeles adentro, en los dos temas, sin nada fuera del margen y
+  # con un panel distinto por ícono, necesita un Windows de verdad.
+  #
+  # Va con `powershell` y no con `pwsh` a propósito: es Windows PowerShell 5.1,
+  # que es lo que hay en una máquina sin instalar nada y por lo tanto lo que
+  # corre el usuario. Un gate contra pwsh 7 comprobaría un intérprete que la
+  # bandeja no usa.
+  bandeja:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-bandeja.ps1

@@ -40,6 +40,29 @@ python3 -c "import py_compile,sys; py_compile.compile(sys.argv[1], cfile=sys.arg
 cp -f "extension/quartermaster@legios/extension.js" "$salida/ext.mjs"
 node --check "$salida/ext.mjs" || fallar "extension.js no parsea"
 
+# Y la bandeja de Windows, que es la superficie que más tiempo estuvo sin que la
+# mirara nadie: de sus ~1500 líneas el CI comprobaba UNA función. Acá sólo se
+# parsea —dibujar necesita System.Drawing, que es de Windows, y eso lo hace
+# scripts/gate-bandeja.ps1 en el runner de Windows—, pero parsear ya es lo más
+# barato de romper y lo más caro de descubrir: un error de sintaxis se ve recién
+# cuando alguien inicia sesión.
+if command -v pwsh >/dev/null 2>&1; then
+  pwsh -NoProfile -Command '
+    $e = $null
+    [System.Management.Automation.Language.Parser]::ParseFile(
+      (Resolve-Path bin/qm-tray.ps1), [ref]$null, [ref]$e) | Out-Null
+    if ($e -and $e.Count) {
+      $e | Select-Object -First 5 | ForEach-Object {
+        [Console]::Error.WriteLine("  línea $($_.Extent.StartLineNumber): $($_.Message)") }
+      exit 1
+    }' || fallar "bin/qm-tray.ps1 no parsea"
+  echo "bandeja: bin/qm-tray.ps1 parsea"
+elif [ -n "$QM_GATE_EXIGE_PWSH" ]; then
+  fallar "falta pwsh y este job lo exige"
+else
+  echo "  · salteada: la bandeja de Windows (no hay pwsh en esta máquina)"
+fi
+
 python3 bin/qm-indicator --desde test/fixtures/panel.json --oscuro \
   --captura "$salida/panel.png" >/dev/null || fallar "no dibujó el panel"
 python3 bin/qm-indicator --desde test/fixtures/panel.json --oscuro \

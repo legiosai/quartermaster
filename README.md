@@ -1261,11 +1261,52 @@ lanza `powershell.exe`—; el proceso vive del lado de Windows, así que si cerr
 la terminal el tray sigue. Para sacarlo: «Salir» en su propio menú, o
 `make tray-quitar`, que además borra el atajo del arranque automático.
 
+**Y por fin tiene un gate.** Era la superficie que más tiempo estuvo sin que la
+mirara nadie: de las ~1500 líneas de `bin/qm-tray.ps1`, el CI comprobaba **una
+función** —la escalera de duración, que `gate-duraciones.py` extrae y corre
+suelta— y todo lo demás pasaba en verde con un error de sintaxis adentro. Es
+exactamente lo que le pasó a `bin/qm-indicator` antes de que existiera
+`gate-dibujo.sh`, y está contado ahí mismo: se borró medio archivo y el CI no se
+enteró, porque el CI ni lo abría.
+
+Hicieron falta dos cosas. Primero, un **modo captura** (`-Desde` un JSON fijo,
+`-Captura` un PNG, `-Panel` cuál, `-Oscuro`/`-Claro` qué tema) que dibuja sin
+bandeja ni bucle de mensajes, usando las mismas funciones que el menú — si
+dibujara por su cuenta, el gate estaría comprobando un dibujo que nadie ve. Es
+el equivalente de `--desde`/`--captura` en el indicador de GNOME. Y segundo,
+`scripts/gate-bandeja.ps1` (`make gate-bandeja`, y un job de `windows-latest` en
+CI), que comprueba cuatro cosas y **las cuatro se probaron en rojo**:
+
+1. que **parsee** — también desde Ubuntu, en `gate-dibujo.sh`, porque un error
+   de sintaxis se descubre recién cuando alguien inicia sesión;
+2. que **dibuje**: 340 px de ancho y píxeles adentro, en los dos temas;
+3. que **nada se salga de la tarjeta**;
+4. que el panel de una cuenta **no sea** el de todas.
+
+El 3 encontró un bug de verdad la primera vez que corrió. GDI+ no recorta nada
+cuando se dibuja en un punto —igual que Cairo, y por eso el panel de GNOME tiene
+su `margen_limpio`— así que con el fixture de nombres largos el nombre del perfil
+se dibujaba **por encima del borde** del panel y el nombre de la ventana se
+metía **por debajo del porcentaje**, dejando los dos ilegibles. Ahora todo lo que
+puede ser largo se recorta con puntos suspensivos, y el porcentaje se dibuja
+primero para que el nombre se recorte contra el hueco que queda. Eso no se ve
+leyendo el código; se ve mirando una captura, que es para lo que existe el modo.
+
 **Lo que está verificado y lo que no**, para que esta sección no mienta:
 
 - Verificado en Windows 11 con Windows PowerShell 5.1: arranca, dibuja el menú
   contra los perfiles reales de esta máquina, sobrevive los ticks, sale por
   `make tray-quitar`, y el atajo de arranque lanza un tray que anda.
+- **Los seis íconos y sus tooltips se verificaron por UI Automation** contra el
+  fixture de cinco perfiles, y el filtro `-Iconos` también. Lo que **no** se
+  pudo probar acá es el click: un `mouse_event` sintético no llega al ícono en
+  este build de Windows 11 —se comprobó corriendo el mismo arnés contra la
+  versión commiteada, que falla igual— así que el wiring se verificó por el
+  otro lado: `-Panel <cuenta>` dibuja lo mismo que arma el menú de esa cuenta, y
+  el gate comprueba que ese panel sea más chico que el general.
+- **El candado se probó**: la segunda instancia sale sola con su mensaje.
+- **El aviso de «se liberó» y el de todas-las-barras están probados en la
+  lógica, no en pantalla**, igual que los otros avisos de esta sección.
 - **El panel y los íconos se miraron, no se supusieron.** Los dos se
   renderizaron a PNG con los datos reales; los íconos, además, a los 16×16
   reales y agrandados con vecino más cercano sobre fondo claro y oscuro, que es

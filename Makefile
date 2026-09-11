@@ -160,6 +160,10 @@ gate-npm-rojo:  ## el rojo de gate-npm: el paquete como estaba, con src/ y sin d
 	  echo "✓ gate-npm falla en rojo con el paquete sin dist/ (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING)"; \
 	fi
 
+.PHONY: gate-bandeja
+gate-bandeja:  ## el gate de la bandeja de Windows: parsea, dibuja y mide (necesita Windows)
+	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/gate-bandeja.ps1 2>/dev/null || echo scripts/gate-bandeja.ps1)" | tr -d '\r'
+
 .PHONY: test
 test:  ## los tests
 	@npm run --silent test
