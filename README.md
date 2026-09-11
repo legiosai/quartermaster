@@ -1063,7 +1063,44 @@ que hacer click en cualquiera abre el panel completo. El anillo quedó para el
 
 **El costo de la tira, dicho de frente:** Windows decide por ícono si va a la
 barra o al desplegable de escondidos, y a los nuevos los manda al desplegable.
-Se arrastra una vez y, por lo del UID, la elección persiste.
+Se arrastra una vez y, por lo del UID, la elección persiste. **Y ahora avisa
+cuando pasa**, que es lo que faltaba: un ícono que Windows escondió y un ícono
+que no arrancó se ven exactamente igual —nada— y eso es la misma clase de
+silencio que motivó el repo. No se supone: cada item vive en
+`HKCU\Control Panel\NotifyIconSettings` con un `IsPromoted` que vale 1 si está
+en la barra, y el UID que lo identifica sale por reflexión del campo privado
+`id` del `NotifyIcon`. Si ninguno de los nuestros está promovido, va un globo.
+Es el equivalente de `revisarSiSeVe()` en la barra de macOS, que cubre el mismo
+problema por el otro lado (la barra llena y la muesca).
+
+**Un ícono general, y uno por cuenta, y cada uno abre SU panel.** La tira
+empezó siendo un ícono por cuenta y nada más, y con cuatro cuentas eso deja
+cuatro cuadraditos que abren los cuatro la misma pantalla: el ícono que
+clickeaste no quería decir nada. Ahora hay un **ícono general** —la marca de
+quartermaster, que ya es un manómetro: el arco se llena hasta el peor
+porcentaje de la máquina y se pinta con el color de ese estado, y la cola en
+diagonal es lo que lo distingue de un anillo cualquiera— cuyo panel es el de
+siempre, con todas las cuentas y la cabecera de lo primero que te frena. Y el
+de cada cuenta abre **esa cuenta sola**.
+
+Se elige con `-Iconos`, separando por coma:
+
+```
+(vacío)        el general MÁS uno por cuenta — lo que se ve por defecto
+general        sólo el general, con todas las cuentas adentro
+main,codex     sólo esas dos cuentas, sin general
+general,codex  el general y codex
+```
+
+El filtro se aplica a la TIRA y no a los paneles: el panel general sigue
+mostrando todas las cuentas aunque no tengan ícono propio. Y si `-Iconos` no
+coincide con nada queda el general igual, diciéndolo — una bandeja vacía sería
+otra vez el silencio, y encima uno que se causó el usuario con un typo.
+
+Verificado por UI Automation contra el fixture de cinco perfiles: la bandeja
+queda con `quartermaster · 3 cuenta(s) · lo peor 100%` más `main`, `teams`,
+`codex`, `bedrock` y `personal`, cada uno con su tooltip; y con
+`-Iconos general,codex,teams` quedan exactamente tres.
 
 **Y tiene modo oscuro.** El panel era el único de los cuatro renderizadores que
 salía siempre blanco, y la causa es la de arriba: `SystemColors.Menu` no sigue al
@@ -1128,6 +1165,90 @@ proyección dice que tocás el techo antes del reinicio, y no repite —la clave
 aviso incluye el minuto de reinicio, así que una ventana avisa una vez y vuelve
 a avisar recién en la siguiente—. La memoria de avisos vive en
 `%LOCALAPPDATA%\quartermaster\avisados.json`.
+
+**Y ahora avisa también cuando te liberás**, que era el único aviso que la
+bandeja no tenía: macOS lo hacía con `revisarLiberadas()` y GNOME con
+`revisar_liberada()`, y Windows no. Es el aviso que sirve para hacer algo
+distinto ahora mismo —todos los demás avisan cuando SUBÍS— y es justo el momento
+en que dejaste de mirar la barra, porque no había nada que mirar. Necesita
+memoria de la vuelta anterior, porque un 3 % puede ser «recién empezás» o
+«acabás de salir de estar contra el techo» y la diferencia es todo: se guarda el
+minuto de reinicio junto al porcentaje en
+`%LOCALAPPDATA%\quartermaster\previos.json`, y cuando el minuto cambia habiendo
+estado arriba del 80 %, avisa. No pasa por `avisados.json` a propósito: la
+condición ya es un flanco, y anotarla ahí la silenciaría para el reinicio
+siguiente, que es el que sí hay que avisar.
+
+**Y avisa de TODAS las barras, no sólo de la que frena.** Esto era un bug que
+sólo se ve comparando los tres renderizadores: la bandeja le pasaba a
+`RevisarAvisos` una sola ventana —`frena`— y `peor()` en `src/core/tipos.ts`
+devuelve la más alta, así que con la sesión al 96 % y una semanal al 85 % la
+bandeja avisaba de la sesión y de la semanal no decía nada. macOS y GNOME
+siempre recorrieron la lista. Es justo lo contrario del principio de SOUL.md que
+dice leer todas las barras.
+
+**Y un candado, que faltaba.** Arrancarla dos veces —el arranque automático más
+un `make tray` a mano, que es lo más fácil del mundo— dejaba DOS tiras enteras:
+un ícono por cuenta repetido, los globos por duplicado, y los dos procesos
+pisándose `avisados.json` y `previos.json`. En GNOME eso lo resuelve un nombre
+en el bus de sesión (`soy_el_unico()`); acá es un mutex nombrado `Global\`, que
+tiene la misma propiedad que lo hace servir: si el proceso muere de cualquier
+forma, Windows lo suelta solo. Un archivo con el PID hay que limpiarlo, y nunca
+se limpia en el caso que importa. La segunda instancia dice
+`ya hay una bandeja de quartermaster andando en esta máquina` y se va.
+
+**Un mapa de bits, un dueño.** Esto costó dos bugs del mismo tipo, los dos con
+el mismo síntoma —«Parameter is not valid», que es lo que tira GDI+ al dibujar
+un `Bitmap` ya liberado— y ninguno de los dos se ve leyendo la función donde
+estaba el error. El primero: al pasar a varios menús, los mapas de bits del tick
+anterior se liberaban al empezar `Refrescar`, cuando los `PictureBox` de los
+menús todavía los tenían. El segundo, más fino: `ArmarMenu` dibujaba el pie él
+mismo, o sea **una vez por menú**, y cada llamada liberaba el que el menú
+anterior acababa de recibir — con cuatro íconos quedaban tres pies apuntando a
+una imagen muerta, y el renglón salía en blanco. Medido con una sonda que
+pregunta por cada imagen de cada menú: **3 muertas por vuelta contra 0** con el
+arreglo. La regla que quedó es una sola: el que crea un mapa de bits es el que
+lo libera, y lo libera al final, cuando ningún menú lo mira. `gate-bandeja.ps1`
+comprueba que `ArmarMenu` no dibuje el pie.
+
+**Y no muere con un cartel.** Por defecto WinForms le muestra al usuario
+«Unhandled exception has occurred in your application» y, si aprieta Quit o si
+el cartel aparece con la pantalla bloqueada, la bandeja desaparece — y un ícono
+que no está se lee exactamente igual que una cuenta que va bien. Ahora una
+excepción en el hilo de la interfaz se atrapa, se sigue andando con lo anterior,
+y se DICE: una línea a stderr siempre y un globo la primera vez. Además todo
+`Bitmap` se crea con `Lienzo`, que acota las dimensiones a 1 px de piso: un
+`Bitmap` con un lado en 0 tira literalmente «Parameter is not valid», que era el
+cartel, y un renglón vacío es mejor que una aplicación cerrada. Que una medida dé
+0 sigue siendo un bug, y lo agarra el gate, que mide los píxeles que salen.
+
+**Y se reinicia sola cuando el archivo cambia debajo.** `git pull` reemplaza el
+`.ps1` y se va; el proceso que ya está corriendo tiene el guión leído y sigue
+con el código viejo hasta que alguien lo reinicie a mano, que no lo hace nadie,
+porque la bandeja es justamente lo que se deja andando y se olvida. Es
+`vigilar_version()` de GNOME, con dos diferencias: va por **sondeo** y no por
+`FileSystemWatcher` —el guión puede estar del otro lado del 9P de WSL, donde
+`FileSystemWatcher` no es confiable, y el tick de 30 s ya está pago— y **parsea
+la versión nueva antes de saltar**, porque si está rota reiniciar te deja sin
+bandeja y quedarse con la vieja te deja con una que anda. De yapa, eso resuelve
+gratis la espera a que el gestor de paquetes termine de escribir: un archivo a
+medio escribir no parsea.
+
+Tiene un costo, y conviene saberlo antes de que muerda: **es hostil para quien
+está editando el archivo.** Cada guardado relanza la bandeja, y la relanza con el
+trabajo a medio hacer — el parseo previo atrapa un archivo roto, no atrapa uno
+que parsea y todavía no está terminado, que es la forma normal de un archivo
+mientras se lo escribe. Para eso está `-SinAutoReinicio`.
+
+**Y el panel dice de cuándo es el número y cuándo deja de serlo.** Cada cuenta
+lleva `lecturas: cada ~5m · última hace 2m` —la cadencia MEDIDA, mediana de los
+huecos del historial, no la que el programa se propone— y el panel entero
+termina en `próxima lectura en 4m 12s`, que **baja sola** mientras está abierto.
+Las dos cosas venían del panel de GNOME. La edad del cache se mudó ahí desde el
+pie de la barra que frena: sola decía la mitad, porque «hace 40 m» es
+tranquilizador si se lee cada hora y alarmante si se lee cada cinco minutos.
+El renglón que baja se redibuja solo a él, una vez por segundo y sólo con el
+panel abierto: el resto no cambió.
 
 Vale la misma regla que las otras dos: **sólo dibuja**. `bin/qm-tray.ps1` le
 pide el JSON a `qm` por stdout y no sabe qué es una credencial ni un endpoint.

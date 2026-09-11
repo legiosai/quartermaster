@@ -13,7 +13,8 @@
     "cli",
     "statusline",
     "gnome",
-    "macos"
+    "macos",
+    "windows"
   ],
   "license": "MIT",
   "author": "Legios",
