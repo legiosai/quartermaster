@@ -174,7 +174,9 @@ footer a{color:var(--medio)}
   </p>
 
   <h3>Linux — apt</h3>
-  <pre><span class="p">$</span> curl -fsSL https://legiosai.github.io/quartermaster/apt/legios.asc \
+  <pre><span class="c"># una vez: la clave y el repo</span>
+<span class="p">$</span> sudo install -d -m 0755 /etc/apt/keyrings
+<span class="p">$</span> curl -fsSL https://legiosai.github.io/quartermaster/apt/legios.gpg \
     | sudo tee /etc/apt/keyrings/legios.asc &gt;/dev/null
 <span class="p">$</span> echo "deb [signed-by=/etc/apt/keyrings/legios.asc] \
     https://legiosai.github.io/quartermaster/apt stable main" \
