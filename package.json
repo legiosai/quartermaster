@@ -1,6 +1,6 @@
 {
   "name": "@legios/quartermaster",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Cuánta cuota te queda en TODOS los perfiles de Claude Code de la máquina, más Codex y los proveedores de opencode. Sin red y sin credenciales: el número sale del cache que Claude Code deja en disco.",
   "keywords": [
     "claude-code",
