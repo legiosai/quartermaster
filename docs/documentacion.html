@@ -17,7 +17,7 @@
   --fondo:#0e0d0c; --sup:#171512; --sup2:#1f1c18;
   --borde:rgba(240,236,229,.09); --borde2:rgba(240,236,229,.16);
   --texto:#f0ece5; --medio:rgba(240,236,229,.66); --tenue:rgba(240,236,229,.44);
-  --verde:#2fbf71; --ambar:#f2b134; --rojo:#e2483d; --legios:#3FB7F0;
+  --verde:#2fbf71; --ambar:#f2b134; --rojo:#e2483d;
   --radio:14px; --ancho:1120px;
   --serif:"Fraunces",Georgia,"Times New Roman",serif;
   --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
@@ -110,7 +110,10 @@ td{color:var(--medio)}
 
 footer{border-top:1px solid var(--borde);padding:34px 0 60px;color:var(--tenue);font-size:14px}
 footer a{color:var(--medio)}
-.pie-fila{display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.pie-fila{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.pie-marca{display:block;opacity:.82;transition:opacity .2s}
+.pie-marca:hover{opacity:1}
+.pie-marca img{display:block;width:132px;height:auto}
 </style>
 </head>
 <body>
@@ -471,7 +474,7 @@ personal 23/75%<span class="w">!</span> · teams 9/42% · codex 49/59%</pre>
 <footer>
   <div class="env pie-fila">
     <span>MIT · <a href="https://github.com/legiosai/quartermaster">Código</a> · <a href="https://github.com/legiosai/quartermaster/releases">Releases</a></span>
-    <span>Un instrumento de <a href="https://github.com/legiosai">Legios</a></span>
+    <a class="pie-marca" href="https://github.com/legiosai" aria-label="Legios"><img src="legios.svg" alt="Legios" width="132" height="43"></a>
   </div>
 </footer>
 

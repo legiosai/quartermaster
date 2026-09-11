@@ -12,6 +12,13 @@ Cada perfil de Claude Code y, si están instalados, Codex y los proveedores de o
 [Releases](https://github.com/legiosai/quartermaster/releases) ·
 MIT
 
+<sub>Un instrumento de</sub><br>
+<a href="https://github.com/legiosai"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/legios.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/legios-claro.svg">
+  <img alt="Legios" src="docs/legios-claro.svg" width="132" height="43">
+</picture></a>
+
 <img src="docs/img/barra.png" alt="La barra de arriba de GNOME con un medidor por cuenta" width="480">
 
 </div>
@@ -1219,4 +1226,19 @@ operativo aparece fuera de `src/adapters/`, es un bug de diseño.
 
 ## Licencia
 
-MIT.
+MIT. Es la excepción a propósito: el núcleo de Legios —cartographer, healer,
+pipeline— es propietario, y se publica lo que sirve suelto. Esto sirve suelto.
+
+---
+
+<div align="center">
+
+<a href="https://github.com/legiosai"><picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/legios.svg">
+  <source media="(prefers-color-scheme: light)" srcset="docs/legios-claro.svg">
+  <img alt="Legios" src="docs/legios-claro.svg" width="150" height="49">
+</picture></a>
+
+<sub>Construido por Valentín Torassa y Sol Soletti.</sub>
+
+</div>
