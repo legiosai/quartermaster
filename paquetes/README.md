@@ -123,7 +123,8 @@ sin Node va a mostrar un prompt de administrador que no es nuestro.
 ## scoop
 
 El mismo generador deja `dist/paquetes/scoop/quartermaster.json`. Va a un bucket
-—`legiosai/scoop-bucket`, que todavía no existe— y se instala así:
+—[`legiosai/scoop-bucket`](https://github.com/legiosai/scoop-bucket), que ya
+existe y lo llena el job `scoop` de la release— y se instala así:
 
 ```powershell
 scoop bucket add legios https://github.com/legiosai/scoop-bucket
