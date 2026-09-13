@@ -341,10 +341,10 @@ la ruta**:
 
 ## Lo que sigue sin medirse
 
-- **La credencial de Windows, que es lo de H4 y sigue abierto.** En esa VM no
-  hay un Claude Code nativo logueado, así que si la credencial va a DPAPI o a un
-  archivo sigue sin poder afirmarse. `credenciales.ts` dice exactamente eso
-  —«Windows sin verificar»— y se ve en la corrida de abajo.
+- ~~**La credencial de Windows, que es lo de H4.**~~ **Cerrada el 2026-09-13**,
+  y no con la VM: leyendo el binario que Claude Code instala, como el endpoint
+  de H2. No usa DPAPI — es el mismo `.credentials.json`. Está en
+  [`h4-windows.md`](h4-windows.md), con lo que la desmentiría.
 - **`winget validate` y el PR a winget-pkgs.** Los manifests tienen la forma del
   esquema 1.6.0 y nadie los pasó por la herramienta.
 

@@ -3,7 +3,7 @@
 //
 // macOS  → llavero, servicio determinista (ver core/perfiles.ts).
 // Linux  → <directorio>/.credentials.json, 0600.
-// Windows→ mismo archivo. NO VERIFICADO: puede usar DPAPI. Ver README.
+// Windows→ el mismo archivo. Ya no es una suposición: ver numeros/h4-windows.md.
 
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
@@ -55,19 +55,26 @@ export function estadoCredencial(perfil: Perfil): EstadoCredencial {
   try {
     const blob = leerBlob(perfil);
     if (!blob || !blob.accessToken) {
-      // En Windows «no está el archivo» NO significa «no estás logueado»: no
-      // sabemos si Claude Code guarda ahí la credencial o usa DPAPI / el
-      // Credential Manager. Decir «sin credencial» sería inventar un
-      // diagnóstico, y encima uno que manda al usuario a loguearse de nuevo.
-      if (esWindows) {
-        return {
-          presente: false,
-          ubicacion,
-          expiraEn: null,
-          vencida: false,
-          error: 'Windows sin verificar: no hay .credentials.json y puede que use DPAPI',
-        };
-      }
+      // Windows se trata como los demás, y eso ES un cambio.
+      //
+      // Acá había un caso especial que decía «Windows sin verificar: puede que
+      // use DPAPI», porque nadie había podido comprobar dónde guarda Claude
+      // Code la credencial en Windows nativo. La precaución era correcta
+      // mientras no se supiera: decir «sin credencial» a alguien que SÍ está
+      // logueado lo manda a loguearse de nuevo por nada.
+      //
+      // Ahora se sabe, leyendo el binario que Claude Code instala —el mismo
+      // método con el que salió el endpoint de H2—: el almacén de credenciales
+      // es `<directorio>/.credentials.json` sin ninguna rama por plataforma, y
+      // su clasificador de errores tiene un caso `win32` explícito, o sea que
+      // ese camino corre en Windows. DPAPI, CredRead, CredWrite y el
+      // Credential Manager no aparecen ni una vez en 206 MB sin strippear.
+      // Está medido en numeros/h4-windows.md.
+      //
+      // Así que en Windows «no está el archivo» significa lo mismo que en
+      // Linux: no hay sesión. Sostener la advertencia ahora sería lo contrario
+      // de lo que era antes — inventar una duda que ya no existe, y dejar al
+      // usuario más común de Windows sin el diagnóstico correcto.
       return { presente: false, ubicacion, expiraEn: null, vencida: false, error: null };
     }
     const expiraEn = typeof blob.expiresAt === 'number' ? new Date(blob.expiresAt) : null;

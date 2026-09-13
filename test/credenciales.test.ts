@@ -83,7 +83,7 @@ describe('credenciales · el estado que se muestra', () => {
     }
   });
 
-  test('sin archivo: ausente y sin error inventado (salvo en Windows, que no está verificado)', {
+  test('sin archivo: ausente, y sin error inventado en ninguna plataforma', {
     skip: esMac ? 'en macOS la credencial vive en el llavero' : false,
   }, () => {
     const { perfil, raiz } = perfilCon(null);
@@ -91,13 +91,10 @@ describe('credenciales · el estado que se muestra', () => {
       const e = estadoCredencial(perfil);
       assert.equal(e.presente, false);
       assert.equal(e.vencida, false);
-      if (process.platform === 'win32') {
-        // Decir «sin credencial» en Windows sería inventar un diagnóstico y
-        // mandar al usuario a loguearse de nuevo: puede estar en DPAPI.
-        assert.ok(e.error && e.error.includes('DPAPI'));
-      } else {
-        assert.equal(e.error, null);
-      }
+      // Windows incluido: el almacén es el mismo archivo en las tres
+      // plataformas (numeros/h4-windows.md), así que «no está» quiere decir
+      // «no hay sesión» y no hace falta ninguna advertencia especial.
+      assert.equal(e.error, null);
     } finally {
       rmSync(raiz, { recursive: true, force: true });
     }
