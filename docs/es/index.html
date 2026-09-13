@@ -6,6 +6,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>quartermaster · cuánta cuota te queda, en todas tus cuentas</title>
 <meta name="description" content="Cuánta cuota te queda en todos los perfiles de Claude Code de la máquina, más Codex y opencode. Sin red y sin credenciales: el número sale del cache que Claude Code deja en disco.">
+<!--
+  hreflang tiene que ser RECÍPROCO: si esta página apunta a la otra lengua pero
+  la otra no apunta de vuelta, Google descarta el par entero y las dos quedan
+  sin señal de idioma. Estaba sólo en la raíz, así que la página en castellano
+  —la que recibe el tráfico de cualquier post en castellano— no declaraba nada.
+  x-default manda a la raíz, que es la que está en inglés.
+-->
+<link rel="canonical" href="https://quartermaster.legios.com.ar/es/">
+<link rel="alternate" hreflang="en" href="https://quartermaster.legios.com.ar/">
+<link rel="alternate" hreflang="es" href="https://quartermaster.legios.com.ar/es/">
+<link rel="alternate" hreflang="x-default" href="https://quartermaster.legios.com.ar/">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="quartermaster">
 <meta property="og:description" content="Cuánta cuota te queda, en todas tus cuentas de agentes. Sin red y sin credenciales.">
