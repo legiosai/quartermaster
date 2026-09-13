@@ -30,7 +30,9 @@ todavía no esté configurado — pero tampoco se hace la que publicó todo.
 gh secret set NPM_TOKEN       # npm: un token granular con read-write SOLO en @legios/quartermaster
 gh secret set TOKEN_PAQUETES  # brew y scoop: fine-grained, resource owner legiosai,
                               # sólo homebrew-tap y scoop-bucket, Contents: read-write
-gh secret set TOKEN_WINGET    # winget: un PAT CLASSIC con public_repo (y nada más)
+gh secret set TOKEN_WINGET    # winget: un PAT CLASSIC con public_repo (y nada más).
+                              # Si vence, el job falla con «Token was invalid»
+                              # y no manda nada: pasó en la release de 0.1.6.
 gh secret set GPG_PRIVADA     # apt: gpg --export-secret-subkeys --armor <ID>, SIN FRASE
 gh secret set GPG_CLAVE_ID    # opcional: el ID de la clave, si no es el default
 gh secret set AUR_SSH         # AUR: una clave SSH dedicada, no la de uso general

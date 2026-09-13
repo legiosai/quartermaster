@@ -339,14 +339,61 @@ la ruta**:
 
 ---
 
+## La primera release de verdad (0.1.6, 2026-09-13)
+
+El tag `v0.1.6` disparó los trece jobs. Esto es lo que publicó **comprobado
+desde afuera**, que es distinto de lo que dijo el resumen del workflow:
+
+| canal | el workflow dijo | comprobado afuera |
+|---|---|---|
+| npm | success | `dist-tags.latest = 0.1.6`, con `attestations.provenance` (SLSA v1) |
+| release de GitHub | success | cinco assets: `.deb` (128 460 B), `setup.exe` (2 266 020 B), `win.zip` (182 405 B), el zip de la extensión (5381 B) y `SHA256SUMS.txt` |
+| brew | success | la fórmula del tap apunta al tarball de `v0.1.6` |
+| apt | success | `dists/stable/Release` en `Version: 0.1.6`, `InRelease` firmado |
+| scoop | publicado | `bucket/quartermaster.json` en `0.1.6` |
+| winget | **failure** | no hay PR |
+| AUR | success, pero NO publicó | correcto: el registro sigue cerrado |
+| gnome | a mano | la 10949 sigue en `Unreviewed` |
+
+Seis de ocho, y las dos que faltan por razones distintas y las dos conocidas.
+
+### Lo que rompió, que es lo que vale anotar
+
+**`$ErrorActionPreference = 'Stop'` no alcanza para un `.exe`.** `wingetcreate`
+contestó `Token was invalid`, salió 1 y no mandó nada — y la línea siguiente
+del script igual imprimió `::notice::winget: PR mandado para 0.1.6`. El job
+terminó en rojo igual, porque pwsh propaga el último exit code al salir del
+step, así que el resumen dijo `failure` y no mintió. El que mintió fue el
+notice, que es justo lo que alguien abre para saber si hay PR o no.
+
+En PowerShell, `$ErrorActionPreference` gobierna los cmdlets; un comando nativo
+que sale distinto de cero no levanta excepción. Arreglado con un
+`if ($LASTEXITCODE -ne 0)` explícito, que además dice qué mirar y que los
+manifests quedaron armados para mandarlos a mano.
+
+**Y el token viajaba por la línea de comandos.** La propia herramienta lo avisa
+en el log: *"Using the --token argument may result in the token being logged"*.
+Ahora va por `WINGET_CREATE_GITHUB_TOKEN`, que es lo que
+[winget-create documenta para CI](https://github.com/microsoft/winget-create).
+
+Las dos son la misma clase de bug que el resto del archivo: el canal no publicó
+y había una línea diciendo que sí.
+
+---
+
 ## Lo que sigue sin medirse
 
 - ~~**La credencial de Windows, que es lo de H4.**~~ **Cerrada el 2026-09-13**,
   y no con la VM: leyendo el binario que Claude Code instala, como el endpoint
   de H2. No usa DPAPI — es el mismo `.credentials.json`. Está en
   [`h4-windows.md`](h4-windows.md), con lo que la desmentiría.
-- **`winget validate` y el PR a winget-pkgs.** Los manifests tienen la forma del
-  esquema 1.6.0 y nadie los pasó por la herramienta.
+- ~~**`winget validate` y el PR a winget-pkgs.**~~ **Medio cerrada el
+  2026-09-13** por la release de 0.1.6: `winget validate` corrió sobre los
+  cuatro manifests generados y dijo `Manifest validation succeeded` (con un
+  aviso de que no puede validar la dependencia `OpenJS.NodeJS.LTS`, que es
+  esperable: valida forma, no catálogo). El PR sigue sin mandarse porque el
+  token falló, así que lo que nadie vio todavía es la reacción del CI de
+  `microsoft/winget-pkgs` del otro lado.
 
 La diferencia entre esta sección y el resto del archivo es la de siempre:
 arriba están los números, acá están las preguntas, y ninguna de las dos se

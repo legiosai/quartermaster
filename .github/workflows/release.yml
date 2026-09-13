@@ -414,7 +414,11 @@ jobs:
       - name: armar los manifests y mandarlos
         shell: pwsh
         env:
-          TOKEN: ${{ secrets.TOKEN_WINGET }}
+          # wingetcreate lo lee del entorno. Con `--token` funciona igual, pero
+          # la propia herramienta avisa: "Using the --token argument may result
+          # in the token being logged". Un token en un log de CI es un token
+          # quemado.
+          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.TOKEN_WINGET }}
           V: ${{ needs.version.outputs.version }}
         run: |
           $ErrorActionPreference = 'Stop'
@@ -439,7 +443,20 @@ jobs:
           } else {
             Write-Host "sin winget en el runner: lo valida igual el CI de winget-pkgs"
           }
-          ./wingetcreate.exe submit --token $env:TOKEN $dir
+          # $ErrorActionPreference NO alcanza para un .exe: en PowerShell un
+          # comando nativo que sale != 0 no levanta excepción. La primera
+          # release lo demostró — wingetcreate dijo "Token was invalid", no
+          # mandó nada, y la línea de abajo igual imprimió "PR mandado". El
+          # job terminó en rojo (pwsh propaga el ultimo exit code al salir),
+          # así que el resumen no mintió; el que mintió fue el notice, que es
+          # justo lo que alguien lee para saber si hay PR o no.
+          ./wingetcreate.exe submit $dir
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "::error::winget: wingetcreate salió $LASTEXITCODE. NO hay PR."
+            Write-Host "::error::Si dice 'Token was invalid': TOKEN_WINGET venció o no es un classic con public_repo."
+            Write-Host "::error::Los manifests quedaron armados en $dir y se pueden mandar a mano."
+            exit $LASTEXITCODE
+          }
           Write-Host "::notice::winget: PR mandado para $env:V"
 
   # ── AUR ───────────────────────────────────────────────────────────────
