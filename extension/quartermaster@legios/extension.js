@@ -54,11 +54,17 @@ class Boton extends PanelMenu.Button {
 
         this._vigia = Gio.File.new_for_path(ESTADO).monitor_file(
             Gio.FileMonitorFlags.NONE, null);
-        this._vigia.connect('changed', () => this._leer());
+        // El id se guarda para desconectarlo en destroy(). Cancelar el monitor
+        // ya deja de emitir, así que esto parece de más — pero la guía de
+        // revisión de extensions.gnome.org pide desconectar TODA señal que la
+        // extensión conecte, sin excepciones por «igual no dispara». Es la
+        // causa de rechazo más común del sitio, y el analizador shexli la marca
+        // (EGO-L-003).
+        this._idVigia = this._vigia.connect('changed', () => this._leer());
 
         // Al abrir se le pide a qm que redibuje, así el panel que se ve es de
         // este momento y no del último refresco.
-        this.menu.connect('open-state-changed', (_m, abierto) => {
+        this._idMenu = this.menu.connect('open-state-changed', (_m, abierto) => {
             if (abierto)
                 this._pedir('actualizar');
         });
@@ -120,15 +126,32 @@ class Boton extends PanelMenu.Button {
     }
 
     _leer() {
-        let datos;
-        try {
-            const [ok, bytes] = GLib.file_get_contents(ESTADO);
-            if (!ok)
-                return;
-            datos = JSON.parse(new TextDecoder().decode(bytes));
-        } catch (e) {
-            return;  // sin estado no hay nada que mostrar todavía
-        }
+        // ASÍNCRONO, y no por elegancia: esto corre ADENTRO del proceso de
+        // GNOME Shell, que es el compositor. Una lectura sincrónica que se
+        // demore —un disco ocupado, un cache en un filesystem lento— congela el
+        // escritorio entero, no sólo este item. La guía de revisión lo pide y
+        // el analizador shexli lo marca (EGO-X-004).
+        //
+        // El archivo es chico y local, así que en la práctica casi nunca se
+        // demora. «Casi nunca» es exactamente el tipo de suposición que este
+        // repo no acepta cuando el costo de equivocarse lo paga la pantalla de
+        // otro.
+        Gio.File.new_for_path(ESTADO).load_contents_async(null, (archivo, res) => {
+            let datos;
+            try {
+                const [ok, bytes] = archivo.load_contents_finish(res);
+                if (!ok)
+                    return;
+                datos = JSON.parse(new TextDecoder().decode(bytes));
+            } catch (e) {
+                return;  // sin estado no hay nada que mostrar todavía
+            }
+            this._pintar(datos);
+        });
+    }
+
+    /** Lo que antes hacía la segunda mitad de _leer(), ya con los datos. */
+    _pintar(datos) {
         this._estado = datos;
 
         if (datos.icono && datos.ancho && datos.alto) {
@@ -176,6 +199,17 @@ class Boton extends PanelMenu.Button {
     }
 
     destroy() {
+        // Las dos señales primero, el monitor después: desconectar algo que ya
+        // no existe es un error, y cancelar un monitor cuyo handler sigue
+        // conectado deja el handler colgado del objeto.
+        if (this._idMenu) {
+            this.menu.disconnect(this._idMenu);
+            this._idMenu = null;
+        }
+        if (this._idVigia && this._vigia) {
+            this._vigia.disconnect(this._idVigia);
+            this._idVigia = null;
+        }
         this._vigia?.cancel();
         this._vigia = null;
         super.destroy();
