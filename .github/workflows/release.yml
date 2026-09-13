@@ -71,6 +71,7 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           TOKEN_PAQUETES: ${{ secrets.TOKEN_PAQUETES }}
+          TOKEN_WINGET: ${{ secrets.TOKEN_WINGET }}
           GPG_PRIVADA: ${{ secrets.GPG_PRIVADA }}
           AUR_SSH: ${{ secrets.AUR_SSH }}
         run: |
@@ -79,7 +80,7 @@ jobs:
           di npm    "$([ -n "$NPM_TOKEN" ] && echo si || echo no)"
           di brew   "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
           di scoop  "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
-          di winget "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
+          di winget "$([ -n "$TOKEN_WINGET" ] && echo si || echo no)"
           di apt    "$([ -n "$GPG_PRIVADA" ] && echo si || echo no)"
           di aur    "$([ -n "$AUR_SSH" ] && echo si || echo no)"
           echo ""
@@ -381,6 +382,15 @@ jobs:
   # ── winget: el PR a microsoft/winget-pkgs ─────────────────────────────
   # wingetcreate es la herramienta que Microsoft publica justo para esto: hace
   # el fork y el PR con los manifests. Del otro lado igual lo mira una persona.
+  #
+  # Tiene SU PROPIO secreto y no comparte el de los otros dos canales, por una
+  # razón que es de permisos y no de prolijidad: forkear y abrir PR en un repo
+  # de Microsoft necesita un token CLASSIC con public_repo, y un classic puede
+  # escribir en todos los repos públicos de quien lo creó. La fórmula del tap y
+  # el bucket, en cambio, se pueden empujar con un fine-grained limitado a esos
+  # dos repos. Separarlos deja tener lo seguro sin renunciar a lo otro — o
+  # tener sólo lo seguro, que es una decisión legítima: sin este secreto, el
+  # canal se saltea y los manifests se mandan a mano.
   winget:
     needs: [canales, version, release]
     if: needs.canales.outputs.winget == 'si'
@@ -393,7 +403,7 @@ jobs:
       - name: armar los manifests y mandarlos
         shell: pwsh
         env:
-          TOKEN: ${{ secrets.TOKEN_PAQUETES }}
+          TOKEN: ${{ secrets.TOKEN_WINGET }}
           V: ${{ needs.version.outputs.version }}
         run: |
           $ErrorActionPreference = 'Stop'

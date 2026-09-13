@@ -14,7 +14,7 @@ sale una versión.
 | apt | el repo firmado | `docs/apt/` (GitHub Pages) | sí | `GPG_PRIVADA` |
 | release de GitHub | `.deb`, `setup.exe`, los dos zips | la release | sí | — |
 | scoop | el zip portable | `legiosai/scoop-bucket` | sí | `TOKEN_PAQUETES` |
-| winget | el instalador | PR a `microsoft/winget-pkgs` | sí, manda el PR | `TOKEN_PAQUETES` |
+| winget | el instalador | PR a `microsoft/winget-pkgs` | sí, manda el PR | `TOKEN_WINGET` |
 | AUR | el `PKGBUILD` | `aur.archlinux.org` | sí | `AUR_SSH` |
 | extensions.gnome.org | el zip de la extensión | el sitio | **no: no tiene API** | — |
 | Nix | `flake.nix` | nada: se instala del repo | — | — |
@@ -27,20 +27,38 @@ todavía no esté configurado — pero tampoco se hace la que publicó todo.
 ## Los secretos, y qué tiene que tener cada uno
 
 ```sh
-gh secret set NPM_TOKEN       # un automation token de npm
-gh secret set TOKEN_PAQUETES  # un PAT clásico con repo + public_repo
-gh secret set GPG_PRIVADA     # gpg --export-secret-keys --armor <ID>, SIN FRASE
+gh secret set NPM_TOKEN       # npm: un token granular con read-write SOLO en @legios/quartermaster
+gh secret set TOKEN_PAQUETES  # brew y scoop: fine-grained, resource owner legiosai,
+                              # sólo homebrew-tap y scoop-bucket, Contents: read-write
+gh secret set TOKEN_WINGET    # winget: un PAT CLASSIC con public_repo (y nada más)
+gh secret set GPG_PRIVADA     # apt: gpg --export-secret-subkeys --armor <ID>, SIN FRASE
 gh secret set GPG_CLAVE_ID    # opcional: el ID de la clave, si no es el default
-gh secret set AUR_SSH         # la clave privada SSH de la cuenta del AUR
+gh secret set AUR_SSH         # AUR: una clave SSH dedicada, no la de uso general
 ```
 
-Dos detalles que hacen fallar la release si se pasan por alto:
+Por qué son dos tokens de GitHub y no uno, que es la parte que no se ve:
+
+- **`TOKEN_PAQUETES` puede ser fine-grained** y limitado a los dos repos de
+  Legios. Es el más chico posible para lo que hace: empujar una fórmula y un
+  manifest.
+- **`TOKEN_WINGET` tiene que ser classic.** Forkear y abrir PR en
+  `microsoft/winget-pkgs` es tocar un repo de otro dueño, y un fine-grained está
+  atado a su *resource owner*; `wingetcreate` pide classic con `public_repo`. El
+  costo es que un classic escribe en todos los repos públicos de quien lo creó
+  — por eso está separado, y por eso se puede no ponerlo: sin él ese canal se
+  saltea y los manifests se mandan a mano con `make manifests`.
+
+Y dos detalles que hacen fallar la release si se pasan por alto:
 
 - **`GPG_PRIVADA` tiene que estar exportada sin frase.** `hacer-apt.sh` firma
   con `gpg --batch` y no le pasa ninguna, y en CI no hay nadie para contestar el
-  prompt. El workflow lo comprueba y falla temprano con ese mensaje.
-- **`TOKEN_PAQUETES` necesita `public_repo`** además de `repo`: es el que usa
-  `wingetcreate` para forkear `microsoft/winget-pkgs`.
+  prompt. El workflow lo comprueba y falla temprano con ese mensaje. Conviene
+  exportar sólo la SUBCLAVE de firma (`--export-secret-subkeys`): así la
+  primaria no sale de la máquina y lo que está en CI se puede revocar sin
+  quemar la identidad.
+- **Un classic sólo llega a los repos de la organización si la org no los
+  restringe** (Settings → Third-party Access → Personal access tokens). Eso no
+  se ve por API: hay que mirarlo en la interfaz.
 
 Una nota sobre winget, que es el único que le manda algo a un repo ajeno: el PR
 lo arma `wingetcreate`, que es la herramienta que Microsoft publica justo para
