@@ -197,6 +197,14 @@ interface FilaPerfil {
   tokens: number;
   tokensVentana: number;
   porModelo: [string, number][];
+  /**
+   * Cuándo fue la última actividad local de esta cuenta, según sus
+   * transcripciones. null si no se pudo medir.
+   *
+   * No es decoración: es la única señal que dice si un número se está
+   * MOVIENDO. El nivel dice cuánto queda; la actividad dice si va a cambiar.
+   */
+  ultimoUso: Date | null;
   /** false cuando no hay de dónde medirlo: informar 0 sería mentir. */
   localMedido: boolean;
 }
@@ -287,6 +295,10 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     tokens: local?.tokens ?? 0,
     tokensVentana: ventana?.tokens ?? 0,
     porModelo: [],
+    // Codex no expone cuándo fue la última actividad en lo que devuelve
+    // `consumoCodex`, así que acá es null y no un cero inventado. El día que lo
+    // exponga, entra por el mismo campo.
+    ultimoUso: null,
   };
 }
 
@@ -359,6 +371,10 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
     requests: c.sesiones,
     tokens: c.tokens,
     tokensVentana: enVentana.get(c.proveedor) ?? 0,
+    // `CuentaOpencode` tampoco lo trae. Hay una fecha de «cuándo se tocó la
+    // base» pero es de toda la base, no de esta cuenta: usarla diría que todos
+    // los proveedores se usaron a la vez, que es falso.
+    ultimoUso: null,
     porModelo: c.modelo === null ? [] : [[c.modelo, c.tokens]],
   });
   });
@@ -478,6 +494,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
           tokens: 0,
           tokensVentana: 0,
           porModelo: [],
+          ultimoUso: null,
         };
       }
 
@@ -497,6 +514,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
         tokens: totalTokens(c),
         tokensVentana: totalTokens(v),
         porModelo: [...c.porModelo].sort((a, b) => b[1] - a[1]).slice(0, 3),
+        ultimoUso: c.ultimo,
       };
     }),
   );
@@ -823,6 +841,11 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
             requests: f.requests,
             transcripciones: f.archivos,
             porModelo: Object.fromEntries(f.porModelo),
+            // Campo agregado: cuándo se usó esta cuenta por última vez, de sus
+            // transcripciones. Lo consume la barra para decidir a quién le
+            // pregunta la cuota — una cuenta que se está usando es la única
+            // cuyo número está cambiando.
+            ultimoUso: f.ultimoUso?.toISOString() ?? null,
           },
     })),
   };
