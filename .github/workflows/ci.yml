@@ -27,6 +27,11 @@ jobs:
       # que no se parece a un `npm install -g`: ahí el paquete cae bajo
       # node_modules y Node se niega a hacer type stripping. El verde de arriba
       # convivió con un paquete que reventaba en cada invocación.
+      # El envío a winget ya mintió una vez: dijo "PR mandado" sobre un submit
+      # que había fallado. Esto comprueba que los tres caminos que no mandan
+      # nada —sin token, sin versión, con un token muerto— salgan en rojo.
+      - run: make gate-winget-rojo
+
       - name: el paquete de npm se instala y corre
         run: ./scripts/el-paquete-de-npm-corre.sh
       - name: y ese gate falla en rojo sin dist/

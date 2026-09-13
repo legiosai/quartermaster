@@ -209,6 +209,20 @@ gate-npm-rojo:  ## el rojo de gate-npm: el paquete como estaba, con src/ y sin d
 	  echo "✓ gate-npm falla en rojo con el paquete sin dist/ (ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING)"; \
 	fi
 
+.PHONY: gate-winget-rojo
+gate-winget-rojo:  ## el rojo del envío a winget: sin token, con token muerto, sin versión
+	@fallo=0; \
+	if V=0.1.6 DIR=. GITHUB_TOKEN= node scripts/mandar-pr-winget.mjs --en-seco >/dev/null 2>&1; then \
+	  echo "✗ mandar-pr-winget NO falló sin token"; fallo=1; fi; \
+	if GITHUB_TOKEN=x DIR=. node scripts/mandar-pr-winget.mjs --en-seco >/dev/null 2>&1; then \
+	  echo "✗ mandar-pr-winget NO falló sin V"; fallo=1; fi; \
+	if V=0.1.6 DIR=. GITHUB_TOKEN=ghp_0000000000000000000000000000000000000000 \
+	   node scripts/mandar-pr-winget.mjs --en-seco >/dev/null 2>&1; then \
+	  echo "✗ mandar-pr-winget NO falló con un token muerto"; fallo=1; fi; \
+	if [ $$fallo -ne 0 ]; then \
+	  echo "  El envío a winget puede volver a decir que mandó un PR sin haberlo mandado."; exit 1; fi; \
+	echo "✓ mandar-pr-winget falla en rojo sin token, sin versión y con un token muerto"
+
 .PHONY: gate-bandeja
 gate-bandeja:  ## el gate de la bandeja de Windows: parsea, dibuja y mide (necesita Windows)
 	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/gate-bandeja.ps1 2>/dev/null || echo scripts/gate-bandeja.ps1)" | tr -d '\r'

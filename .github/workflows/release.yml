@@ -391,8 +391,11 @@ jobs:
           echo "::notice::scoop: el bucket quedó en $V"
 
   # ── winget: el PR a microsoft/winget-pkgs ─────────────────────────────
-  # wingetcreate es la herramienta que Microsoft publica justo para esto: hace
-  # el fork y el PR con los manifests. Del otro lado igual lo mira una persona.
+  # El fork y el PR con los manifests, que del otro lado igual mira una persona.
+  # Lo hace `scripts/mandar-pr-winget.mjs` y no `wingetcreate submit`, que es la
+  # herramienta de Microsoft para esto, por una sola razón: wingetcreate forkea
+  # SIEMPRE a la cuenta del token y no tiene opción para elegir otro dueño. La
+  # rama de una release de Legios terminaba colgando de una cuenta personal.
   #
   # Tiene SU PROPIO secreto y no comparte el de los otros dos canales, por una
   # razón que es de permisos y no de prolijidad: forkear y abrir PR en un repo
@@ -414,12 +417,9 @@ jobs:
       - name: armar los manifests y mandarlos
         shell: pwsh
         env:
-          # wingetcreate lo lee del entorno. Con `--token` funciona igual, pero
-          # la propia herramienta avisa: "Using the --token argument may result
-          # in the token being logged". Un token en un log de CI es un token
-          # quemado.
-          WINGET_CREATE_GITHUB_TOKEN: ${{ secrets.TOKEN_WINGET }}
+          GITHUB_TOKEN: ${{ secrets.TOKEN_WINGET }}
           V: ${{ needs.version.outputs.version }}
+          DIR: dist/paquetes/winget/manifests/l/Legios/Quartermaster/${{ needs.version.outputs.version }}
         run: |
           $ErrorActionPreference = 'Stop'
           $base = "https://github.com/legiosai/quartermaster/releases/download/v$env:V"
@@ -430,34 +430,32 @@ jobs:
           $shaExe = (Get-FileHash setup.exe -Algorithm SHA256).Hash
           $shaZip = (Get-FileHash win.zip -Algorithm SHA256).Hash
           node scripts/hacer-manifests.mjs --exe $shaExe --zip $shaZip
-          $dir = "dist/paquetes/winget/manifests/l/Legios/Quartermaster/$env:V"
-
-          # wingetcreate se BAJA, no se instala con winget: el runner no
-          # siempre lo trae, y una release no puede depender de eso.
-          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe -UseBasicParsing
 
           # Validar ANTES de mandar: del otro lado hay una persona, y un PR que
-          # no valida le hace perder el tiempo.
+          # no valida le hace perder el tiempo. Éste es el único motivo por el
+          # que el job corre en Windows: `winget` no existe en otro lado.
           if (Get-Command winget -ErrorAction SilentlyContinue) {
-            winget validate --manifest $dir
+            winget validate --manifest $env:DIR
           } else {
             Write-Host "sin winget en el runner: lo valida igual el CI de winget-pkgs"
           }
-          # $ErrorActionPreference NO alcanza para un .exe: en PowerShell un
-          # comando nativo que sale != 0 no levanta excepción. La primera
-          # release lo demostró — wingetcreate dijo "Token was invalid", no
-          # mandó nada, y la línea de abajo igual imprimió "PR mandado". El
-          # job terminó en rojo (pwsh propaga el ultimo exit code al salir),
-          # así que el resumen no mintió; el que mintió fue el notice, que es
-          # justo lo que alguien lee para saber si hay PR o no.
-          ./wingetcreate.exe submit $dir
-          if ($LASTEXITCODE -ne 0) {
-            Write-Host "::error::winget: wingetcreate salió $LASTEXITCODE. NO hay PR."
-            Write-Host "::error::Si dice 'Token was invalid': TOKEN_WINGET venció o no es un classic con public_repo."
-            Write-Host "::error::Los manifests quedaron armados en $dir y se pueden mandar a mano."
-            exit $LASTEXITCODE
-          }
-          Write-Host "::notice::winget: PR mandado para $env:V"
+
+          # El PR sale del fork de la ORGANIZACIÓN y no de la cuenta personal
+          # de quien tenga el token. Eso es exactamente lo que `wingetcreate
+          # submit` no sabe hacer —forkea al dueño del token y no hay opción
+          # para cambiarlo— y por eso acá va un script propio en vez de la
+          # herramienta de Microsoft.
+          #
+          # De paso arregla dos cosas de la 0.1.6: el token ya no viaja por la
+          # línea de comandos (la propia wingetcreate avisaba en el log que así
+          # se puede terminar logueando), y cuando NO manda nada lo dice —
+          # aquella release imprimió "PR mandado" sobre un submit que había
+          # fallado con "Token was invalid".
+          #
+          # $ErrorActionPreference no alcanza para esto: gobierna los cmdlets,
+          # no los procesos. De ahí el $LASTEXITCODE explícito.
+          node scripts/mandar-pr-winget.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
   # ── AUR ───────────────────────────────────────────────────────────────
   aur:

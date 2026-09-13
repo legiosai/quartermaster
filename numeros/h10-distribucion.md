@@ -351,7 +351,7 @@ desde afuera**, que es distinto de lo que dijo el resumen del workflow:
 | brew | success | la fórmula del tap apunta al tarball de `v0.1.6` |
 | apt | success | `dists/stable/Release` en `Version: 0.1.6`, `InRelease` firmado |
 | scoop | publicado | `bucket/quartermaster.json` en `0.1.6` |
-| winget | **failure**, y después success | ver abajo: hubo que arreglar el token |
+| winget | **failure**, y después success | ver abajo: primero el token, después el fork |
 | AUR | success, pero NO publicó | correcto: el registro sigue cerrado |
 | gnome | a mano | la 10949 sigue en `Unreviewed` |
 
@@ -360,11 +360,39 @@ por una razón conocida y ajena.
 
 **winget, al segundo intento.** El token era el problema y nada más: con
 `TOKEN_WINGET` regenerado (classic, `public_repo`) y un rerun de ese solo job,
-`wingetcreate` forkeó `microsoft/winget-pkgs` y abrió
-[el PR #434159](https://github.com/microsoft/winget-pkgs/pull/434159),
-`Legios.Quartermaster version 0.1.6`. Comprobado consultando el PR, no leyendo
-el notice del workflow — que en ese rerun seguía siendo el viejo, porque un
-rerun usa el workflow del tag y el arreglo se commiteó después.
+`wingetcreate` forkeó y abrió
+[el PR #434159](https://github.com/microsoft/winget-pkgs/pull/434159).
+Comprobado consultando el PR, no leyendo el notice del workflow — que en ese
+rerun seguía siendo el viejo, porque un rerun usa el workflow del tag y el
+arreglo se commiteó después.
+
+**Y al tercero, desde el fork que corresponde.** Ese PR salía de
+`ValentinTorassa/winget-pkgs`: una cuenta personal. `wingetcreate submit`
+forkea SIEMPRE al dueño del token y **no tiene opción para elegir otro dueño**
+—`--prtitle`, `--replace`, `--token`, `--no-open`, y se acabó—, así que la
+rama de una release de Legios no podía vivir en Legios usando esa herramienta.
+
+Se rehizo por API: fork a `legiosai/winget-pkgs`, rama, los cuatro manifests,
+PR. Antes de rehacerlo se comprobó que los manifests que emite
+`scripts/hacer-manifests.mjs` y los que había normalizado `wingetcreate` son
+**equivalentes** —cargados como YAML, mismas claves y mismos valores en los
+cuatro archivos; difieren en el orden y en un comentario de cabecera—, así que
+no se cambió nada de contenido al mover el PR. Los dos SHA256 del instalador y
+del zip se recalcularon bajando los assets de la release y se compararon con el
+`SHA256SUMS.txt` publicado: iguales.
+
+Resultado: [#434160](https://github.com/microsoft/winget-pkgs/pull/434160),
+con la cabeza en `legiosai:Legios.Quartermaster-0.1.6`, y el #434159 cerrado
+para no dejarle dos PR abiertos por el mismo paquete a un repo ajeno.
+
+Lo que **no** se puede mover: el autor del PR. En GitHub un PR lo abre una
+cuenta de usuario, nunca una organización — el fork y la rama viven en la org,
+la firma es de la persona. El CLA también.
+
+Para que la próxima release no vuelva a la cuenta personal, el job dejó de usar
+`wingetcreate` y usa `scripts/mandar-pr-winget.mjs`, con
+`make gate-winget-rojo` comprobando que los tres caminos que no mandan nada
+—sin token, sin versión, con un token muerto— salgan en rojo.
 
 ### Lo que rompió, que es lo que vale anotar
 
@@ -400,9 +428,10 @@ y había una línea diciendo que sí.
   2026-09-13** por la release de 0.1.6: `winget validate` corrió sobre los
   cuatro manifests generados y dijo `Manifest validation succeeded` (con un
   aviso de que no puede validar la dependencia `OpenJS.NodeJS.LTS`, que es
-  esperable: valida forma, no catálogo), y el PR salió: el #434159. Lo que
+  esperable: valida forma, no catálogo), y el PR salió: el #434160. Lo que
   falta ver es del otro lado: qué dice el CI de `microsoft/winget-pkgs` y qué
-  pide el revisor. Eso no depende de nosotros y no tiene fecha.
+  pide el revisor. Está frenado en el CLA, que lo firma una persona. Eso no
+  depende de nosotros y no tiene fecha.
 
 La diferencia entre esta sección y el resto del archivo es la de siempre:
 arriba están los números, acá están las preguntas, y ninguna de las dos se

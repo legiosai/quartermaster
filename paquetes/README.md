@@ -62,11 +62,23 @@ Y dos detalles que hacen fallar la release si se pasan por alto:
   restringe** (Settings → Third-party Access → Personal access tokens). Eso no
   se ve por API: hay que mirarlo en la interfaz.
 
-Una nota sobre winget, que es el único que le manda algo a un repo ajeno: el PR
-lo arma `wingetcreate`, que es la herramienta que Microsoft publica justo para
-eso, y el workflow valida los manifests ANTES de mandarlo. Del otro lado igual
-lo mira una persona. Por eso el disparador es un tag y no un push: no se puede
+Una nota sobre winget, que es el único que le manda algo a un repo ajeno: el
+workflow valida los manifests ANTES de mandar el PR, y del otro lado igual lo
+mira una persona. Por eso el disparador es un tag y no un push: no se puede
 mandar un PR sin querer.
+
+Y una que se descubrió publicando la 0.1.6: **el PR NO lo arma `wingetcreate`**,
+que es la herramienta que Microsoft publica justo para esto. `wingetcreate
+submit` forkea siempre a la cuenta dueña del token y no tiene opción para elegir
+otro dueño (`--prtitle`, `--replace`, `--token`, `--no-open`, y nada más), así
+que la rama de una release de Legios quedaba colgando de una cuenta personal. Lo
+arma `scripts/mandar-pr-winget.mjs`, que forkea a **`legiosai/winget-pkgs`**, lo
+pone al día con Microsoft, empuja los cuatro manifests y abre el PR — todo por
+API, sin clonar un repo de cientos de miles de archivos.
+
+Lo que no cambia: **el autor del PR sigue siendo la persona dueña del token.** En
+GitHub un PR lo abre una cuenta de usuario, nunca una organización; lo que vive
+en la org es el fork y la rama. Y el CLA de Microsoft lo firma esa persona.
 
 ---
 
@@ -111,7 +123,16 @@ publicar:
 2. validar: `winget validate --manifest <ese directorio>`;
 3. probar de verdad: `winget install --manifest <ese directorio>`;
 4. PR a [`microsoft/winget-pkgs`](https://github.com/microsoft/winget-pkgs) con
-   ese directorio tal cual. O `wingetcreate submit`, que hace el fork y el PR.
+   ese directorio tal cual. En la release lo hace
+   `scripts/mandar-pr-winget.mjs`, que se puede correr a mano:
+
+```sh
+V=0.1.6 DIR=dist/paquetes/winget/manifests/l/Legios/Quartermaster/0.1.6 \
+  GITHUB_TOKEN=$(gh auth token) node scripts/mandar-pr-winget.mjs --en-seco
+```
+
+`--en-seco` llega hasta comprobar el token, el fork y la sincronización con
+Microsoft, y para antes de tocar nada.
 
 El manifest declara `OpenJS.NodeJS.LTS` como dependencia: eso es lo que hace que
 `winget install Legios.Quartermaster` en una máquina sin Node resuelva las dos
