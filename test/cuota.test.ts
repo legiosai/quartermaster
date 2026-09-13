@@ -2,13 +2,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parsearUtilizacion, aFecha } from '../src/adapters/utilizacion.ts';
-import { frase, peor, paraMostrar, nombreVentana, esPreocupante, type ResultadoCuota } from '../src/core/tipos.ts';
+import { frase, peor, paraMostrar, nombreVentana, esPreocupante, vencida, type ResultadoCuota } from '../src/core/tipos.ts';
 import { anchoVisible, duracion, relleno, tenue } from '../src/render/barras.ts';
 
 // Las fixtures son respuestas REALES de dos cuentas de distinto tipo, sacadas
 // de `cachedUsageUtilization` en .claude.json y redactadas sólo en accountUuid.
 const max = JSON.parse(readFileSync(new URL('./fixtures/cached-usage-max.json', import.meta.url), 'utf8'));
 const team = JSON.parse(readFileSync(new URL('./fixtures/cached-usage-team.json', import.meta.url), 'utf8'));
+
+// Las fixtures son grabaciones del 2026-09-09 y sus `resets_at` envejecen solos
+// hacia el pasado. Todo lo que dependa de «¿esta ventana sigue abierta?» se mide
+// contra un instante de ADENTRO de la grabación, no contra el reloj de hoy: si
+// no, los tests de parseo empiezan a fallar por el calendario.
+const DURANTE_LA_GRABACION = Date.parse('2026-09-09T00:00:00Z');
 
 // ─── Lo que este repo existe para no dejar pasar ──────────────────────────
 
@@ -21,7 +27,7 @@ test('la barra que manda no es ninguna de las dos que todos leen', () => {
   assert.equal(p.porcentaje, 75);
   assert.equal(p.severidad, 'warning');
   assert.equal(p.alcance, 'Fable');
-  assert.ok(esPreocupante(p));
+  assert.ok(esPreocupante(p, DURANTE_LA_GRABACION));
   assert.equal(nombreVentana(p), 'weekly_scoped (Fable)');
 });
 
@@ -204,4 +210,58 @@ test('duracion: arriba de un día se cuenta en días', () => {
   assert.strictEqual(duracion(48 * 3600_000), '2d');
   assert.strictEqual(duracion(23 * 3600_000 + 59 * 60_000), '23h59m');
   assert.strictEqual(duracion(90 * 1000), '1m');
+});
+
+
+// ─── Una ventana que ya se reinició no sigue siendo la de antes ───────────
+//
+// El 2026-09-13, en la cuenta donde se escribió esto, el cache decía
+// weekly_all 96 % y weekly_scoped 100 %, las dos `critical`, con un `resets_at`
+// de dos horas antes. Una consulta al endpoint devolvió 2 % y 0 %, las dos
+// `normal`. Nueve horas diciendo «estás frenado» a alguien que estaba libre.
+
+const ventana = (extra: Record<string, unknown> = {}) => ({
+  clave: 'weekly_all',
+  porcentaje: 100,
+  reinicia: null as Date | null,
+  severidad: 'critical',
+  activa: true,
+  alcance: null,
+  grupo: 'weekly',
+  ...extra,
+});
+
+test('una ventana cuyo reinicio ya pasó está vencida', () => {
+  const ahora = Date.parse('2026-09-13T06:00:00Z');
+  assert.equal(vencida(ventana({ reinicia: new Date('2026-09-13T04:00:00Z') }), ahora), true);
+  assert.equal(vencida(ventana({ reinicia: new Date('2026-09-13T11:00:00Z') }), ahora), false);
+  // Sin fecha de reinicio no se puede afirmar que venció. No es lo mismo que
+  // saber que sigue vigente: es no saber, y no saber no se redondea a «sí».
+  assert.equal(vencida(ventana({ reinicia: null }), ahora), false);
+});
+
+test('una ventana vencida NO preocupa, por más critical que diga', () => {
+  const ahora = Date.parse('2026-09-13T06:00:00Z');
+  const cerrada = ventana({ reinicia: new Date('2026-09-13T04:00:00Z') });
+  const abierta = ventana({ reinicia: new Date('2026-09-13T11:00:00Z') });
+  // Misma barra, mismo 100 %, misma severidad: lo único que cambia es si su
+  // ventana ya cerró. Sostener el critical de una ventana cerrada pinta la
+  // bandeja de rojo y dispara el aviso por algo que terminó.
+  assert.equal(esPreocupante(cerrada, ahora), false);
+  assert.equal(esPreocupante(abierta, ahora), true);
+});
+
+test('peor() no puede elegir una barra interna de 0 % porque las fechadas vencieron', () => {
+  // La regresión que cazaron los dos tests de arriba cuando `peor()` filtraba
+  // por vencimiento: una barra sin `resets_at` —el servidor manda varias, en
+  // 0 %— nunca vence, así que quedaba de única candidata y ganaba. La cuenta
+  // entera pasaba a mostrarse como un 0 % cómodo. Un «todo bien» inventado es
+  // peor que un número viejo.
+  const ventanas = [
+    ventana({ clave: 'weekly_scoped', porcentaje: 75, reinicia: new Date('2020-01-01T00:00:00Z') }),
+    ventana({ clave: 'nimbus_quill', porcentaje: 0, reinicia: null, severidad: 'normal', activa: false, grupo: null }),
+  ];
+  const p = peor(ventanas)!;
+  assert.equal(p.clave, 'weekly_scoped');
+  assert.equal(p.porcentaje, 75);
 });

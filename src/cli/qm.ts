@@ -50,6 +50,7 @@ import {
   semanal,
   sesion,
   totalTokens,
+  vencida as vencidaVentana,
   type Perfil,
   type ResultadoCuota,
   type VentanaCuota,
@@ -702,6 +703,10 @@ function ventanaJson(v: VentanaCuota): Record<string, unknown> {
     reinicia: v.reinicia?.toISOString() ?? null,
     nombre: nombreVentana(v),
     preocupa: esPreocupante(v),
+    // Campo agregado, no reemplazo: `porcentaje` sigue siendo el último número
+    // leído. `vencida` dice que ese número es de una ventana que ya cerró, así
+    // que quien dibuje sabe que no puede presentarlo como actual.
+    vencida: vencidaVentana(v),
   };
 }
 

@@ -124,8 +124,39 @@ export type ResultadoCuota =
   | { readonly estado: 'ilegible'; readonly detalle: string }
   | { readonly estado: 'error'; readonly detalle: string };
 
-/** Una barra preocupa si el servidor lo dice, o si está por encima del 80 %. */
-export function esPreocupante(v: VentanaCuota): boolean {
+/**
+ * Una ventana cuyo instante de reinicio YA PASÓ.
+ *
+ * No es lo mismo que «vieja». Una lectura vieja es un número peor medido de la
+ * MISMA ventana; ésta es un número de OTRA ventana, una que ya cerró. El
+ * contador arrancó de cero cuando `reinicia` pasó, y lo que tenemos guardado es
+ * de antes de ese instante: no describe nada que siga siendo cierto.
+ *
+ * Medido el 2026-09-13 en la cuenta donde se escribió esto: el cache decía
+ * `weekly_all` 96 % y `weekly_scoped` 100 %, las dos en `critical`, con un
+ * `resets_at` de dos horas antes. Una sola consulta al endpoint devolvió 2 % y
+ * 0 %, las dos en `normal`. Nueve horas mostrando «estás frenado» a alguien que
+ * estaba libre — y «frenado» es justo el estado del que esta herramienta existe
+ * para avisar que saliste.
+ *
+ * Por eso no se inventa un 0 %: después del reinicio el número REAL es
+ * desconocido (se pudo haber gastado cuota desde entonces). Lo que se sabe es
+ * que el guardado ya no vale, y eso es lo que se marca.
+ */
+export function vencida(v: VentanaCuota, ahora: number = Date.now()): boolean {
+  return v.reinicia !== null && v.reinicia.getTime() <= ahora;
+}
+
+/**
+ * Una barra preocupa si el servidor lo dice, o si está por encima del 80 %.
+ *
+ * Una ventana vencida no preocupa: su severidad y su porcentaje son de la
+ * ventana anterior. Sostener el `critical` de una ventana cerrada es el caso
+ * peor de todos — pinta la bandeja de rojo y dispara el aviso de «te frenaste»
+ * por algo que terminó.
+ */
+export function esPreocupante(v: VentanaCuota, ahora: number = Date.now()): boolean {
+  if (vencida(v, ahora)) return false;
   return v.severidad !== 'normal' || v.porcentaje >= 80;
 }
 
@@ -136,6 +167,16 @@ export function esPreocupante(v: VentanaCuota): boolean {
  */
 export function peor(ventanas: readonly VentanaCuota[]): VentanaCuota | null {
   if (ventanas.length === 0) return null;
+  // Acá NO se filtran las vencidas, y vale escribir por qué: se probó y salió
+  // mal. Una ventana sin `resets_at` —el servidor manda varias, tipo
+  // `nimbus_quill`, en 0 %— nunca puede estar vencida, así que al filtrar por
+  // vencimiento quedaba ella sola de candidata y ganaba: la cuenta entera
+  // pasaba a representarse con un 0 % interno. Un «todo bien» inventado es
+  // peor que un número viejo, y lo cazaron los dos tests de cuota.test.ts.
+  //
+  // La separación que sí funciona: `peor()` contesta CUÁL barra es la que
+  // importa, y `vencida()` contesta si ese número todavía vale. Son dos
+  // preguntas distintas y mezclarlas produjo la respuesta equivocada a las dos.
   const orden = [...ventanas].sort((a, b) => {
     if (a.activa !== b.activa) return a.activa ? -1 : 1;
     return b.porcentaje - a.porcentaje;

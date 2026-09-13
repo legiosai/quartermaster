@@ -79,11 +79,37 @@ class Boton extends PanelMenu.Button {
             overlayScrollbars: true,
             styleClass: 'qm-rodante',
         });
+        // El hijo de un St.ScrollView tiene que implementar StScrollable, y un
+        // St.Widget pelado NO lo implementa. Acá iba directo, y en GNOME 48
+        // reventaba en _init():
+        //
+        //   TypeError: Object is of type St.Widget - cannot convert to StScrollable
+        //
+        // O sea que la extensión entera no llegaba a habilitarse — `State: ERROR`
+        // en gnome-extensions info. Y sin extensión el panel cae al menú de GTK
+        // de qm-indicator: el que no sostiene el agarre y se cierra apenas lo
+        // tocás, que es exactamente lo que esta extensión existe para evitar. Un
+        // error de tipo en el armado del menú se veía, del lado del usuario,
+        // como «el panel se cierra solo».
+        //
+        // St.BoxLayout sí es StScrollable. Comprobado contra el typelib de una
+        // máquina con GNOME 48 (St-16):
+        //
+        //   St.Widget    StScrollable=false
+        //   St.BoxLayout StScrollable=true
+        //   St.Viewport  StScrollable=true
+        //
+        // Se elige BoxLayout y no Viewport porque metadata.json declara de la 45
+        // a la 49 y BoxLayout es StScrollable en todas. No se le pone
+        // `vertical`: esa propiedad quedó deprecada en 48 a favor de
+        // `orientation`, y con un solo hijo no cambia nada.
         this._lienzo = new St.Widget({xExpand: true, yExpand: true});
+        this._caja = new St.BoxLayout({xExpand: true, yExpand: true});
+        this._caja.add_child(this._lienzo);
         if (this._rodante.set_child)
-            this._rodante.set_child(this._lienzo);
+            this._rodante.set_child(this._caja);   // GNOME >= 46
         else
-            this._rodante.add_actor(this._lienzo);
+            this._rodante.add_actor(this._caja);   // GNOME 45
         this._fila.add_child(this._rodante);
         this.menu.addMenuItem(this._fila);
 

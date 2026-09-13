@@ -107,9 +107,29 @@ Each window:
   "activa": true,                // the server marked it as the binding one
   "reinicia": "2026-09-13T04:00:00.088Z",
   "nombre": "weekly_scoped (Fable)",   // ready to draw
-  "preocupa": true               // the resolved "should this worry you"
+  "preocupa": true,              // the resolved "should this worry you"
+  "vencida": false               // `reinicia` is already in the past
 }
 ```
+
+### `vencida` — the number is from a window that already closed
+
+`porcentaje` is always the last number actually read. `vencida` says that
+reading predates `reinicia`, so it describes a window that has since rolled
+over — the counter restarted and nobody has read it since.
+
+This is not the same as "old". An old reading is a worse measurement of **the
+same** window; a `vencida` one belongs to **a different** window. What the new
+number is, we do not know: quota may have been spent since the reset. So
+quartermaster does not invent a `0` — it keeps the last number and marks it.
+
+A renderer must not present a `vencida` window as current. `preocupa` is always
+`false` while `vencida` is `true`: holding a closed window's `critical` paints
+the tray red and fires the "you are blocked" warning for something that ended.
+
+> Measured 2026-09-13: a cached `weekly_all` at 96% and `weekly_scoped` at 100%,
+> both `critical`, with a `resets_at` two hours earlier. One endpoint call
+> returned 2% and 0%, both `normal`.
 
 ## Exit codes
 
