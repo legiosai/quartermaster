@@ -132,6 +132,18 @@ autostart:  ## que el indicador arranque solo al iniciar sesión
 deb:  ## arma el .deb en dist/
 	@./scripts/hacer-deb.sh
 
+.PHONY: setup
+setup:  ## arma el instalador de Windows y el zip portable en dist/ (necesita Windows)
+	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/hacer-setup.ps1 2>/dev/null || echo scripts/hacer-setup.ps1)" | tr -d '\r'
+
+.PHONY: manifests
+manifests:  ## los manifests de winget y scoop (EXE=<sha256> ZIP=<sha256>)
+	@node scripts/hacer-manifests.mjs --exe "$(EXE)" --zip "$(ZIP)"
+
+.PHONY: extension-zip
+extension-zip:  ## el zip de la extensión con la forma que pide extensions.gnome.org
+	@./scripts/hacer-extension-zip.sh
+
 .PHONY: gate-duraciones
 gate-duraciones:  ## que las cuatro escaleras de duración den lo mismo
 	@python3 scripts/gate-duraciones.py
@@ -163,6 +175,10 @@ gate-npm-rojo:  ## el rojo de gate-npm: el paquete como estaba, con src/ y sin d
 .PHONY: gate-bandeja
 gate-bandeja:  ## el gate de la bandeja de Windows: parsea, dibuja y mide (necesita Windows)
 	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/gate-bandeja.ps1 2>/dev/null || echo scripts/gate-bandeja.ps1)" | tr -d '\r'
+
+.PHONY: gate-windows
+gate-windows:  ## que qm.cmd corra y que el paquete de npm ARRANQUE en Windows
+	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/gate-windows.ps1 2>/dev/null || echo scripts/gate-windows.ps1)" | tr -d '\r'
 
 .PHONY: test
 test:  ## los tests

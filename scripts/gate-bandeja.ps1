@@ -8,7 +8,7 @@ verde con un error de sintaxis adentro. Es exactamente lo que le pasó a
 bin/qm-indicator antes de que existiera scripts/gate-dibujo.sh: se borró medio
 archivo y el CI no se enteró, porque el CI ni lo abría.
 
-Cuatro cosas, en orden de qué tan barato es equivocarse:
+Cinco cosas, en orden de qué tan barato es equivocarse:
 
   1. que PARSEE — un error de sintaxis no llega a ejecutarse nunca;
   2. que DIBUJE. Con una entrada fija el panel tiene que salir con las medidas
@@ -22,7 +22,11 @@ Cuatro cosas, en orden de qué tan barato es equivocarse:
      afuera en vez de mirar la imagen a ojo;
   4. que cada ícono tenga SU panel: el general con todas las cuentas y el de
      una cuenta con esa sola. Es la diferencia entre cuatro íconos que sirven
-     y cuatro íconos que abren la misma pantalla.
+     y cuatro íconos que abren la misma pantalla;
+  5. que sepa DÓNDE está qm. La bandeja corre el qm nativo de Windows o el de
+     adentro de WSL, y esa elección decide si hay números o no hay nada. Se
+     comprueba sacando las funciones por AST y corriéndolas contra un bin de
+     mentira, porque cargar el archivo entero levanta una bandeja de verdad.
 
 Corre en Windows porque System.Drawing y WinForms son de Windows. En el runner
 de Ubuntu se saltea diciéndolo — nunca se da por bueno en silencio.
@@ -162,11 +166,90 @@ if ($bmp) {
   $bmp.Dispose()
 }
 
+# ── 5 · dónde busca a qm ────────────────────────────────────────────────
+# La bandeja nació hablándole a WSL y `wsl.exe` estaba escrito a mano en los
+# tres lugares que corren qm. Ahora elige entre el qm NATIVO de Windows y el de
+# adentro de WSL, y esa elección es la que decide si el usuario ve números o no
+# ve nada — o sea, exactamente la clase de cosa que no puede estar sin gate.
+#
+# No se puede comprobar cargando el archivo: al cargarlo levanta una bandeja y
+# se queda en el bucle de mensajes. Así que se sacan las tres funciones por AST
+# —no por recorte de texto, que se desincroniza sin avisar— y se corren en un
+# scope de mentira con un qm.cmd de mentira. Es lo mismo que hace
+# scripts/gate-duraciones.py con la escalera, por la misma razón.
+$arbol = [System.Management.Automation.Language.Parser]::ParseFile($guion, [ref]$null, [ref]$null)
+$queridas = @('ArgsWsl', 'ResolverQm', 'PsiQm')
+$fns = $arbol.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $queridas -contains $n.Name
+  }, $true)
+if ($fns.Count -ne $queridas.Count) {
+  $hay = ($fns | ForEach-Object { $_.Name }) -join ', '
+  Fallar "esperaba las funciones $($queridas -join ', ') en bin/qm-tray.ps1 y encontré: $hay"
+} else {
+  $cuerpo = ($fns | ForEach-Object { $_.Extent.Text }) -join "`n`n"
+
+  # Un bin de mentira CON ESPACIOS en la ruta: es el caso real —el instalador
+  # deja todo en «C:\Program Files\quartermaster\bin»— y es el que se rompe si
+  # alguien saca un par de comillas.
+  $binFalso = Join-Path $salida 'qm gate\bin'
+  New-Item -ItemType Directory -Path $binFalso -Force | Out-Null
+  Set-Content -Path (Join-Path $binFalso 'qm.cmd') -Value '@echo off' -Encoding ASCII
+  Set-Content -Path (Join-Path $binFalso 'qm-web.cmd') -Value '@echo off' -Encoding ASCII
+
+  function Resolver([hashtable]$escenario) {
+    $prologo = @"
+Set-StrictMode -Version Latest
+`$Qm = '$($escenario.Qm)'
+`$QmLinux = '$($escenario.QmLinux)'
+`$Distro = ''
+`$script:PidieronQmLinux = `$$($escenario.PidieronQmLinux)
+`$script:MiBin = '$($escenario.MiBin)'
+`$script:QmResuelto = `$null
+"@
+    $epilogo = @'
+[pscustomobject]@{ R = (ResolverQm); Psi = (PsiQm '--json --breve'); Web = (PsiQm '--sin-abrir' 'web') }
+'@
+    return & ([scriptblock]::Create("$prologo`n$cuerpo`n$epilogo"))
+  }
+
+  # a · nativo: el qm.cmd que está al lado gana, y la ruta con espacios viaja
+  #     entera hasta la línea de comandos.
+  $a = Resolver @{ Qm = ''; QmLinux = 'qm'; PidieronQmLinux = 'false'; MiBin = $binFalso }
+  if ($a.R.Modo -ne 'nativo') {
+    Fallar "con un qm.cmd al lado la bandeja tiene que ir por Windows nativo y eligió '$($a.R.Modo)'"
+  } else {
+    $esperado = '/d /s /c ""' + (Join-Path $binFalso 'qm.cmd') + '" --json --breve"'
+    if ($a.Psi.Arguments -ne $esperado) {
+      Fallar "la línea nativa quedó mal citada.`n  esperaba: $esperado`n  salió:    $($a.Psi.Arguments)"
+    }
+    if ($a.Web.Arguments -notmatch [regex]::Escape('qm-web.cmd')) {
+      Fallar "el tablero nativo no resolvió a qm-web.cmd: $($a.Web.Arguments)"
+    }
+  }
+
+  # b · WSL: pedir -QmLinux es pedir WSL, aunque haya un qm.cmd al lado. Es lo
+  #     que hace bin/qm-tray, y romperlo deja sin bandeja a quien ya la tenía.
+  $b = Resolver @{ Qm = ''; QmLinux = 'qm'; PidieronQmLinux = 'true'; MiBin = $binFalso }
+  if ($b.R.Modo -ne 'wsl') { Fallar "con -QmLinux explícito el modo tiene que ser wsl y fue '$($b.R.Modo)'" }
+  elseif ($b.Psi.FileName -ne 'wsl.exe') { Fallar "el modo wsl no arranca wsl.exe sino '$($b.Psi.FileName)'" }
+  elseif ($b.Psi.Arguments -ne '-e bash -lc "qm --json --breve"') {
+    Fallar "la línea de WSL cambió: $($b.Psi.Arguments)"
+  }
+
+  # c · silencio es el bug: un -Qm que no existe tiene que dar una FRASE, no un
+  #     PsiQm nulo que después dibuje un panel vacío sin explicar nada.
+  $c = Resolver @{ Qm = 'Z:\no\existe\qm.cmd'; QmLinux = 'qm'; PidieronQmLinux = 'false'; MiBin = $binFalso }
+  if ($c.R.Modo -ne 'ninguno') { Fallar "un -Qm inexistente no puede resolver a '$($c.R.Modo)'" }
+  elseif (-not $c.R.Motivo) { Fallar 'un -Qm inexistente se quedó sin frase: eso es el silencio que el repo no acepta' }
+  elseif ($null -ne $c.Psi) { Fallar 'sin qm, PsiQm tiene que devolver $null para que Leer conteste la frase' }
+}
+
 Remove-Item $salida -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($fallas.Count) {
   foreach ($f in $fallas) { [Console]::Error.WriteLine("GATE ROJO: $f") }
   exit 1
 }
-Write-Host "gate de la bandeja: verde — parsea, dibuja $ANCHO px en los dos temas, nada se sale del margen, y el panel de una cuenta no es el de todas"
+Write-Host "gate de la bandeja: verde — parsea, dibuja $ANCHO px en los dos temas, nada se sale del margen, el panel de una cuenta no es el de todas, y resuelve qm nativo / WSL / frase"
 exit 0

@@ -424,6 +424,7 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
       <button role="tab" aria-selected="true" data-t="brew">Homebrew</button>
       <button role="tab" aria-selected="false" data-t="npm">npm</button>
       <button role="tab" aria-selected="false" data-t="apt">apt · Debian / Ubuntu</button>
+      <button role="tab" aria-selected="false" data-t="win">Windows</button>
       <button role="tab" aria-selected="false" data-t="src">Desde el repo</button>
     </div>
     <pre id="t-brew"><span class="p">$</span> brew install legiosai/tap/quartermaster
@@ -440,6 +441,14 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
 
 <span class="c"># y desde ahí, como cualquier otro paquete</span>
 <span class="p">$</span> sudo apt update &amp;&amp; sudo apt install quartermaster</pre>
+    <pre id="t-win" hidden><span class="c"># el instalador de la última release: deja qm en el PATH
+# y la bandeja en el menú Inicio. Por usuario, sin UAC.</span>
+<span class="p">&gt;</span> quartermaster-0.1.5-setup.exe
+<span class="p">&gt;</span> qm
+
+<span class="c"># (winget y scoop: el manifest está armado y todavía
+#  no aprobado. Mientras tanto, npm también sirve.)</span>
+<span class="p">&gt;</span> npm install -g @legios/quartermaster</pre>
     <pre id="t-src" hidden><span class="p">$</span> git clone https://github.com/legiosai/quartermaster
 <span class="p">$</span> cd quartermaster && npm install
 <span class="p">$</span> make instalar   <span class="c"># deja `qm` en ~/.local/bin</span></pre>
@@ -487,7 +496,7 @@ document.querySelectorAll('.copiar').forEach(b=>{
 const CMD={
   mac:['brew install legiosai/tap/quartermaster','Homebrew. También por npm.'],
   linux:['sudo apt install quartermaster','Del repo de Legios — se agrega con <a href="#instalar">dos líneas</a>. También Homebrew y npm.'],
-  win:['npm install -g @legios/quartermaster','npm. La bandeja anda desde WSL.']
+  win:['quartermaster-setup.exe','El instalador de la <a href="https://github.com/legiosai/quartermaster/releases/latest">última release</a>. También por npm; winget y scoop, en camino.']
 };
 const sos=document.querySelectorAll('.so button');
 function elegirSO(b){

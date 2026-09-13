@@ -22,9 +22,15 @@ Tres cosas que Windows hace distinto y conviene saber antes de leer el código:
     de batería), y el detalle va al tooltip y al menú.
 
   · No hay FileMonitor. El indicador de GNOME se entera en el acto porque vigila
-    cada .claude.json con Gio.FileMonitor; desde Windows esos archivos están del
-    otro lado del 9P de WSL, donde FileSystemWatcher no es confiable. Acá el
-    sondeo es el mecanismo principal, no la red de seguridad.
+    cada .claude.json con Gio.FileMonitor; desde Windows esos archivos pueden
+    estar del otro lado del 9P de WSL, donde FileSystemWatcher no es confiable.
+    Acá el sondeo es el mecanismo principal, no la red de seguridad.
+
+  · Hay DOS lugares donde puede vivir qm, y la bandeja anda con los dos. En
+    Windows nativo corre `qm.cmd` (el que instala el instalador); desde WSL
+    corre `qm` adentro de la distro, que es como nació esto. La elección se
+    hace una sola vez en ResolverQm y no se repite en cada llamada — si no,
+    son tres lugares que pueden discrepar.
 
   · El calentado no puede bloquear. En macOS el refresco del endpoint va en una
     cola aparte; acá el timer corre en el hilo de la interfaz, así que
@@ -35,8 +41,17 @@ Tres cosas que Windows hace distinto y conviene saber antes de leer el código:
 
 [CmdletBinding()]
 param(
+  # Ruta de `qm.cmd`, el lanzador NATIVO de Windows. Vacío = se busca solo: al
+  # lado de este archivo primero (que es como lo deja el instalador) y en el
+  # PATH después. Ver ResolverQm.
+  [string]$Qm = '',
+
   # Ruta de `qm` ADENTRO de WSL. Por defecto se resuelve por PATH en un shell
   # de login, que es donde vive ~/.local/bin.
+  #
+  # PASARLO ES ELEGIR WSL: es lo que hace el lanzador bin/qm-tray, y es lo que
+  # distingue «vengo de WSL» de «me arrancó el instalador». Sin él, la bandeja
+  # prefiere el qm nativo si lo encuentra.
   [string]$QmLinux = 'qm',
   # Distro de WSL. Vacío = la default.
   [string]$Distro = '',
@@ -91,6 +106,17 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# ¿Pidieron explícitamente el qm de adentro de WSL? Se captura ACÁ, al nivel
+# del script, y no adentro de ResolverQm: en una función $PSBoundParameters es
+# el de la función, así que allá esta pregunta siempre daría «no».
+$script:PidieronQmLinux = $PSBoundParameters.ContainsKey('QmLinux')
+
+# El directorio donde vive este archivo, que es también donde el instalador
+# deja qm.cmd. Va en una variable en vez de usar $PSScriptRoot directo por una
+# razón concreta: así el gate puede apuntarlo a un directorio de mentira y
+# comprobar la resolución entera sin instalar nada ni tener WSL.
+$script:MiBin = $PSScriptRoot
 
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
@@ -1172,6 +1198,117 @@ function ArgsWsl([string]$cmd) {
   return "$prefijo-e bash -lc `"$cmd`""
 }
 
+# ── de dónde sale el número: Windows nativo o WSL ───────────────────────
+#
+# Hasta acá esto era WSL y nada más: `wsl.exe` estaba escrito a mano en los tres
+# lugares que corren qm. Eso deja afuera al usuario de Windows NATIVO —el que
+# instala por winget y tiene Claude Code del lado de Windows— que es justo a
+# quien apunta tener un instalador. Y el CLI ya andaba nativo: está medido en
+# numeros/h4-windows.md, con `plataforma: win32`. Lo único que faltaba era
+# `qm.cmd`, que ahora existe.
+#
+# Cómo se elige, en orden, y por qué ese orden:
+#
+#   1. -Qm <ruta>        lo que el usuario pidió explícitamente, gana siempre.
+#   2. -QmLinux <ruta>   pedir el de adentro de WSL ES pedir WSL. Es lo que pasa
+#                        el lanzador bin/qm-tray, así que quien viene de WSL
+#                        sigue exactamente como antes.
+#   3. qm.cmd al lado    el instalador deja los dos archivos en el mismo bin\.
+#   4. qm.cmd en el PATH un `scoop install` o un PATH puesto a mano.
+#   5. WSL               lo de siempre, si hay wsl.exe.
+#
+# Si no hay ninguno NO se dibuja un cero: se devuelve una frase. Un ícono que
+# no encontró a qm y un ícono que encontró un 0 % se ven parecido y significan
+# cosas opuestas (SOUL.md: silencio es el bug).
+$script:QmResuelto = $null
+
+function ResolverQm {
+  if ($null -ne $script:QmResuelto) { return $script:QmResuelto }
+
+  $r = [pscustomobject]@{ Modo = 'ninguno'; Qm = ''; Web = ''; Motivo = '' }
+  $nativo = ''
+
+  if ($Qm) {
+    # 1. Lo que pidieron. Si no está, se dice cuál falta y se termina acá: ir a
+    #    buscar otro sería contestar una pregunta distinta de la que hicieron.
+    if (Test-Path -LiteralPath $Qm) { $nativo = $Qm }
+    else { $r.Motivo = "no existe el qm que me pasaste: $Qm" }
+  } elseif ($script:PidieronQmLinux) {
+    # 2. Pedir el de adentro de WSL es pedir WSL, exista o no wsl.exe. No se
+    #    comprueba a propósito: si falta, la frase que sale de intentar correrlo
+    #    dice qué pasó, y eso es mejor diagnóstico que «no encuentro nada».
+    $r.Modo = 'wsl'
+    $r.Qm = $QmLinux
+    $r.Web = 'qm-web'
+  } else {
+    # 3 y 4. El qm.cmd que dejó el instalador al lado, o uno en el PATH.
+    $alLado = Join-Path $script:MiBin 'qm.cmd'
+    if (Test-Path -LiteralPath $alLado) {
+      $nativo = $alLado
+    } else {
+      $enPath = Get-Command 'qm.cmd' -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+      if ($enPath) { $nativo = $enPath.Source }
+    }
+    # 5. Y si no hay nada nativo, WSL, que es de donde viene esta bandeja.
+    if (-not $nativo) {
+      if (Get-Command 'wsl.exe' -CommandType Application -ErrorAction SilentlyContinue) {
+        $r.Modo = 'wsl'
+        $r.Qm = $QmLinux
+        $r.Web = 'qm-web'
+      } else {
+        $r.Motivo = 'no encuentro qm.cmd ni wsl.exe: instalá quartermaster o pasame -Qm <ruta>'
+      }
+    }
+  }
+
+  if ($nativo) {
+    $r.Modo = 'nativo'
+    $r.Qm = $nativo
+    # qm-web.cmd vive al lado de qm.cmd, siempre: los instala el mismo paquete.
+    $web = Join-Path (Split-Path -Parent $nativo) 'qm-web.cmd'
+    $r.Web = if (Test-Path -LiteralPath $web) { $web } else { '' }
+  }
+
+  $script:QmResuelto = $r
+  return $r
+}
+
+<#
+Un ProcessStartInfo listo para correr qm (o qm-web) donde sea que esté.
+
+Los tres lugares que corren qm —leer, calentar y abrir el tablero— pasan por
+acá, así que el modo se decide UNA vez y no tres. Es la misma razón por la que
+`mostrar` y `frena` se resuelven en el CLI y no en cada renderer: una regla en
+tres lugares es una regla que el día que se edita uno da tres respuestas.
+
+En nativo va por cmd.exe y no directo: un .cmd no es un ejecutable para
+CreateProcess. Las comillas de más alrededor de todo son las que documenta
+`cmd /?` para que /s deje el resto intacto, y hacen falta porque la ruta de
+instalación por defecto tiene espacios.
+#>
+function PsiQm([string]$argumentos, [string]$programa = 'qm') {
+  $r = ResolverQm
+  if ($r.Modo -eq 'ninguno') { return $null }
+
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  if ($r.Modo -eq 'wsl') {
+    $exe = if ($programa -eq 'web') { $r.Web } else { $r.Qm }
+    $psi.FileName = 'wsl.exe'
+    $psi.Arguments = ArgsWsl "$exe $argumentos"
+  } else {
+    $exe = if ($programa -eq 'web') { $r.Web } else { $r.Qm }
+    if (-not $exe) { return $null }
+    $comspec = $env:ComSpec
+    if (-not $comspec) { $comspec = 'cmd.exe' }
+    $psi.FileName = $comspec
+    $psi.Arguments = "/d /s /c `"`"$exe`" $argumentos`""
+  }
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  return $psi
+}
+
 function Leer {
   # Devuelve el objeto del JSON, o un string con la frase del problema.
   # Silencio es el bug (SOUL.md): si no hay número, hay una frase.
@@ -1186,13 +1323,10 @@ function Leer {
     return ($texto | ConvertFrom-Json)
   }
 
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = 'wsl.exe'
-  $psi.Arguments = ArgsWsl "$QmLinux --json --breve"
+  $psi = PsiQm '--json --breve'
+  if ($null -eq $psi) { return (ResolverQm).Motivo }
   $psi.RedirectStandardOutput = $true
   $psi.RedirectStandardError = $true
-  $psi.UseShellExecute = $false
-  $psi.CreateNoWindow = $true
   $psi.StandardOutputEncoding = [System.Text.Encoding]::UTF8
   $psi.StandardErrorEncoding = [System.Text.Encoding]::UTF8
   try {
@@ -1254,13 +1388,10 @@ function Calentar([switch]$Forzado) {
   # Sólo las cuentas que se mueven. Refrescar una que va al 9 % es gastar un
   # pedido para confirmar que no pasó nada.
   $cmd = if ($script:CuentasQueMueven.Count) {
-    "$QmLinux --calentar --cuentas=" + ($script:CuentasQueMueven -join ',')
-  } else { "$QmLinux --calentar" }
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = 'wsl.exe'
-  $psi.Arguments = ArgsWsl $cmd
-  $psi.UseShellExecute = $false
-  $psi.CreateNoWindow = $true
+    '--calentar --cuentas=' + ($script:CuentasQueMueven -join ',')
+  } else { '--calentar' }
+  $psi = PsiQm $cmd
+  if ($null -eq $psi) { return $null }
   try { return [System.Diagnostics.Process]::Start($psi) } catch { return $null }
 }
 
@@ -2007,12 +2138,10 @@ function AbrirTablero {
     $c.Close()
   } catch { $vivo = $false }
   if (-not $vivo) {
-    $psi = New-Object System.Diagnostics.ProcessStartInfo
-    $psi.FileName = 'wsl.exe'
-    $psi.Arguments = ArgsWsl "qm-web --sin-abrir --puerto=$Puerto"
-    $psi.UseShellExecute = $false
-    $psi.CreateNoWindow = $true
-    try { [System.Diagnostics.Process]::Start($psi) | Out-Null; Start-Sleep -Milliseconds 1200 } catch { }
+    $psi = PsiQm "--sin-abrir --puerto=$Puerto" 'web'
+    if ($null -ne $psi) {
+      try { [System.Diagnostics.Process]::Start($psi) | Out-Null; Start-Sleep -Milliseconds 1200 } catch { }
+    }
   }
   Start-Process "http://127.0.0.1:$Puerto"
 }

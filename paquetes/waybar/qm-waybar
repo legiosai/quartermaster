@@ -1,0 +1,139 @@
+#!/usr/bin/env node
+// quartermaster en waybar.
+//
+// Es un renderer más, con la misma regla que los otros cuatro: SÓLO DIBUJA. Le
+// pide el JSON a `qm` y no sabe qué es una credencial, un llavero ni un
+// endpoint. La regla de cuál barra manda —la que evita que un 75 % con aviso
+// quede tapado por un 8 % que se ve más lindo— vive una sola vez, en
+// src/core/tipos.ts, y llega acá resuelta en `mostrar` y `frena`. Acá no se
+// reimplementa nada de eso: se leen campos.
+//
+// Waybar espera una línea de JSON con text / tooltip / class / percentage.
+//
+// Es JavaScript común y no TypeScript a propósito: así corre con el Node que
+// haya, igual que bin/qm-web. El requisito de 22.6 vive adentro de `qm`.
+//
+//   uso:  qm-waybar [--todo] [--qm RUTA]
+//         --todo   todas las cuentas en el texto (por defecto, sólo la que frena)
+//         --qm     qué qm correr (por defecto, el del PATH)
+
+import { execFileSync } from 'node:child_process';
+
+const args = process.argv.slice(2);
+const todo = args.includes('--todo');
+const iQm = args.indexOf('--qm');
+const QM = iQm >= 0 && args[iQm + 1] ? args[iQm + 1] : 'qm';
+
+// Silencio es el bug (SOUL.md): si algo sale mal, waybar tiene que mostrar una
+// frase, no un módulo vacío que parece que no pasa nada.
+function morirCon(texto, detalle) {
+  process.stdout.write(JSON.stringify({
+    text: texto,
+    tooltip: detalle ?? texto,
+    class: 'error',
+  }) + '\n');
+  process.exit(0);
+}
+
+let crudo;
+try {
+  // --breve no lee transcripciones: tarda milisegundos, que es lo que hace
+  // falta en algo que se redibuja cada minuto.
+  crudo = execFileSync(QM, ['--json', '--breve'], { encoding: 'utf8', maxBuffer: 8 << 20 });
+} catch (e) {
+  const detalle = (e.stderr || e.message || '').toString().trim().split('\n')[0];
+  morirCon('qm ?', detalle || 'no pude correr qm');
+}
+
+let estado;
+try {
+  estado = JSON.parse(crudo);
+} catch {
+  morirCon('qm ?', 'qm no devolvió JSON');
+}
+
+const filas = (estado.perfiles ?? []).map((p) => {
+  const cuota = p.cuota ?? {};
+  const frena = cuota.frena ?? null;
+  const sesion = cuota.sesion ?? null;
+  // El nombre corto, igual que nombreCorto() en src/core/config.ts:
+  // `.claude-teams` → `teams`, y el perfil por defecto → `main`.
+  const corto = (p.perfil ?? '').replace(/^\.claude/, '').replace(/^-/, '');
+  return {
+    nombre: corto === '' ? 'main' : corto,
+    producto: p.producto,
+    estado: cuota.estado ?? 'sin-cuota',
+    frena,
+    sesion,
+    // La edad del cache importa: un 8 % de hace dos días no es un 8 %.
+    viejo: typeof cuota.edadSegundos === 'number' && cuota.edadSegundos > 6 * 3600,
+    nota: cuota.detalle ?? null,
+  };
+});
+
+if (filas.length === 0) morirCon('sin cuentas', 'qm no encontró ninguna cuenta en esta máquina');
+
+const pct = (v) => (v && typeof v.porcentaje === 'number' ? Math.round(v.porcentaje) : null);
+
+// La cuenta que frena antes es la que va en el texto: es la que contesta
+// «¿puedo seguir?», que es la única pregunta que entra en una barra de estado.
+let peor = null;
+for (const f of filas) {
+  const p = pct(f.frena);
+  if (p === null) continue;
+  if (peor === null || p > pct(peor.frena)) peor = f;
+}
+
+const etiqueta = (f) => {
+  const s = pct(f.sesion);
+  const p = pct(f.frena);
+  if (p === null) return `${f.nombre} —`;
+  const marca = f.viejo ? '~' : '';
+  // Dos números cuando la que frena NO es la sesión: contestan preguntas
+  // distintas («¿puedo seguir ahora?» y «¿llego al final de la semana?») y una
+  // sola de las dos es media respuesta. Misma decisión que la statusline.
+  const dos = s !== null && f.frena?.clave !== f.sesion?.clave;
+  const aviso = f.frena?.preocupa ? '!' : '';
+  return dos ? `${f.nombre} ${marca}${s}/${p}%${aviso}` : `${f.nombre} ${marca}${p}%${aviso}`;
+};
+
+const text = todo || peor === null
+  ? filas.map(etiqueta).join(' · ')
+  : etiqueta(peor);
+
+const alto = peor === null ? 0 : pct(peor.frena) ?? 0;
+const clase = peor === null ? 'sin-datos'
+  : alto >= 90 ? 'critico'
+  : alto >= 75 || peor.frena?.preocupa ? 'aviso'
+  : 'bien';
+
+const cuando = (iso) => {
+  if (!iso) return '';
+  const ms = new Date(iso).getTime() - Date.now();
+  if (!Number.isFinite(ms)) return '';
+  if (ms <= 0) return ' · reinicio vencido';
+  const h = Math.floor(ms / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return h > 0 ? ` · reinicia en ${h}h${String(m).padStart(2, '0')}` : ` · reinicia en ${m}m`;
+};
+
+const tooltip = filas.map((f) => {
+  if (f.estado !== 'ok') {
+    return `${f.nombre}: ${f.nota ?? f.estado}`;
+  }
+  const s = pct(f.sesion);
+  const p = pct(f.frena);
+  const nombreFrena = f.frena?.nombre ?? '—';
+  const lineas = [`<b>${f.nombre}</b> (${f.producto})`];
+  if (s !== null) lineas.push(`  sesión      ${s}%`);
+  if (p !== null) lineas.push(`  ${nombreFrena.padEnd(11)} ${p}%${cuando(f.frena?.reinicia)}`);
+  if (f.viejo) lineas.push('  (cache de más de 6 h)');
+  return lineas.join('\n');
+}).join('\n\n');
+
+process.stdout.write(JSON.stringify({
+  text,
+  tooltip,
+  class: clase,
+  percentage: alto,
+}) + '\n');

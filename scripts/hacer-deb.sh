@@ -33,6 +33,16 @@ cp README.md LICENSE "$arma/usr/share/doc/quartermaster/"
 # alcanza y no hay que duplicar el árbol.
 ln -sf /usr/lib/quartermaster/bin/qm "$arma/usr/bin/qm"
 find "$arma/usr/lib/quartermaster" -name '__pycache__' -prune -exec rm -rf {} +
+# Lo de Windows no tiene nada que hacer adentro de un .deb: los lanzadores .cmd,
+# la bandeja y el ícono del instalador. Son ~150 kB de archivos que en esta
+# máquina no los va a abrir nadie.
+rm -f "$arma/usr/lib/quartermaster/bin/"*.cmd \
+      "$arma/usr/lib/quartermaster/bin/qm-tray.ps1" \
+      "$arma/usr/lib/quartermaster/bin/quartermaster.ico" \
+      "$arma/usr/lib/quartermaster/scripts/gate-bandeja.ps1" \
+      "$arma/usr/lib/quartermaster/scripts/gate-windows.ps1" \
+      "$arma/usr/lib/quartermaster/scripts/hacer-setup.ps1" \
+      "$arma/usr/lib/quartermaster/scripts/quartermaster.iss"
 
 cat > "$arma/DEBIAN/control" <<EOF
 Package: quartermaster

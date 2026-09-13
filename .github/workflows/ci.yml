@@ -50,6 +50,18 @@ jobs:
         env:
           QM_GATE_EXIGE: swift,pwsh
 
+      # Que el zip de la extensión salga con la forma que pide
+      # extensions.gnome.org: los tres archivos en la RAÍZ, el uuid igual al
+      # directorio y sin "version" en el metadata.json (ese número lo pone el
+      # sitio). Sin esto, el error se descubre subiendo — y ahí del otro lado
+      # hay una persona esperando.
+      - run: ./scripts/hacer-extension-zip.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: extension-gnome
+          path: dist/*.shell-extension.zip
+          if-no-files-found: error
+
   # La bandeja DIBUJA con System.Drawing y WinForms, que son de Windows: parsear
   # se puede en Ubuntu (lo hace gate-dibujo.sh) pero comprobar que salga un panel
   # de 340 px con píxeles adentro, en los dos temas, sin nada fuera del margen y
@@ -63,4 +75,26 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-bandeja.ps1
+
+      # Windows como PLATAFORMA, que es otra cosa que la bandeja como dibujo.
+      # El job de arriba comprueba que `npm install -g` deje un qm que corre en
+      # Linux; este comprueba lo mismo en Windows, que es donde estaba roto:
+      # npm arma el shim a partir del shebang, `bin/qm` es un #!/bin/sh, y el
+      # .cmd generado invocaba `sh` — que no está en el PATH de una máquina con
+      # Git for Windows instalado de la forma normal.
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-windows.ps1
+
+      # Y que el instalador COMPILE. Un .iss roto no se nota hasta el día de la
+      # release, que es el peor día para enterarse.
+      - run: choco install innosetup -y --no-progress
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/hacer-setup.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: instalador-windows
+          path: dist/*-setup.exe
+          if-no-files-found: error

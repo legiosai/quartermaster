@@ -1,0 +1,31 @@
+/* Los colores del módulo, en ~/.config/waybar/style.css
+ *
+ * Son las clases que emite qm-waybar, y son las mismas cuatro decisiones que
+ * toman las otras superficies: bien, aviso (lo que el servidor marcó o el 75 %),
+ * crítico (90 % o más) y "no hay número", que NO se dibuja igual que un cero.
+ *
+ * La paleta es la del tablero y la de la bandeja; si cambia una, cambian todas. */
+
+#custom-quartermaster {
+  padding: 0 10px;
+}
+
+#custom-quartermaster.bien {
+  color: #3ea76a;
+}
+
+#custom-quartermaster.aviso {
+  color: #e0a91b;
+}
+
+#custom-quartermaster.critico {
+  color: #e05a3c;
+}
+
+/* Sin número no se pinta de verde: un módulo apagado y un módulo al 0 % son
+ * cosas opuestas y se veían iguales. */
+#custom-quartermaster.sin-datos,
+#custom-quartermaster.error {
+  color: #9aa0a6;
+  font-style: italic;
+}

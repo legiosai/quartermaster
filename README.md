@@ -43,6 +43,24 @@ release](https://github.com/legiosai/quartermaster/releases/latest):
 sudo apt install ./quartermaster_0.1.3_all.deb
 ```
 
+En **Windows**, el instalador de la [última
+release](https://github.com/legiosai/quartermaster/releases/latest). Se instala
+para el usuario y sin UAC: deja `qm` en el `PATH`, la bandeja en el menú Inicio
+y, si dejás marcada la tarea, la bandeja arrancando sola. Lo arma
+`scripts/hacer-setup.ps1`, junto con un zip portable.
+
+Los manifests de **winget** y **scoop** están armados y todavía no aprobados —
+un `winget install` publicado antes de que el paquete exista es el defecto de
+H9 otra vez, así que acá no figura hasta que entre. Los pasos de cada catálogo
+están en [`paquetes/README.md`](paquetes/README.md).
+
+En **Arch** hay un `PKGBUILD` en `paquetes/aur/`, y con **Nix** anda sin
+instalar nada:
+
+```sh
+nix run github:legiosai/quartermaster
+```
+
 O desde el repo, sin instalar nada global:
 
 ```sh
@@ -1068,6 +1086,13 @@ make tray            # lo arranca ahora (desde WSL)
 make tray-autostart  # y que arranque solo al iniciar sesión de Windows
 ```
 
+```powershell
+bin\qm-tray.cmd      # y lo mismo en Windows nativo, sin WSL de por medio
+```
+
+Las dos formas corren el mismo `.ps1`; lo único que cambia es a qué `qm` le
+pide el JSON, y eso lo decide él solo (ver [más abajo](#la-bandeja-dejó-de-necesitar-wsl)).
+
 El panel es el mismo dibujo que `VistaResumen` y `VistaCuenta` en
 `bin/qm-barra.swift`: cabecera con el anillo de **lo primero que te frena**, y
 después una sección por cuenta con el glifo del producto, cuenta y plan,
@@ -1446,6 +1471,138 @@ leyendo el código; se ve mirando una captura, que es para lo que existe el modo
   variable, y `$PALETA` empezó llamándose `$NIVEL` y la tapaba la local
   `$nivel`. Las dos aparecieron corriendo el código, no leyéndolo.
 
+## Windows sin WSL, y cómo se instala cada cosa
+
+La bandeja de arriba nació hablándole a WSL: `wsl.exe` estaba escrito a mano en
+los tres lugares que corren `qm`. Eso dejaba afuera al usuario de Windows
+nativo, que es justo el que instalaría esto desde un catálogo — y el CLI ya
+andaba nativo desde [`numeros/h4-windows.md`](numeros/h4-windows.md), con
+`plataforma: win32` y la cuota de Codex leída del disco.
+
+Lo que faltaba estaba anotado al final de ese mismo archivo: **un `qm.cmd`**.
+
+### El lanzador que faltaba
+
+`bin/qm` es un `/bin/sh` y del lado de Windows no lo corre nadie. Ahora hay tres
+archivos y cada uno tiene un motivo distinto de existir:
+
+- **`bin/qm.cmd`** — el gemelo de `bin/qm`: busca un Node ≥ 22.6, prefiere
+  `dist\` sobre `src\` y devuelve el código de salida (`--umbral` sale 3 y hay
+  gente encadenando con eso). También arregla el mojibake que quedó medido en
+  H4: guarda la codepage de la consola, la pone en UTF-8 y la devuelve al salir.
+- **`bin/buscar-node.cmd`** — la búsqueda sola, porque la usan `qm.cmd` y
+  `qm-web.cmd` y una lista de rutas escrita dos veces es una lista que el día
+  que se edita una da dos respuestas. Mira `QM_NODE`, el `PATH`, nvm-windows,
+  fnm, volta y las instalaciones normales.
+- **`bin/qm.mjs`** — la entrada de npm, y **sólo** la de npm. npm arma los shims
+  a partir del shebang: con `#!/bin/sh` genera un `qm.cmd` que invoca `sh`, que
+  no tiene por qué estar en el `PATH` de Windows. Ahora el shim invoca `node`,
+  que sí está —lo acaba de usar el propio `npm install`—. Si ese Node ya sirve,
+  carga el CLI en el mismo proceso; si no, le pasa el trabajo al lanzador de la
+  plataforma. La búsqueda no se reimplementa ahí: dos copias ya son bastante.
+
+El camino corto salió más rápido que el que había. Medido en esta máquina
+—diez cuentas, mediana de 7 corridas de `--breve` con `dist/` presente—:
+
+| entrada | mediana |
+|---|---|
+| `node bin/qm.mjs` (npm, camino corto) | **692 ms** |
+| `bin/qm` (sh → node) | 927 ms |
+| `node dist/cli/qm.js` (el piso) | 700 ms |
+
+O sea: el despachador no cuesta nada y el proceso de más que ahorra son ~235 ms
+en algo que la statusline corre en cada redibujo.
+
+### La bandeja dejó de necesitar WSL
+
+`bin/qm-tray.ps1` ya no nombra a `wsl.exe` en tres lugares: lo decide una vez,
+en `ResolverQm`, y los tres sitios que corren `qm` piden un `ProcessStartInfo`
+hecho. El orden es `-Qm` explícito, `-QmLinux` explícito (pedir el de adentro de
+WSL **es** pedir WSL, y por eso quien viene de `bin/qm-tray` sigue igual que
+antes), el `qm.cmd` que está al lado, el del `PATH`, y WSL.
+
+Si no hay ninguno **no se dibuja un cero**: se devuelve una frase. Un ícono que
+no encontró a `qm` y un ícono que encontró un 0 % se ven parecido y significan
+cosas opuestas.
+
+Eso está en el gate (`scripts/gate-bandeja.ps1`, punto 5) y se comprueba de una
+forma que vale la pena copiar: cargar el archivo entero levanta una bandeja de
+verdad y se queda en el bucle de mensajes, así que las tres funciones se sacan
+**por AST** —no por recorte de texto, que se desincroniza sin avisar— y se
+corren contra un `bin\` de mentira con espacios en la ruta, que es el caso que
+se rompe si alguien saca un par de comillas.
+
+### El instalador
+
+```powershell
+powershell -File scripts\hacer-setup.ps1
+```
+
+Inno Setup, **por usuario y sin UAC**. Deja
+`%LOCALAPPDATA%\Programs\quartermaster`, agrega `bin\` al `PATH` del usuario,
+los accesos directos, y la bandeja en el arranque si se deja marcada la tarea.
+**2,23 MB** medidos, porque **no trae Node adentro**: bundlearlo serían ~60 MB
+y una versión de Node que tendríamos que actualizar nosotros. Si no hay uno que
+sirva, el instalador lo dice al terminar —y lo pregunta corriendo
+`buscar-node.cmd`, el mismo archivo que después usa el CLI, en vez de
+reimplementar la búsqueda adentro del instalador.
+
+Está instalado y desinstalado de verdad, en un Windows 10 22H2 limpio: entra
+sin UAC, deja `qm` en el `PATH`, la bandeja aparece en el área de notificación
+—en el desplegable de escondidos, que es lo que Windows hace con los íconos
+nuevos— y al desinstalar cierra la bandeja, borra el directorio y devuelve el
+`PATH` a lo que era. Los números están en
+[`numeros/h10-distribucion.md`](numeros/h10-distribucion.md).
+
+Dos detalles que no son adorno:
+
+- el `PATH` se reescribe a mano y no con un `[Registry]` de Inno. Con
+  `{olddata}`, el desinstalador borra el **valor entero** — o sea el `PATH` del
+  usuario, no nuestro pedacito;
+- el desinstalador cierra la bandeja **antes** de borrar. Un `.ps1` que un
+  proceso tiene abierto no se puede borrar, y la desinstalación quedaría a
+  medias con el ícono todavía arriba.
+
+El CI lo compila en cada push y sube el `.exe` como artifact: un `.iss` roto no
+se descubre el día de la release.
+
+### Y un gate que mide en vez de suponer
+
+`scripts/gate-windows.ps1` comprueba lo de más abajo de todo: que del lado de
+Windows exista un `qm` que **arranque**. Instala el tarball en un prefix limpio
+y lo ejecuta, igual que `scripts/el-paquete-de-npm-corre.sh` hace en Linux,
+porque que el paquete tenga los archivos no prueba nada — es la lección de H9.
+
+Y hace una cosa más, que es la que faltaba: **empaqueta el `bin` viejo y lo
+prueba ahí mismo**. El cambio a `qm.mjs` se hizo razonando sobre cómo npm arma
+los shims, y razonar no es medir. Ese punto no falla el gate —depende de si esa
+máquina tiene un `sh` en el `PATH`— pero deja el número en el log.
+
+### Las vías de instalación, y por qué ninguna se publica sola
+
+| Canal | Qué instala |
+|---|---|
+| winget | el `.exe`, declarando `OpenJS.NodeJS.LTS` como dependencia |
+| scoop | el zip portable, con `depends` en nodejs |
+| extensions.gnome.org | el zip de la extensión |
+| AUR | `PKGBUILD`, con `nodejs>=22.6` de verdad (Arch trae uno nuevo) |
+| Nix | `flake.nix`, con el Node del cierre adelante del `PATH` |
+| waybar | un renderer más, para Hyprland, Sway y river |
+
+Los tres catálogos ajenos tienen revisión humana del otro lado. Un bot que manda
+PRs a un repo de Microsoft cada vez que alguien etiqueta mal una versión es la
+forma más rápida de que te bloqueen, así que los manifests se **generan**
+(`scripts/hacer-manifests.mjs`, que pone versión y los dos SHA256 en los seis
+lugares donde van) y se mandan a mano. Los pasos exactos de cada uno están en
+[`paquetes/README.md`](paquetes/README.md).
+
+La descripción de la extensión pasó a estar **en inglés**, y es lo único del
+proyecto que está en inglés por decisión y no por descuido: extensions.gnome.org
+es un catálogo global y el revisor no tiene por qué adivinar que los números los
+dibuja un CLI que hay que instalar aparte. Esa mitad es la que más devoluciones
+se come.
+
+
 ## En la statusline de Claude Code
 
 Es donde la herramienta cumple su misión: el número deja de ser algo que te
@@ -1520,10 +1677,15 @@ dist/             el JS compilado. No se comitea; sólo viaja en el tarball de
 src/render/       barras y formato para la terminal, y tablero.html para el
                   navegador. Sin dependencias.
 extension/        la extensión de GNOME Shell que se queda con el click
-bin/              el lanzador que encuentra un Node, el indicador de GNOME, la
+bin/              los lanzadores y las superficies. qm (POSIX), qm.cmd y
+                  buscar-node.cmd (Windows), qm.mjs (la entrada de npm, que
+                  tiene que andar en los dos); el indicador de GNOME, la
                   bandeja de Windows, la barra de macOS y el servidor del
                   tablero. Todos dibujan y nada más: le piden el JSON a qm y no
                   saben de credenciales ni de HTTP.
+paquetes/         cómo llega a una máquina que no clona el repo: los manifests
+                  de winget y scoop, el PKGBUILD del AUR y el módulo de waybar,
+                  más los pasos de publicación de cada catálogo.
 ```
 
 La regla es la de siempre: si un nombre de vendor o una ruta de sistema

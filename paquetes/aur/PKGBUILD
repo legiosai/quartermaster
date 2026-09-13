@@ -1,0 +1,57 @@
+# Maintainer: Legios <valentintorassacolombero@gmail.com>
+#
+# El paquete de Arch. Es el mismo trato que el .deb: no compila nada, porque qm
+# lee el TypeScript directo. El paquete son los fuentes en /usr/lib y un enlace
+# en /usr/bin.
+#
+# Diferencia con el .deb, y es a favor: acá la dependencia SÍ puede decir la
+# versión. Debian 13 trae un Node 20 y pedir >= 22.6 habría hecho un paquete
+# imposible de instalar; Arch trae uno nuevo, así que se pide de verdad y el
+# usuario se entera al instalar y no al correr.
+
+pkgname=quartermaster
+pkgver=0.1.5
+pkgrel=1
+pkgdesc="Cuánta cuota te queda, en todas tus cuentas de agentes: cada perfil de Claude Code, más Codex y opencode"
+arch=('any')
+url="https://github.com/legiosai/quartermaster"
+license=('MIT')
+depends=('nodejs>=22.6')
+optdepends=(
+  'python-gobject: el indicador de la barra de GNOME'
+  'python-cairo: el dibujo del indicador y del panel'
+  'libayatana-appindicator: el ícono en la barra cuando no está la extensión'
+  'gnome-shell: la extensión propia, que se queda con el click'
+)
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')  # se completa con `updpkgsums` al publicar la versión
+
+package() {
+  cd "$srcdir/$pkgname-$pkgver"
+
+  install -d "$pkgdir/usr/lib/$pkgname"
+  cp -r bin src scripts extension Makefile package.json "$pkgdir/usr/lib/$pkgname/"
+
+  # Lo que no tiene nada que hacer en una máquina Linux: el lanzador de Windows,
+  # la bandeja y el ícono del instalador.
+  rm -f "$pkgdir/usr/lib/$pkgname/bin/"*.cmd \
+        "$pkgdir/usr/lib/$pkgname/bin/qm-tray.ps1" \
+        "$pkgdir/usr/lib/$pkgname/bin/quartermaster.ico"
+  find "$pkgdir/usr/lib/$pkgname" -name '__pycache__' -prune -exec rm -rf {} +
+
+  # El lanzador sigue los symlinks para encontrar el src/, así que un enlace
+  # alcanza y no hay que duplicar el árbol.
+  install -d "$pkgdir/usr/bin"
+  ln -sf "/usr/lib/$pkgname/bin/qm" "$pkgdir/usr/bin/qm"
+  ln -sf "/usr/lib/$pkgname/bin/qm-web" "$pkgdir/usr/bin/qm-web"
+  ln -sf "/usr/lib/$pkgname/bin/qm-indicator" "$pkgdir/usr/bin/qm-indicator"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+
+  # La extensión de GNOME queda donde el shell la busca. Habilitarla es del
+  # usuario: `gnome-extensions enable quartermaster@legios`.
+  install -d "$pkgdir/usr/share/gnome-shell/extensions"
+  cp -r "extension/quartermaster@legios" \
+        "$pkgdir/usr/share/gnome-shell/extensions/quartermaster@legios"
+}

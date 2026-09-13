@@ -27,7 +27,30 @@ const PAGINA = [
   path.join(RAIZ, 'dist', 'render', 'tablero.html'),
   path.join(RAIZ, 'src', 'render', 'tablero.html'),
 ].find((p) => fs.existsSync(p)) ?? path.join(RAIZ, 'src', 'render', 'tablero.html');
-const QM = path.join(RAIZ, 'bin', 'qm');
+// El lanzador de esta plataforma. En Windows es el .cmd: `bin/qm` es un
+// /bin/sh y ahí no hay quién lo corra.
+const enWindows = process.platform === 'win32';
+const QM = path.join(RAIZ, 'bin', enWindows ? 'qm.cmd' : 'qm');
+
+/**
+ * Correr `qm` con argumentos, sin que la plataforma se note río abajo.
+ *
+ * En Windows un .cmd no se puede lanzar directo —Node lo rechaza desde la
+ * 18.20/20.12— así que va por cmd.exe. Las comillas de más alrededor de todo
+ * son las que documenta `cmd /?` para que /s no toque el resto: sin ellas una
+ * ruta con espacios —la que deja el instalador por defecto— se parte en dos.
+ */
+function correrQm(args, opts, cb) {
+  if (!enWindows) return execFile(QM, args, opts, cb);
+  const citar = (s) => `"${String(s).replace(/"/g, '""')}"`;
+  const linea = [citar(QM), ...args.map(citar)].join(' ');
+  return execFile(
+    process.env.ComSpec || 'cmd.exe',
+    ['/d', '/s', '/c', `"${linea}"`],
+    { ...opts, windowsVerbatimArguments: true },
+    cb,
+  );
+}
 
 const AYUDA = `qm-web · el tablero de quartermaster en el navegador
 
@@ -58,7 +81,7 @@ let enVuelo = null;
 function estado() {
   if (enVuelo) return enVuelo;
   enVuelo = new Promise((resolver) => {
-    execFile(QM, ['--json', `--dias=${opciones.dias}`], { maxBuffer: 32 << 20 }, (err, salida, errSalida) => {
+    correrQm(['--json', `--dias=${opciones.dias}`], { maxBuffer: 32 << 20 }, (err, salida, errSalida) => {
       enVuelo = null;
       if (err && !salida) {
         // Silencio es el bug (SOUL.md): si no hay número, hay una frase.

@@ -1,0 +1,26 @@
+// El módulo de quartermaster para waybar. Va adentro de ~/.config/waybar/config.
+//
+// Waybar es la barra de casi todo Wayland sin GNOME —Hyprland, Sway, river—,
+// que es exactamente el escritorio donde el indicador de GNOME no sirve y donde
+// hasta ahora lo único que quedaba era el tablero del navegador.
+//
+// El intervalo es 60 y no menos: `--breve` lee del disco y no sale a la red,
+// pero un módulo que corre cada 5 segundos igual despierta un proceso por tick
+// para siempre. Y el número que muestra viene del cache que Claude Code
+// refresca cuando lo usás, así que mirarlo doce veces por minuto no lo
+// adelanta.
+{
+  "custom/quartermaster": {
+    "exec": "qm-waybar",
+    "return-type": "json",
+    "interval": 60,
+    // Click izquierdo: el tablero completo en el navegador.
+    "on-click": "qm-web",
+    // Click derecho: refrescar ya, sin esperar el próximo tick. Necesita el
+    // `signal` de abajo; el número es el de RTMIN+N.
+    "on-click-right": "pkill -RTMIN+9 waybar",
+    "signal": 9,
+    "format": "{}",
+    "tooltip": true
+  }
+}

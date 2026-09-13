@@ -31,12 +31,14 @@
     "node": ">=22.6"
   },
   "bin": {
-    "qm": "bin/qm",
+    "qm": "bin/qm.mjs",
     "qm-web": "bin/qm-web",
     "qm-barra": "bin/qm-barra"
   },
   "files": [
     "bin/",
+    "!bin/__pycache__",
+    "!bin/quartermaster.ico",
     "dist/",
     "scripts/",
     "src/render/tablero.html",
