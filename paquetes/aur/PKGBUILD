@@ -10,7 +10,7 @@
 # usuario se entera al instalar y no al correr.
 
 pkgname=quartermaster
-pkgver=0.1.5
+pkgver=0.1.6
 pkgrel=1
 pkgdesc="Cuánta cuota te queda, en todas tus cuentas de agentes: cada perfil de Claude Code, más Codex y opencode"
 arch=('any')

@@ -248,6 +248,55 @@ del margen, el panel de una cuenta no es el de todas, y resuelve qm nativo /
 WSL / frase
 ```
 
+## La bandeja contra una cuenta de verdad
+
+Era el punto abierto de la primera versión de esta página. Se cerró poniéndole
+a la VM un perfil con la forma y los números REALES: el archivo sale de
+`test/fixtures/cached-usage-max.json`, que es una respuesta del endpoint
+comiteada en el repo, con las fechas traídas a ahora.
+
+`qm` en Windows, contra esa cuenta:
+
+```
+  .claude            cuenta-de-prueba@ejemplo.com   · claude_max
+                     credencial: ilegible · Windows sin verificar: no hay
+                     .credentials.json y puede que use DPAPI
+                     cache · hace 3h01m
+                     session                  █░░░░░░░░░░░░░░   8%
+                     weekly_all               █████████░░░░░░  59%
+                   ▸ weekly_scoped (Fable)    ███████████░░░░  75% warning
+
+  lo primero que te frena: .claude · weekly_scoped (Fable) 75%
+```
+
+Que es **el hallazgo entero del proyecto, funcionando en Windows**: las dos
+barras famosas dicen 8 % y 59 %, y la que frena —que no tiene clave con nombre
+propio y vive adentro de `limits[]`— va al 75 % con aviso del servidor.
+`--breve` contesta `main 8/75%!`.
+
+Y la bandeja dibujando ese mismo JSON, en su modo de captura:
+
+![El panel de la bandeja de Windows con una cuenta real](h10-panel-windows.png)
+
+340x345 px, con el anillo de «lo primero que te frena» al 75 %, la cuenta con
+su plan, y las tres barras.
+
+### Y un mojibake que no era de la bandeja
+
+La primera captura salió con los acentos rotos en dos renglones. Antes de
+anotarlo como bug se comprobó de dónde venía: el JSON se había capturado con
+`qm --json | Out-File`, y ahí PowerShell decodifica la salida de qm con la
+codepage OEM antes de escribirla. Redirigiendo con `cmd` —que pasa los bytes
+tal cual— el panel sale con los acentos bien.
+
+O sea: era la captura, no el render. La bandeja levanta el proceso con
+`StandardOutputEncoding = UTF8`, que es justo lo que evita esto.
+
+De yapa, el mismo diagnóstico dejó una demostración del hallazgo 4: la línea que
+se escribió para comprobar los acentos **no encontró nada**, porque el `.ps1`
+que la contenía se generó sin BOM y PowerShell 5.1 lo leyó como Windows-1252.
+El test se rompió por el mismo motivo que estaba buscando.
+
 ## Lo medido en Linux
 
 ### El despachador de npm no cuesta nada, y ahorra un proceso
@@ -292,11 +341,10 @@ la ruta**:
 
 ## Lo que sigue sin medirse
 
-- **La bandeja dibujando contra una cuenta REAL.** El gate comprueba que
-  dibuje —340 px, los dos temas, nada fuera del margen— pero contra fixtures. En
-  esa VM no hay ninguna cuenta de Claude Code, así que el panel con números de
-  verdad sigue sin verse en Windows. Es la misma pregunta que dejó abierta H4
-  con DPAPI, y necesita la misma máquina.
+- **La credencial de Windows, que es lo de H4 y sigue abierto.** En esa VM no
+  hay un Claude Code nativo logueado, así que si la credencial va a DPAPI o a un
+  archivo sigue sin poder afirmarse. `credenciales.ts` dice exactamente eso
+  —«Windows sin verificar»— y se ve en la corrida de abajo.
 - **`winget validate` y el PR a winget-pkgs.** Los manifests tienen la forma del
   esquema 1.6.0 y nadie los pasó por la herramienta.
 
