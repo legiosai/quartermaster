@@ -19,11 +19,21 @@
 #   5. crea la release con todo adjunto y los SHA256 escritos, que son los que
 #      piden los manifests de winget y de scoop.
 #
-# Lo que NO hace, a propósito: mandar el PR a winget-pkgs, subir la extensión a
-# extensions.gnome.org ni tocar el AUR. Los tres tienen revisión humana del otro
-# lado y un bot que les manda cosas cada vez que alguien etiqueta mal una
-# versión es la forma más rápida de que te bloqueen. Los manifests se generan
-# acá y se mandan a mano (ver paquetes/README.md).
+#   6. y EMPUJA A TODOS LOS CANALES: la fórmula de Homebrew, el repo de apt,
+#      el bucket de scoop, el AUR y el PR a winget-pkgs.
+#
+# Un tag, siete canales. La razón es la de siempre en este repo: la versión vive
+# en muchos lugares y el que se olvida no rompe nada visible — queda un catálogo
+# sirviendo 0.1.5 mientras el README dice 0.1.7, y nadie se entera hasta que
+# alguien instala.
+#
+# CADA CANAL SE SALTEA SOLO SI LE FALTA SU SECRETO. Eso es deliberado: una
+# release no puede caerse porque el AUR todavía no está configurado. El job
+# `canales` dice al principio cuáles van a correr, y el `resumen` dice al final
+# qué se publicó y qué no — silencio es el bug también acá.
+#
+# La excepción es extensions.gnome.org: no tiene API de subida. Ese sigue siendo
+# a mano, y el resumen lo recuerda con el link al artefacto.
 
 name: release
 
@@ -43,6 +53,38 @@ permissions:
   id-token: write     # el provenance de npm
 
 jobs:
+  # ── qué canales están configurados ────────────────────────────────────
+  # El contexto `secrets` no se puede usar en el `if` de un job, así que se lee
+  # acá y se pasa por `needs`. De paso queda escrito en el log cuáles van a
+  # correr, que es lo primero que uno quiere saber mirando una release.
+  canales:
+    runs-on: ubuntu-latest
+    outputs:
+      npm: ${{ steps.hay.outputs.npm }}
+      brew: ${{ steps.hay.outputs.brew }}
+      scoop: ${{ steps.hay.outputs.scoop }}
+      apt: ${{ steps.hay.outputs.apt }}
+      aur: ${{ steps.hay.outputs.aur }}
+      winget: ${{ steps.hay.outputs.winget }}
+    steps:
+      - id: hay
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          TOKEN_PAQUETES: ${{ secrets.TOKEN_PAQUETES }}
+          GPG_PRIVADA: ${{ secrets.GPG_PRIVADA }}
+          AUR_SSH: ${{ secrets.AUR_SSH }}
+        run: |
+          di() { echo "$1=$2" >> "$GITHUB_OUTPUT"; printf '  %-8s %s\n' "$1" "$([ "$2" = si ] && echo 'configurado' || echo 'SIN SECRETO — se saltea')"; }
+          echo "canales:"
+          di npm    "$([ -n "$NPM_TOKEN" ] && echo si || echo no)"
+          di brew   "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
+          di scoop  "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
+          di winget "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
+          di apt    "$([ -n "$GPG_PRIVADA" ] && echo si || echo no)"
+          di aur    "$([ -n "$AUR_SSH" ] && echo si || echo no)"
+          echo ""
+          echo "extensions.gnome.org no tiene API: ése siempre es a mano."
+
   # ── que la versión sea una sola ───────────────────────────────────────
   version:
     runs-on: ubuntu-latest
@@ -140,8 +182,8 @@ jobs:
 
   # ── npm, con provenance ───────────────────────────────────────────────
   npm:
-    needs: [version, gates]
-    if: github.ref_type == 'tag' || inputs.publicar
+    needs: [canales, version, gates]
+    if: (github.ref_type == 'tag' || inputs.publicar) && needs.canales.outputs.npm == 'si'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -203,18 +245,244 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: true
 
-  # ── y recordar lo que sigue siendo a mano ─────────────────────────────
-  a-mano:
-    needs: release
+  # ── Homebrew: la fórmula del tap ──────────────────────────────────────
+  brew:
+    needs: [canales, version, release]
+    if: needs.canales.outputs.brew == 'si'
+    runs-on: ubuntu-latest
+    steps:
+      - name: actualizar la fórmula
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_PAQUETES }}
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          # El sha256 del tarball del tag, que es lo que la fórmula verifica.
+          url="https://github.com/legiosai/quartermaster/archive/refs/tags/v$V.tar.gz"
+          curl -fsSL "$url" -o fuente.tar.gz
+          sha=$(sha256sum fuente.tar.gz | cut -d' ' -f1)
+          echo "tarball: $sha"
+
+          git clone "https://x-access-token:$GH_TOKEN@github.com/legiosai/homebrew-tap" tap
+          cd tap
+          f=Formula/quartermaster.rb
+          # Sólo la url y el sha: el resto de la fórmula es de quien la escribió.
+          sed -i -E "s|(url \").*(\")|\1$url\2|" "$f"
+          sed -i -E "s|(sha256 \").*(\")|\1$sha\2|" "$f"
+          git diff --stat
+          git config user.name "quartermaster release"
+          git config user.email "noreply@legios.com.ar"
+          git commit -aqm "quartermaster $V"
+          git push
+          echo "::notice::Homebrew: la fórmula quedó en $V"
+
+  # ── apt: el repo firmado, que vive en docs/ ───────────────────────────
+  # No es un .deb colgado de una release: es un repo con índices y firma, así
+  # que `apt upgrade` trae la versión nueva sola. Se rearma entero y se comitea
+  # a main, que es lo que sirve GitHub Pages.
+  apt:
+    needs: [canales, version, release]
+    if: needs.canales.outputs.apt == 'si'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update && sudo apt-get install -y dpkg-dev apt-utils
+      - name: la clave de firma
+        env:
+          GPG_PRIVADA: ${{ secrets.GPG_PRIVADA }}
+        run: |
+          set -euo pipefail
+          # La clave del secreto tiene que estar exportada SIN FRASE. No es
+          # pereza: hacer-apt.sh firma con `gpg --batch` y no le pasa ninguna
+          # frase, y el dia que alguien le ponga una, esto tiene que fallar aca
+          # —con este mensaje— y no a mitad de una release.
+          echo "$GPG_PRIVADA" | gpg --batch --import
+          mkdir -p ~/.gnupg && chmod 700 ~/.gnupg
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpgconf --reload gpg-agent || true
+          gpg --list-secret-keys --keyid-format=long
+          if ! echo prueba | gpg --batch --yes --sign --output /dev/null; then
+            echo "::error::la clave del secreto GPG_PRIVADA no firma sin preguntar."
+            echo "::error::Exportala sin frase:  gpg --export-secret-keys --armor <ID>"
+            exit 1
+          fi
+          echo "la clave firma sin preguntar"
+      - name: rearmar el repo
+        env:
+          GPG_FRASE: ${{ secrets.GPG_FRASE }}
+          QM_CLAVE_GPG: ${{ secrets.GPG_CLAVE_ID }}
+        run: |
+          set -euo pipefail
+          export GPG_TTY=$(tty || true)
+          [ -n "${QM_CLAVE_GPG:-}" ] || unset QM_CLAVE_GPG
+          ./scripts/hacer-apt.sh
+      - name: comitear docs/apt
+        env:
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "quartermaster release"
+          git config user.email "noreply@legios.com.ar"
+          git add docs/apt
+          if git diff --cached --quiet; then
+            echo "::warning::el repo de apt no cambió"
+          else
+            git commit -qm "el repo de apt, en $V"
+            git push origin main
+            echo "::notice::apt: docs/apt rearmado y firmado en $V"
+          fi
+
+  # ── scoop: el manifest al bucket ──────────────────────────────────────
+  scoop:
+    needs: [canales, version, release]
+    if: needs.canales.outputs.scoop == 'si'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: lo que falta hacer con las manos
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: generar y empujar
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_PAQUETES }}
+          V: ${{ needs.version.outputs.version }}
         run: |
-          v="${{ needs.version.outputs.version }}"
-          echo "::notice::Publicado $v. Falta, y es a mano (paquetes/README.md):"
-          echo "::notice::1. winget: node scripts/hacer-manifests.mjs --exe <sha> --zip <sha> y PR a microsoft/winget-pkgs"
-          echo "::notice::2. scoop: copiar dist/paquetes/scoop/quartermaster.json al bucket"
-          echo "::notice::3. extensions.gnome.org: subir el .shell-extension.zip"
-          echo "::notice::4. AUR: updpkgsums y push"
-          echo "::notice::5. Homebrew: actualizar la fórmula del tap"
+          set -euo pipefail
+          # Los hashes salen de la release que este mismo workflow acaba de
+          # crear: se bajan de ahí, no se recalculan de otra cosa.
+          base="https://github.com/legiosai/quartermaster/releases/download/v$V"
+          curl -fsSL "$base/quartermaster-$V-setup.exe" -o setup.exe
+          curl -fsSL "$base/quartermaster-$V-win.zip" -o win.zip
+          exe=$(sha256sum setup.exe | cut -d' ' -f1)
+          zip=$(sha256sum win.zip | cut -d' ' -f1)
+          node scripts/hacer-manifests.mjs --exe "$exe" --zip "$zip"
+
+          if ! git clone "https://x-access-token:$GH_TOKEN@github.com/legiosai/scoop-bucket" bucket 2>/dev/null; then
+            echo "::warning::el bucket legiosai/scoop-bucket no existe todavía: el manifest queda en los artefactos"
+            exit 0
+          fi
+          mkdir -p bucket/bucket
+          cp dist/paquetes/scoop/quartermaster.json bucket/bucket/
+          cd bucket
+          git config user.name "quartermaster release"
+          git config user.email "noreply@legios.com.ar"
+          git add -A
+          git diff --cached --quiet || { git commit -qm "quartermaster $V"; git push; }
+          echo "::notice::scoop: el bucket quedó en $V"
+
+  # ── winget: el PR a microsoft/winget-pkgs ─────────────────────────────
+  # wingetcreate es la herramienta que Microsoft publica justo para esto: hace
+  # el fork y el PR con los manifests. Del otro lado igual lo mira una persona.
+  winget:
+    needs: [canales, version, release]
+    if: needs.canales.outputs.winget == 'si'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: armar los manifests y mandarlos
+        shell: pwsh
+        env:
+          TOKEN: ${{ secrets.TOKEN_PAQUETES }}
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $base = "https://github.com/legiosai/quartermaster/releases/download/v$env:V"
+          $exe = "$base/quartermaster-$env:V-setup.exe"
+          $zip = "$base/quartermaster-$env:V-win.zip"
+          Invoke-WebRequest $exe -OutFile setup.exe -UseBasicParsing
+          Invoke-WebRequest $zip -OutFile win.zip -UseBasicParsing
+          $shaExe = (Get-FileHash setup.exe -Algorithm SHA256).Hash
+          $shaZip = (Get-FileHash win.zip -Algorithm SHA256).Hash
+          node scripts/hacer-manifests.mjs --exe $shaExe --zip $shaZip
+          $dir = "dist/paquetes/winget/manifests/l/Legios/Quartermaster/$env:V"
+
+          # wingetcreate se BAJA, no se instala con winget: el runner no
+          # siempre lo trae, y una release no puede depender de eso.
+          Invoke-WebRequest https://aka.ms/wingetcreate/latest -OutFile wingetcreate.exe -UseBasicParsing
+
+          # Validar ANTES de mandar: del otro lado hay una persona, y un PR que
+          # no valida le hace perder el tiempo.
+          if (Get-Command winget -ErrorAction SilentlyContinue) {
+            winget validate --manifest $dir
+          } else {
+            Write-Host "sin winget en el runner: lo valida igual el CI de winget-pkgs"
+          }
+          ./wingetcreate.exe submit --token $env:TOKEN $dir
+          Write-Host "::notice::winget: PR mandado para $env:V"
+
+  # ── AUR ───────────────────────────────────────────────────────────────
+  aur:
+    needs: [canales, version, release]
+    if: needs.canales.outputs.aur == 'si'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: empujar al AUR
+        env:
+          AUR_SSH: ${{ secrets.AUR_SSH }}
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          echo "$AUR_SSH" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts 2>/dev/null
+          cat >> ~/.ssh/config <<EOF
+          Host aur.archlinux.org
+            IdentityFile ~/.ssh/aur
+            User aur
+          EOF
+
+          git clone ssh://aur@aur.archlinux.org/quartermaster.git aur
+          cp paquetes/aur/PKGBUILD paquetes/aur/.SRCINFO aur/
+
+          # El sha256sums, que el PKGBUILD deja en SKIP hasta que el tag existe.
+          url="https://github.com/legiosai/quartermaster/archive/refs/tags/v$V.tar.gz"
+          curl -fsSL "$url" -o fuente.tar.gz
+          sha=$(sha256sum fuente.tar.gz | cut -d' ' -f1)
+          sed -i "s|^sha256sums=.*|sha256sums=('$sha')|" aur/PKGBUILD
+          sed -i "s|^\tsha256sums = .*|\tsha256sums = $sha|" aur/.SRCINFO
+
+          cd aur
+          git config user.name "quartermaster release"
+          git config user.email "noreply@legios.com.ar"
+          git add -A
+          git diff --cached --quiet || { git commit -qm "$V"; git push; }
+          echo "::notice::AUR: quartermaster $V"
+
+  # ── qué se publicó, y qué no ──────────────────────────────────────────
+  # Silencio es el bug también acá: una release que no dice qué canales quedaron
+  # afuera se ve igual que una que los publicó todos.
+  resumen:
+    needs: [canales, version, release, npm, brew, apt, scoop, winget, aur]
+    if: always() && needs.release.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: el estado de cada canal
+        env:
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          fila() { printf '  %-10s %s\n' "$1" "$2"; }
+          echo "quartermaster $V"
+          echo ""
+          fila npm    "${{ needs.npm.result || 'sin correr' }}"
+          fila brew   "${{ needs.brew.result }}"
+          fila apt    "${{ needs.apt.result }}"
+          fila scoop  "${{ needs.scoop.result }}"
+          fila winget "${{ needs.winget.result }}"
+          fila aur    "${{ needs.aur.result }}"
+          fila gnome  "a mano — no hay API de subida"
+          echo ""
+          echo "::notice::Falta subir el .shell-extension.zip de la release a https://extensions.gnome.org/upload/"
+          echo "::notice::Los canales en 'skipped' no tienen su secreto configurado (ver paquetes/README.md)."

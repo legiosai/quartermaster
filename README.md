@@ -129,6 +129,40 @@ dependencies. **It never refreshes a token** — a locked non-goal, with a test.
 The full table, and the straight paragraph about that endpoint being
 undocumented, are in [`SECURITY.md`](SECURITY.md).
 
+## Package managers
+
+One tag publishes everywhere. `git push origin v0.1.7` runs the release
+workflow, which builds every artifact and pushes it to each channel that has its
+secret configured — and says in the log which ones it skipped and why.
+
+| | Install | What it gets | Published by |
+|---|---|---|---|
+| **npm** | `npm install -g @legios/quartermaster` | the tarball with `dist/`, **with provenance** | the tag, automatically |
+| **Homebrew** | `brew install legiosai/tap/quartermaster` | the formula, from the tag's tarball | the tag, automatically |
+| **apt** | `sudo apt install quartermaster` | a **signed** repo, so `apt upgrade` brings new versions by itself | the tag, automatically |
+| **`.deb`** | `sudo apt install ./quartermaster_*.deb` | the same package, standalone | attached to the release |
+| **Windows installer** | `quartermaster-<v>-setup.exe` | per-user, no UAC: `qm` on `PATH`, tray in the Start menu | attached to the release |
+| **scoop** | `scoop install quartermaster` | the portable zip, no installer | the tag, automatically |
+| **winget** | `winget install Legios.Quartermaster` | the installer, declaring Node as a dependency | the tag opens the PR |
+| **AUR** | `yay -S quartermaster` | `PKGBUILD`, with a real `nodejs>=22.6` | the tag, automatically |
+| **Nix** | `nix run github:legiosai/quartermaster` | the flake, with its own Node in the closure | nothing to publish |
+| **GNOME Extensions** | from the Extensions app | the Shell extension | **by hand** — no upload API |
+| **waybar** | copy `paquetes/waybar/` | a module for Hyprland, Sway, river | copied by hand |
+
+The one exception is extensions.gnome.org, which has no API for uploading. The
+release reminds you, with a link to the artifact.
+
+Cutting a version is one command:
+
+```sh
+./scripts/cortar-release.sh patch     # moves the version in all seven places,
+                                      # runs the gates, commits and tags
+git push origin main && git push origin v0.1.7
+```
+
+What each channel needs configured is in
+[`paquetes/README.md`](paquetes/README.md).
+
 ## Design
 
 ```

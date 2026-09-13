@@ -111,6 +111,14 @@ autostart:  ## que el indicador arranque solo al iniciar sesión
 	  > $(HOME)/.config/autostart/quartermaster.desktop
 	@echo "$(HOME)/.config/autostart/quartermaster.desktop escrito"
 
+.PHONY: version
+version:  ## mueve la versión a los siete lugares (V=0.1.7 o V=patch)
+	@node scripts/bumpear.mjs "$(V)"
+
+.PHONY: release
+release:  ## corta una versión: bumpea, corre los gates, comitea y etiqueta (V=patch)
+	@./scripts/cortar-release.sh "$(V)"
+
 .PHONY: deb
 deb:  ## arma el .deb en dist/
 	@./scripts/hacer-deb.sh

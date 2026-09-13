@@ -7,23 +7,46 @@ Esto no es documentación de instalación —eso está en el README— sino la d
 otro lado del mostrador: lo que hay que correr y dónde hay que mandarlo cuando
 sale una versión.
 
-| Canal | Qué instala | Se publica en | Automático |
-|---|---|---|---|
-| npm | el tarball con `dist/` | registry de npm | `npm publish` (a mano) |
-| Homebrew | la fórmula | `legiosai/homebrew-tap` | a mano |
-| apt / `.deb` | `scripts/hacer-deb.sh` | `docs/apt/` y la release | a mano |
-| **winget** | `quartermaster-<v>-setup.exe` | PR a `microsoft/winget-pkgs` | no |
-| **scoop** | `quartermaster-<v>-win.zip` | `legiosai/scoop-bucket` | no |
-| **extensions.gnome.org** | el zip de la extensión | subida manual con cuenta | no |
-| **AUR** | `paquetes/aur/PKGBUILD` | `aur.archlinux.org` | no |
-| **Nix** | `flake.nix` | nada: se instala del repo | — |
-| **waybar** | `paquetes/waybar/` | se copia a mano | — |
+| Canal | Qué instala | Dónde | Lo dispara el tag | Secreto que necesita |
+|---|---|---|---|---|
+| npm | el tarball con `dist/` | registry de npm | sí, con provenance | `NPM_TOKEN` |
+| Homebrew | la fórmula | `legiosai/homebrew-tap` | sí | `TOKEN_PAQUETES` |
+| apt | el repo firmado | `docs/apt/` (GitHub Pages) | sí | `GPG_PRIVADA` |
+| release de GitHub | `.deb`, `setup.exe`, los dos zips | la release | sí | — |
+| scoop | el zip portable | `legiosai/scoop-bucket` | sí | `TOKEN_PAQUETES` |
+| winget | el instalador | PR a `microsoft/winget-pkgs` | sí, manda el PR | `TOKEN_PAQUETES` |
+| AUR | el `PKGBUILD` | `aur.archlinux.org` | sí | `AUR_SSH` |
+| extensions.gnome.org | el zip de la extensión | el sitio | **no: no tiene API** | — |
+| Nix | `flake.nix` | nada: se instala del repo | — | — |
+| waybar | `paquetes/waybar/` | se copia a mano | — | — |
 
-Los cuatro en negrita son los que se agregaron al abrir el frente de Windows y
-de distribución. Ninguno publica solo a propósito: los tres catálogos ajenos
-—winget, scoop, extensions.gnome.org— tienen revisión humana del otro lado, y
-un bot que manda PRs a un repo de Microsoft cada vez que alguien etiqueta mal
-una versión es la forma más rápida de que te bloqueen.
+**Cada canal se saltea solo si le falta su secreto**, y el resumen al final de
+la release dice cuáles quedaron afuera. Una release no se cae porque el AUR
+todavía no esté configurado — pero tampoco se hace la que publicó todo.
+
+## Los secretos, y qué tiene que tener cada uno
+
+```sh
+gh secret set NPM_TOKEN       # un automation token de npm
+gh secret set TOKEN_PAQUETES  # un PAT clásico con repo + public_repo
+gh secret set GPG_PRIVADA     # gpg --export-secret-keys --armor <ID>, SIN FRASE
+gh secret set GPG_CLAVE_ID    # opcional: el ID de la clave, si no es el default
+gh secret set AUR_SSH         # la clave privada SSH de la cuenta del AUR
+```
+
+Dos detalles que hacen fallar la release si se pasan por alto:
+
+- **`GPG_PRIVADA` tiene que estar exportada sin frase.** `hacer-apt.sh` firma
+  con `gpg --batch` y no le pasa ninguna, y en CI no hay nadie para contestar el
+  prompt. El workflow lo comprueba y falla temprano con ese mensaje.
+- **`TOKEN_PAQUETES` necesita `public_repo`** además de `repo`: es el que usa
+  `wingetcreate` para forkear `microsoft/winget-pkgs`.
+
+Una nota sobre winget, que es el único que le manda algo a un repo ajeno: el PR
+lo arma `wingetcreate`, que es la herramienta que Microsoft publica justo para
+eso, y el workflow valida los manifests ANTES de mandarlo. Del otro lado igual
+lo mira una persona. Por eso el disparador es un tag y no un push: no se puede
+mandar un PR sin querer.
 
 ---
 
