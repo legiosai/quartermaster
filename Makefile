@@ -39,28 +39,11 @@ barra:  ## el item en la barra de menú de macOS (compila si hace falta)
 
 .PHONY: barra-autostart
 barra-autostart:  ## que la barra arranque sola al iniciar sesión, vía launchd
-	@mkdir -p $(HOME)/Library/LaunchAgents
-	@printf '%s\n' \
-	  '<?xml version="1.0" encoding="UTF-8"?>' \
-	  '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
-	  '<plist version="1.0"><dict>' \
-	  '  <key>Label</key><string>com.legios.quartermaster.barra</string>' \
-	  '  <key>ProgramArguments</key><array><string>$(CURDIR)/bin/qm-barra</string></array>' \
-	  '  <key>RunAtLoad</key><true/>' \
-	  '  <key>KeepAlive</key><false/>' \
-	  '</dict></plist>' \
-	  > $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist
-	@launchctl unload $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist 2>/dev/null || true
-	@launchctl load  $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist
-	@echo "barra cargada en launchd · arranca sola al iniciar sesión"
-	@echo "para sacarla: make barra-quitar"
+	@./bin/qm-barra --instalar-arranque
 
 .PHONY: barra-quitar
 barra-quitar:  ## saca la barra del arranque automático y la cierra
-	@launchctl unload $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist 2>/dev/null || true
-	@rm -f $(HOME)/Library/LaunchAgents/com.legios.quartermaster.barra.plist
-	@pkill -f "quartermaster/qm-barra" 2>/dev/null || true
-	@echo "barra sacada"
+	@./bin/qm-barra --sacar-arranque
 
 .PHONY: tray
 tray:  ## arranca el item en la bandeja de Windows (ARGS="-Iconos general,main")

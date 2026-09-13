@@ -38,6 +38,44 @@ while [ -L "$AQUI" ]; do
 done
 RAIZ=$(cd "$(dirname "$AQUI")/.." && pwd)
 
+# ── el arranque automático, que ahora se pide ──────────────────────────
+# Esto lo hacía el postinstall de npm solo, sin preguntar. Un paquete que lee
+# credenciales OAuth no puede gastar la confianza que necesita registrando
+# agentes de arranque que nadie le pidió, y encima el camino no era confiable:
+# `npm ci --ignore-scripts` es lo normal en CI y en cualquier organización con
+# políticas. Así que la capacidad sigue existiendo, con el mismo plist — pero
+# la escribe quien la quiere.
+PLIST="$HOME/Library/LaunchAgents/com.legios.quartermaster.barra.plist"
+
+case "$1" in
+  --instalar-arranque)
+    mkdir -p "$(dirname "$PLIST")"
+    cat > "$PLIST" <<PLISTEOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.legios.quartermaster.barra</string>
+  <key>ProgramArguments</key><array><string>$AQUI</string></array>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><false/>
+</dict></plist>
+PLISTEOF
+    launchctl unload "$PLIST" 2>/dev/null || true
+    launchctl load "$PLIST"
+    echo "listo: la barra arranca sola al iniciar sesión."
+    echo "escrito en $PLIST"
+    echo "para sacarla: qm-barra --sacar-arranque"
+    exit 0
+    ;;
+  --sacar-arranque)
+    launchctl unload "$PLIST" 2>/dev/null || true
+    rm -f "$PLIST"
+    pkill -f "quartermaster/qm-barra" 2>/dev/null || true
+    echo "sacada del arranque automático."
+    exit 0
+    ;;
+esac
+
 FUENTE="$RAIZ/bin/qm-barra.swift"
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/quartermaster"
 BINARIO="$CACHE/qm-barra"

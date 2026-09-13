@@ -12,6 +12,7 @@
 // La 3 no es un fallback opcional: es el piso. Si no hay número de cuota, igual
 // hay consumo — y además una frase que dice por qué falta el otro.
 
+import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { descubrirPerfiles } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
@@ -84,6 +85,23 @@ interface Opciones {
  */
 const CODEX_FRESCO_MS = 5 * 60_000;
 
+/**
+ * La versión del paquete, leída del package.json que está al lado.
+ *
+ * No se hardcodea: el número vive en un solo lugar y `npm version` lo mueve
+ * ahí. Y si por lo que sea no se puede leer, `qm --version` contesta igual —
+ * un comando que muere porque no encontró su propio package.json es la clase
+ * de silencio que este repo no acepta.
+ */
+export const VERSION: string = (() => {
+  try {
+    const json = readFileSync(new URL('../../package.json', import.meta.url), 'utf8');
+    return (JSON.parse(json) as { version?: string }).version ?? 'desconocida';
+  } catch {
+    return 'desconocida';
+  }
+})();
+
 const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Code
 
   qm                  cuota y consumo de cada perfil. Sin red y sin credencial:
@@ -102,6 +120,7 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
+  qm --version        la versión, y nada más
   qm --calentar       refresca el endpoint de cada perfil y el de Codex, guarda
                       lo que vuelve y no imprime nada. Es lo que corre la barra
   qm --cuentas=a,b    con --calentar: sólo esas cuentas. Cada una que se saltea
@@ -151,6 +170,9 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
       if (!Number.isFinite(n) || n < 0 || n > 100) return '--umbral espera un porcentaje 0..100';
       o.umbral = n;
     } else if (a === '-h' || a === '--help') return AYUDA;
+    // Lo primero que tipea todo el mundo, y lo primero que se pide en un bug
+    // report. Salía «opción desconocida» con código 2.
+    else if (a === '-V' || a === '--version') return `quartermaster ${VERSION}`;
     else return `opción desconocida: ${a}\n\n${AYUDA}`;
   }
   return o;
@@ -709,8 +731,24 @@ function presupuestoJson(cuota: ResultadoCuota): Record<string, unknown> {
   };
 }
 
+/**
+ * La versión del CONTRATO de `qm --json`, que no es la del paquete.
+ *
+ * Sube cuando un campo cambia de significado o desaparece; agregar un campo
+ * nuevo no la mueve. Existe porque este JSON dejó de ser nuestro: lo leen las
+ * cuatro superficies del repo, la statusline, el módulo de waybar y cualquiera
+ * que escriba la suya. Sin un número, la única forma que tiene un consumidor de
+ * enterarse de que cambió algo es que se le rompa la pantalla — que es
+ * exactamente el silencio que este repo no acepta.
+ *
+ * Documentado en docs/esquema-json.md.
+ */
+const ESQUEMA_JSON = 1;
+
 function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
   return {
+    esquema: ESQUEMA_JSON,
+    version: VERSION,
     generado: new Date().toISOString(),
     plataforma: process.platform,
     ventanaDias: o.dias,
@@ -870,7 +908,9 @@ if (process.argv.includes('--esperar')) {
 const opciones = parsearArgs(process.argv.slice(2));
 if (typeof opciones === 'string') {
   console.log(opciones);
-  process.exit(opciones === AYUDA ? 0 : 2);
+  // La ayuda y la versión son respuestas, no errores: salen 0. Lo único que
+  // sale 2 es una opción que no existe.
+  process.exit(opciones === AYUDA || opciones.startsWith('quartermaster ') ? 0 : 2);
 }
 
 const unaVuelta = async (): Promise<number> => {

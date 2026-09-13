@@ -1,0 +1,219 @@
+# La release, de un tag a todos lados.
+#
+# POR QUÉ EXISTE. Hasta acá cada canal se publicaba a mano: `npm publish`, el
+# `.deb` a la release, el repo de apt, la fórmula de brew. Seis lugares que
+# llevan la misma versión y que se olvidan de a uno — y el que se olvida no
+# rompe nada visible, que es lo peor: queda un README diciendo `npm install -g`
+# para un paquete que no existe, que es exactamente lo que pasó en H9.
+#
+# Lo que hace este workflow con un tag `v*`:
+#
+#   1. corre los MISMOS gates que el CI, porque un tag no es motivo para
+#      confiar más que un push;
+#   2. comprueba que el tag y el package.json digan la misma versión — un tag
+#      v0.1.7 sobre un package.json en 0.1.6 publica un paquete que nadie
+#      encuentra;
+#   3. arma el .deb en Linux y el setup.exe + el zip portable en Windows;
+#   4. publica en npm CON PROVENANCE, que es la marca que deja probar que el
+#      tarball salió de este repo y de este commit;
+#   5. crea la release con todo adjunto y los SHA256 escritos, que son los que
+#      piden los manifests de winget y de scoop.
+#
+# Lo que NO hace, a propósito: mandar el PR a winget-pkgs, subir la extensión a
+# extensions.gnome.org ni tocar el AUR. Los tres tienen revisión humana del otro
+# lado y un bot que les manda cosas cada vez que alguien etiqueta mal una
+# versión es la forma más rápida de que te bloqueen. Los manifests se generan
+# acá y se mandan a mano (ver paquetes/README.md).
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+  # Para ensayar la release sin publicar nada.
+  workflow_dispatch:
+    inputs:
+      publicar:
+        description: '¿Publicar en npm y crear la release? (no = sólo armar)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write     # crear la release y subirle los archivos
+  id-token: write     # el provenance de npm
+
+jobs:
+  # ── que la versión sea una sola ───────────────────────────────────────
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.leer.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: leer
+        shell: bash
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "package.json: $version"
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            echo "tag: $tag"
+            if [ "$tag" != "$version" ]; then
+              echo "::error::el tag dice $tag y el package.json dice $version."
+              echo "::error::Publicar así deja un paquete que no coincide con su release."
+              exit 1
+            fi
+          fi
+
+  # ── los mismos gates del CI ───────────────────────────────────────────
+  gates:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: npm run typecheck
+      - run: npm test
+      - run: ./scripts/el-paquete-de-npm-corre.sh
+      - run: make gate-npm-rojo
+
+  # ── el .deb y el zip de la extensión ──────────────────────────────────
+  linux:
+    needs: [version, gates]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      - run: ./scripts/hacer-deb.sh
+      - run: ./scripts/hacer-extension-zip.sh
+      - name: sha256
+        run: |
+          cd dist
+          sha256sum *.deb *.shell-extension.zip | tee SHA256-linux.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            dist/*.deb
+            dist/*.shell-extension.zip
+            dist/SHA256-linux.txt
+          if-no-files-found: error
+
+  # ── el instalador de Windows y el zip portable ────────────────────────
+  windows:
+    needs: [version, gates]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install
+      # Los gates de Windows también corren acá: el instalador que se publica
+      # no puede salir de un árbol que no se comprobó en esta plataforma.
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-bandeja.ps1
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-windows.ps1
+      - run: choco install innosetup -y --no-progress
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/hacer-setup.ps1
+      - name: sha256
+        shell: pwsh
+        run: |
+          Get-ChildItem dist\*-setup.exe, dist\*-win.zip |
+            ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } |
+            Tee-Object dist\SHA256-windows.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: |
+            dist/*-setup.exe
+            dist/*-win.zip
+            dist/SHA256-windows.txt
+          if-no-files-found: error
+
+  # ── npm, con provenance ───────────────────────────────────────────────
+  npm:
+    needs: [version, gates]
+    if: github.ref_type == 'tag' || inputs.publicar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+      - run: npm install
+      # --provenance deja la firma que prueba que este tarball salió de este
+      # repo, en este commit, en este workflow. Para algo que lee credenciales,
+      # poder demostrarlo vale más que el minuto que cuesta.
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  # ── la release, con todo colgado ──────────────────────────────────────
+  release:
+    needs: [version, linux, windows]
+    if: github.ref_type == 'tag' || inputs.publicar
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefactos
+      - name: juntar y listar
+        id: juntar
+        run: |
+          mkdir -p publicar
+          find artefactos -type f -exec cp {} publicar/ \;
+          cat publicar/SHA256-*.txt > publicar/SHA256SUMS.txt
+          rm -f publicar/SHA256-linux.txt publicar/SHA256-windows.txt
+          ls -la publicar
+          {
+            echo 'notas<<FIN'
+            echo '### Instalar'
+            echo
+            echo '```sh'
+            echo 'brew install legiosai/tap/quartermaster        # macOS y Linux'
+            echo 'npm install -g @legios/quartermaster           # cualquier lado'
+            echo '```'
+            echo
+            echo 'En Windows, `quartermaster-${{ needs.version.outputs.version }}-setup.exe` de acá abajo:'
+            echo 'por usuario, sin UAC, deja `qm` en el PATH y la bandeja en el menú Inicio.'
+            echo
+            echo 'En Debian y Ubuntu, el `.deb`. La extensión de GNOME, el `.shell-extension.zip`.'
+            echo
+            echo '### Los hashes'
+            echo
+            echo '```'
+            cat publicar/SHA256SUMS.txt
+            echo '```'
+            echo FIN
+          } >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: publicar/*
+          body: ${{ steps.juntar.outputs.notas }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+
+  # ── y recordar lo que sigue siendo a mano ─────────────────────────────
+  a-mano:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: lo que falta hacer con las manos
+        run: |
+          v="${{ needs.version.outputs.version }}"
+          echo "::notice::Publicado $v. Falta, y es a mano (paquetes/README.md):"
+          echo "::notice::1. winget: node scripts/hacer-manifests.mjs --exe <sha> --zip <sha> y PR a microsoft/winget-pkgs"
+          echo "::notice::2. scoop: copiar dist/paquetes/scoop/quartermaster.json al bucket"
+          echo "::notice::3. extensions.gnome.org: subir el .shell-extension.zip"
+          echo "::notice::4. AUR: updpkgsums y push"
+          echo "::notice::5. Homebrew: actualizar la fórmula del tap"

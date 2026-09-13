@@ -1,72 +1,70 @@
-// postinstall: en macOS, deja la barra de menú andando y arrancando sola.
+// postinstall: decir que la barra existe. Y nada más.
 //
-// Por qué existe: `npm install -g` dejaba el CLI en el PATH y NINGUNA señal
-// visible. La barra es lo que uno mira sin ir a buscarlo —el punto entero del
-// programa— y venía dentro del paquete sin que nada la arrancara ni la pusiera
-// en el PATH. Quien instalaba por npm en macOS instalaba y no pasaba nada.
+// QUÉ HACÍA ANTES, Y POR QUÉ CAMBIÓ. Este script escribía un
+// ~/Library/LaunchAgents/com.legios.quartermaster.barra.plist, lo cargaba con
+// launchctl y lanzaba el proceso — todo eso adentro de un `npm install -g`.
+// Resolvía un problema real: quien instalaba por npm en macOS no veía ninguna
+// señal, y la barra es el punto entero del programa.
 //
-// ESTE SCRIPT NUNCA FALLA UNA INSTALACIÓN. Sale 0 pase lo que pase: un
-// postinstall que rompe `npm install` por no poder dibujar un ícono es un trato
-// pésimo. Si algo no sale, lo dice y sigue.
+// Pero un postinstall que registra un agente de arranque es exactamente el
+// patrón que hace que alguien mire el paquete de reojo, y acá pesa doble: esto
+// lee credenciales OAuth del llavero. Un proyecto que pide confianza para leer
+// tokens no puede gastarla instalando cosas que no le pidieron. Y hay una razón
+// práctica además de la de confianza: `npm ci --ignore-scripts` es lo normal en
+// CI y en cualquier organización con políticas, así que el camino "mágico"
+// tampoco era confiable.
 //
-// Y no corre donde no corresponde: sólo macOS, sólo instalación global, nunca
-// en CI, nunca como root. Un contenedor de build no quiere un agente de launchd.
-import { execFileSync, spawn } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { homedir, platform } from 'node:os';
+// Así que ahora el postinstall IMPRIME y el usuario decide. Es un renglón más
+// de trabajo para él y una objeción menos para el proyecto.
+//
+// Sigue sin fallar nunca una instalación: sale 0 pase lo que pase.
+
+import { existsSync } from 'node:fs';
+import { platform } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..');
-const ETIQUETA = 'com.legios.quartermaster.barra';
-const PLIST = join(homedir(), 'Library', 'LaunchAgents', `${ETIQUETA}.plist`);
-const BARRA = join(RAIZ, 'bin', 'qm-barra');
 
-const saltar = (motivo) => {
-  // En silencio: no es un error, es que acá no va.
-  if (process.env['QM_DEBUG_POSTINSTALL']) console.log(`qm: sin barra (${motivo})`);
-  process.exit(0);
-};
+// En silencio donde no corresponde: una instalación local como dependencia, un
+// contenedor de build, un CI. El aviso es para quien acaba de instalar la
+// herramienta a mano.
+if (process.env['npm_config_global'] !== 'true' || process.env['CI']) process.exit(0);
 
-try {
-  if (platform() !== 'darwin') saltar('no es macOS');
-  if (process.env['npm_config_global'] !== 'true') saltar('no es una instalación global');
-  if (process.env['CI']) saltar('CI');
-  if (typeof process.getuid === 'function' && process.getuid() === 0) saltar('root');
-  if (!existsSync(BARRA)) saltar('no está bin/qm-barra');
+const so = platform();
+const lineas = ['', 'quartermaster instalado. `qm` ya anda.'];
 
-  mkdirSync(dirname(PLIST), { recursive: true });
-  writeFileSync(
-    PLIST,
-    `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-  <key>Label</key><string>${ETIQUETA}</string>
-  <key>ProgramArguments</key><array><string>${BARRA}</string></array>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><false/>
-</dict></plist>
-`,
-    'utf8',
+if (so === 'darwin' && existsSync(join(RAIZ, 'bin', 'qm-barra'))) {
+  lineas.push(
+    '',
+    'Para verlo sin ir a buscarlo, la barra de menú:',
+    '',
+    '    qm-barra                       arrancarla ahora',
+    '    qm-barra --instalar-arranque   y que arranque sola al iniciar sesión',
+    '',
+    'Eso escribe un LaunchAgent en ~/Library/LaunchAgents. No lo hace esta',
+    'instalación: lo hacés vos cuando quieras.',
   );
-
-  // unload primero: si ya había una apuntando al checkout viejo, queda colgada.
-  try {
-    execFileSync('launchctl', ['unload', PLIST], { stdio: 'ignore' });
-  } catch {
-    /* no estaba cargada */
-  }
-  execFileSync('launchctl', ['load', PLIST], { stdio: 'ignore' });
-
-  // launchd la arranca por RunAtLoad, pero la PRIMERA vez tiene que compilar el
-  // Swift y eso tarda. Se lanza también en paralelo y desasociada, así que el
-  // ícono aparece durante el install y no varios segundos después.
-  spawn(BARRA, [], { detached: true, stdio: 'ignore' }).unref();
-
-  console.log('qm: barra de menú instalada — arranca sola al iniciar sesión');
-  console.log('    sacarla:  launchctl unload ' + PLIST);
-} catch (e) {
-  console.log(`qm: no pude dejar la barra andando (${e && e.message ? e.message : e}).`);
-  console.log('    el CLI quedó bien: probá `qm`. La barra: `qm-barra`.');
+} else if (so === 'linux') {
+  lineas.push(
+    '',
+    'Para verlo sin ir a buscarlo:',
+    '',
+    '    qm-web                         el tablero en el navegador',
+    '',
+    'Y en GNOME, el indicador de la barra de arriba: ver el README.',
+  );
+} else if (so === 'win32') {
+  lineas.push(
+    '',
+    'Para verlo sin ir a buscarlo:',
+    '',
+    '    qm-web                         el tablero en el navegador',
+    '',
+    'La bandeja del área de notificación viene en el instalador de Windows.',
+  );
 }
+
+lineas.push('', '    qm --breve                     lo que va en una statusline', '');
+console.log(lineas.join('\n'));
 process.exit(0);

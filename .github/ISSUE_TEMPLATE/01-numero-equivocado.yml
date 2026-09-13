@@ -1,0 +1,50 @@
+name: A number is wrong / Un número está mal
+description: qm shows a percentage that does not match what Claude Code says
+labels: ["número"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The point of this tool is that the number is right, so this is the
+        report that matters most. **English or Spanish, whichever you prefer.**
+
+        Before anything else: `qm --json --redactado` strips emails and home
+        paths, so it is safe to paste. Please use it.
+  - type: textarea
+    id: json
+    attributes:
+      label: "`qm --json --redactado`"
+      description: Pega la salida completa. Ya viene sin mails ni rutas de casa.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: "`qm --version`"
+      placeholder: quartermaster 0.1.6
+    validations:
+      required: true
+  - type: textarea
+    id: esperado
+    attributes:
+      label: What Claude Code says / Qué dice Claude Code
+      description: |
+        El número que ves en `/status`, en la statusline o en el aviso de
+        límite. Si podés, una captura.
+    validations:
+      required: true
+  - type: dropdown
+    id: donde
+    attributes:
+      label: Where / Dónde lo viste
+      options:
+        - la terminal (qm)
+        - la statusline de Claude Code
+        - la barra de GNOME
+        - la barra de menú de macOS
+        - la bandeja de Windows
+        - el tablero del navegador
+        - waybar
+    validations:
+      required: true

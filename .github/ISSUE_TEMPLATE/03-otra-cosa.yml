@@ -1,0 +1,23 @@
+name: Something else / Otra cosa
+description: A crash, a surface that does not draw, an install that fails
+body:
+  - type: textarea
+    id: que
+    attributes:
+      label: What happened / Qué pasó
+      description: Y qué esperabas que pasara. **English or Spanish.**
+    validations:
+      required: true
+  - type: textarea
+    id: reproducir
+    attributes:
+      label: How to reproduce / Cómo reproducirlo
+    validations:
+      required: true
+  - type: input
+    id: entorno
+    attributes:
+      label: Environment / Entorno
+      placeholder: "qm 0.1.6 · macOS 15 · Node 22.6 · instalado por brew"
+    validations:
+      required: true

@@ -1,0 +1,32 @@
+name: It does not see one of my accounts / No ve una de mis cuentas
+description: A profile, Codex or an opencode provider is missing from the list
+labels: ["descubrimiento"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Ver TODAS las cuentas es la métrica del proyecto (`SOUL.md`), así que
+        una que falta es un bug de primera clase. **English or Spanish.**
+  - type: textarea
+    id: json
+    attributes:
+      label: "`qm --json --redactado`"
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: falta
+    attributes:
+      label: Which account is missing / Cuál falta
+      description: El producto y, si aplica, el directorio (`~/.claude-trabajo`).
+    validations:
+      required: true
+  - type: textarea
+    id: existe
+    attributes:
+      label: How you know it exists / Cómo sabés que existe
+      description: |
+        Por ejemplo: `ls ~/.claude-*`, o el `CLAUDE_CONFIG_DIR` que usás, o que
+        Codex está instalado y logueado.
+    validations:
+      required: true

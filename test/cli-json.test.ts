@@ -64,3 +64,29 @@ test('sin ninguna cuenta y sin --json, lo dice con palabras', () => {
   assert.strictEqual(codigo, 0);
   assert.match(salida, /No se encontró ninguna cuenta/);
 });
+
+// ── el contrato, que ahora tiene número ────────────────────────────────
+// Este JSON dejó de ser nuestro: lo leen las cuatro superficies del repo, la
+// statusline, el módulo de waybar y cualquiera que escriba la suya. Un consumidor
+// no tiene forma de enterarse de que cambió algo si no hay un número que mirar.
+
+test('--json declara la versión del esquema y la del paquete', () => {
+  const { salida, codigo } = correr(['--json', '--breve']);
+  assert.strictEqual(codigo, 0);
+  const d = JSON.parse(salida) as { esquema?: unknown; version?: unknown };
+  assert.strictEqual(d.esquema, 1, 'el esquema del JSON, que sube cuando un campo cambia de significado');
+  assert.strictEqual(typeof d.version, 'string');
+  assert.match(d.version as string, /^\d+\.\d+\.\d+/, 'y la del paquete, para un bug report');
+});
+
+test('--version contesta y sale 0', () => {
+  const { salida, codigo } = correr(['--version']);
+  assert.strictEqual(codigo, 0, 'la versión es una respuesta, no un error');
+  assert.match(salida.trim(), /^quartermaster \d+\.\d+\.\d+/);
+});
+
+test('una opción que no existe sigue saliendo 2, y explica', () => {
+  const { salida, codigo } = correr(['--esta-no-existe']);
+  assert.strictEqual(codigo, 2);
+  assert.match(salida, /opción desconocida/);
+});
