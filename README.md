@@ -161,6 +161,8 @@ is a design bug.
   package that installed and then refused to run.
 - **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — the three unusual rules:
   everything is measured, renderers only draw, gates are proven red.
+- **[`docs/esquema-json.md`](docs/esquema-json.md)** — the `qm --json`
+  contract, if you are writing a consumer.
 - **[`numeros/`](numeros/)** — the measurements themselves, one per milestone.
 
 The code and its comments are in Spanish; what faces outward is in English.

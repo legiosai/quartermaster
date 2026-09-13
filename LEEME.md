@@ -155,6 +155,8 @@ La tabla completa está en [`SECURITY.md`](SECURITY.md#seguridad).
   una función de 1500 líneas, y un paquete de npm que instalaba y no arrancaba.
 - **[`CONTRIBUTING.md`](CONTRIBUTING.md)** — las tres reglas raras: todo se
   mide, los renderers sólo dibujan, los gates se prueban en rojo.
+- **[`docs/esquema-json.md`](docs/esquema-json.md)** — el contrato de
+  `qm --json`, si vas a escribir un consumidor.
 - **[`numeros/`](numeros/)** — las mediciones, una por hito.
 
 El código y sus comentarios están en castellano; lo que mira hacia afuera, en
