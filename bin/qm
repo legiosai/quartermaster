@@ -60,6 +60,23 @@ RAIZ=$(cd "$(dirname "$AQUI")/.." && pwd)
 # así que un clone, `make instalar`, el .deb y brew siguen leyendo el TypeScript
 # directo como siempre.
 if [ -f "$RAIZ/dist/cli/qm.js" ]; then
+  # Un dist/ viejo TAPA al src/ en silencio. Se edita el TypeScript, se corre
+  # qm, no cambia nada, y no hay un solo aviso de por qué: `dist/` está en el
+  # .gitignore, así que queda de una corrida anterior y nadie se acuerda.
+  #
+  # Pasó, y costó: `qm --diagnostico` contestaba «opción desconocida» con la
+  # bandera ya mergeada en main, porque el dist/ del disco era de diez horas
+  # antes.
+  #
+  # Sólo se comprueba cuando hay un src/ al lado: el tarball de npm no lleva
+  # src/cli, así que quien instaló por npm no tiene nada que reconstruir y no
+  # tiene por qué ver esto. Y avisa, no falla — el dist/ igual funciona, sólo
+  # que no es lo que está escrito.
+  if [ -f "$RAIZ/src/cli/qm.ts" ] && [ "$RAIZ/src/cli/qm.ts" -nt "$RAIZ/dist/cli/qm.js" ] 2>/dev/null; then
+    echo "qm: dist/ es más viejo que src/, y dist/ es el que se ejecuta." >&2
+    echo "    Tus cambios en src/ NO se están viendo. Corré \`npm run construir\`," >&2
+    echo "    o borrá dist/ para volver a leer el TypeScript directo." >&2
+  fi
   exec "$NODO" "$RAIZ/dist/cli/qm.js" "$@"
 fi
 
