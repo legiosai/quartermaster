@@ -41,6 +41,19 @@ for pagina in docs/index.html docs/es/index.html; do
     web=$(grep -o 'quartermaster-[0-9.]*-setup\.exe' "$pagina" | head -1 | sed 's/quartermaster-//; s/-setup\.exe//')
     [ "$web" = "$version" ] || fallar "$pagina nombra el instalador $web"
   fi
+
+  # Y el pie, que es lo que un lector toma por «la versión» sin abrir ninguna
+  # pestaña. Estaba fuera del gate, y es justo lo que le pasó: docs/es/index.html
+  # anunció v0.1.2 durante cuatro releases —con el nombre del instalador, el
+  # PKGBUILD, el .SRCINFO y la extensión los cuatro en 0.1.6— y el gate en verde.
+  # El nombre del instalador vive en una pestaña que hay que clickear; el pie
+  # está siempre a la vista.
+  pie=$(grep -o 'releases">v[0-9][0-9.]*</a>' "$pagina" | head -1 | sed 's|.*">v||; s|</a>||' || true)
+  if [ -z "$pie" ]; then
+    fallar "$pagina no dice ninguna versión en el pie (¿cambió la forma del enlace?)"
+  elif [ "$pie" != "$version" ]; then
+    fallar "$pagina dice v$pie en el pie y package.json dice $version"
+  fi
 done
 
 # ── 2. el PKGBUILD y el .SRCINFO, de acuerdo ───────────────────────────
@@ -102,4 +115,4 @@ if [ "$fallas" -ne 0 ]; then
   echo "gate de paquetes: ROJO ($fallas)" >&2
   exit 1
 fi
-echo "gate de paquetes: verde — la versión coincide en los siete lugares, el .SRCINFO va con el PKGBUILD, la extensión tiene la forma que pide el sitio, y los manifests se generan"
+echo "gate de paquetes: verde — la versión coincide en los siete lugares (pie de las dos landings incluido), el .SRCINFO va con el PKGBUILD, la extensión tiene la forma que pide el sitio, y los manifests se generan"

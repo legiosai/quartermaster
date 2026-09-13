@@ -135,6 +135,18 @@ gate-duraciones:  ## que las cuatro escaleras de duración den lo mismo
 gate-paquetes:  ## que la versión coincida en los siete lugares donde vive
 	@./scripts/gate-paquetes.sh
 
+.PHONY: gate-paquetes-rojo
+gate-paquetes-rojo:  ## el rojo de gate-paquetes: el pie de una landing con la versión vieja
+	@cp docs/es/index.html .es-index.gate
+	@sed -i 's|releases">v[0-9][0-9.]*</a>|releases">v0.0.1</a>|' docs/es/index.html
+	@if ./scripts/gate-paquetes.sh >/dev/null 2>&1; then \
+	  mv .es-index.gate docs/es/index.html; \
+	  echo "✗ gate-paquetes NO falló con el pie de la landing en una versión vieja. El gate no sirve."; exit 1; \
+	else \
+	  mv .es-index.gate docs/es/index.html; \
+	  echo "✓ gate-paquetes falla en rojo con el pie de una landing en una versión vieja"; \
+	fi
+
 .PHONY: gate-dibujo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
