@@ -1,0 +1,16 @@
+pkgbase = quartermaster
+	pkgdesc = Cuánta cuota te queda, en todas tus cuentas de agentes: cada perfil de Claude Code, más Codex y opencode
+	pkgver = 0.1.6
+	pkgrel = 1
+	url = https://github.com/legiosai/quartermaster
+	arch = any
+	license = MIT
+	depends = nodejs>=22.6
+	optdepends = python-gobject: el indicador de la barra de GNOME
+	optdepends = python-cairo: el dibujo del indicador y del panel
+	optdepends = libayatana-appindicator: el ícono en la barra cuando no está la extensión
+	optdepends = gnome-shell: la extensión propia, que se queda con el click
+	source = quartermaster-0.1.6.tar.gz::https://github.com/legiosai/quartermaster/archive/refs/tags/v0.1.6.tar.gz
+	sha256sums = SKIP
+
+pkgname = quartermaster

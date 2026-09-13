@@ -12,6 +12,12 @@ jobs:
       - run: npm run typecheck
       - run: npm test
 
+      # La versión vive en siete lugares (package.json, el PKGBUILD, el
+      # .SRCINFO, el version-name de la extensión, las dos landings y los
+      # manifests). Editar seis no rompe nada visible acá: rompe del otro lado,
+      # en un catálogo con una persona esperando.
+      - run: ./scripts/gate-paquetes.sh
+
       # `npm test` corre el TypeScript DESDE EL FUENTE, que es justo el caso
       # que no se parece a un `npm install -g`: ahí el paquete cae bajo
       # node_modules y Node se niega a hacer type stripping. El verde de arriba

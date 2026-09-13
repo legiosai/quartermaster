@@ -74,6 +74,11 @@ El manifest declara `OpenJS.NodeJS.LTS` como dependencia: eso es lo que hace que
 `winget install Legios.Quartermaster` en una máquina sin Node resuelva las dos
 cosas en vez de dejar un comando que no arranca.
 
+**Con una advertencia medida**: el instalador de quartermaster es por usuario y
+no pide UAC, pero **el MSI de Node sí**. En una VM sin elevar, ese paso sale
+`1602` (el usuario canceló el UAC). O sea que `winget install` en una máquina
+sin Node va a mostrar un prompt de administrador que no es nuestro.
+
 ## scoop
 
 El mismo generador deja `dist/paquetes/scoop/quartermaster.json`. Va a un bucket
@@ -115,11 +120,20 @@ por descuido: es la vidriera de un catálogo global.
 
 ## AUR
 
-`paquetes/aur/PKGBUILD` está listo salvo el `sha256sums`, que se completa con
-`updpkgsums` cuando existe el tag. El nombre `quartermaster` está libre en el
-AUR (comprobado). Para publicar hace falta una cuenta con clave SSH y un
-`git push` al repo `ssh://aur@aur.archlinux.org/quartermaster.git` con el
-`PKGBUILD` y el `.SRCINFO` (`makepkg --printsrcinfo > .SRCINFO`).
+`paquetes/aur/` tiene el `PKGBUILD` y el `.SRCINFO`, los dos en 0.1.6 y
+comprobados por `make gate-paquetes` — el AUR rechaza el push si no coinciden, y
+el mensaje no dice en qué campo. Falta el `sha256sums`, que se completa con
+`updpkgsums` cuando el tag existe y el tarball se puede bajar.
+
+El nombre `quartermaster` está libre en el AUR (comprobado contra la RPC). Para
+publicar hace falta una cuenta con clave SSH:
+
+```sh
+git clone ssh://aur@aur.archlinux.org/quartermaster.git aur-quartermaster
+cp paquetes/aur/PKGBUILD paquetes/aur/.SRCINFO aur-quartermaster/
+cd aur-quartermaster && updpkgsums && makepkg --printsrcinfo > .SRCINFO
+git add -A && git commit -m "0.1.6" && git push
+```
 
 ## Nix
 

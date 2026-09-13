@@ -131,6 +131,10 @@ extension-zip:  ## el zip de la extensión con la forma que pide extensions.gnom
 gate-duraciones:  ## que las cuatro escaleras de duración den lo mismo
 	@python3 scripts/gate-duraciones.py
 
+.PHONY: gate-paquetes
+gate-paquetes:  ## que la versión coincida en los siete lugares donde vive
+	@./scripts/gate-paquetes.sh
+
 .PHONY: gate-dibujo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh

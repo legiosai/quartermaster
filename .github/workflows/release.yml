@@ -80,6 +80,7 @@ jobs:
       - run: npm test
       - run: ./scripts/el-paquete-de-npm-corre.sh
       - run: make gate-npm-rojo
+      - run: ./scripts/gate-paquetes.sh
 
   # ── el .deb y el zip de la extensión ──────────────────────────────────
   linux:
