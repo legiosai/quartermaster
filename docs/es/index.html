@@ -1,15 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
+<!-- La versión en inglés, que es la que está en la raíz: ../ -->
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>quartermaster · how much quota you have left, in every account</title>
-<meta name="description" content="How much quota you have left in every Claude Code profile on the machine, plus Codex and opencode. No network and no credentials: the number comes from the cache Claude Code already writes to disk.">
-<link rel="alternate" hreflang="es" href="https://quartermaster.legios.com.ar/es/">
-<link rel="alternate" hreflang="en" href="https://quartermaster.legios.com.ar/">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<title>quartermaster · cuánta cuota te queda, en todas tus cuentas</title>
+<meta name="description" content="Cuánta cuota te queda en todos los perfiles de Claude Code de la máquina, más Codex y opencode. Sin red y sin credenciales: el número sale del cache que Claude Code deja en disco.">
+<link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="quartermaster">
-<meta property="og:description" content="How much quota you have left, in every agent account. No network, no credentials.">
+<meta property="og:description" content="Cuánta cuota te queda, en todas tus cuentas de agentes. Sin red y sin credenciales.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://quartermaster.legios.com.ar/img/panel.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -239,10 +238,10 @@ footer a:hover{color:var(--texto)}
       quartermaster
     </a>
     <nav>
-      <a href="#superficies">Where you see it</a>
-      <a href="#instalar">Install</a>
-      <a href="https://github.com/legiosai/quartermaster#readme">Docs</a>
-      <a href="es/" hreflang="es">Español</a>
+      <a href="#superficies">Dónde lo ves</a>
+      <a href="#instalar">Instalar</a>
+      <a href="documentacion.html">Documentación</a>
+      <a href="../" hreflang="en">English</a>
       <a class="gh" href="https://github.com/legiosai/quartermaster">GitHub</a>
     </nav>
   </div>
@@ -252,16 +251,16 @@ footer a:hover{color:var(--texto)}
   <div>
     <div class="lockup">
       <b>quartermaster</b>
-      <span>an instrument by</span>
-      <a href="https://github.com/legiosai" aria-label="Legios"><img src="legios.svg" alt="Legios" width="104" height="34"></a>
+      <span>un instrumento de</span>
+      <a href="https://github.com/legiosai" aria-label="Legios"><img src="../legios.svg" alt="Legios" width="104" height="34"></a>
     </div>
-    <h1>Find out before you hit the wall.</h1>
+    <h1>Enterate antes de chocarte contra el límite.</h1>
     <p class="bajada">
-      The ones out there read one credential: the default directory's. This one
-      reads every profile you have, plus Codex and opencode — no network, no credentials.
+      Los que hay leen una credencial: la del directorio por defecto. Éste lee
+      todos tus perfiles, más Codex y opencode, sin red y sin credenciales.
     </p>
-    <p class="creditos">Built by <b>Valentín&nbsp;Torassa</b> and <b>Sol&nbsp;Soletti</b></p>
-    <div class="so" role="tablist" aria-label="Operating system">
+    <p class="creditos">Construido por <b>Valentín&nbsp;Torassa</b> y <b>Sol&nbsp;Soletti</b></p>
+    <div class="so" role="tablist" aria-label="Sistema operativo">
       <button role="tab" aria-selected="true" data-so="mac">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 9h6v6H9z"/><path d="M9 9V7a2 2 0 1 0-2 2z"/><path d="M15 9V7a2 2 0 1 1 2 2z"/><path d="M9 15v2a2 2 0 1 1-2-2z"/><path d="M15 15v2a2 2 0 1 0 2-2z"/></svg>macOS</button>
       <button role="tab" aria-selected="false" data-so="linux">
@@ -269,49 +268,49 @@ footer a:hover{color:var(--texto)}
       <button role="tab" aria-selected="false" data-so="win">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="7.5" height="6.5" rx="1"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="3.5" y="13" width="7.5" height="6.5" rx="1"/><rect x="13" y="13" width="7.5" height="7.5" rx="1"/></svg>Windows</button>
     </div>
-    <div class="comando"><span class="p">$</span><span id="cmd">brew install legiosai/tap/quartermaster</span><button class="copiar" data-copiar="#cmd">copy</button></div>
-    <p class="nota" id="nota-so">Homebrew. Also on npm.</p>
+    <div class="comando"><span class="p">$</span><span id="cmd">brew install legiosai/tap/quartermaster</span><button class="copiar" data-copiar="#cmd">copiar</button></div>
+    <p class="nota" id="nota-so">Homebrew. También por npm.</p>
     <p class="enlaces">
-      <a href="#instalar">The other ways to install it</a>
-      <a href="https://github.com/legiosai/quartermaster">The code, on GitHub &rsaquo;</a>
+      <a href="#instalar">Las otras formas de instalarlo</a>
+      <a href="https://github.com/legiosai/quartermaster">El código, en GitHub &rsaquo;</a>
     </p>
   </div>
   <div class="retrato aparece">
     <figure class="barra-foto">
-      <img src="img/barra.png" alt="La barra de arriba de GNOME con tres medidores: una cuenta al 32 %, otra al 27 % y otra al 50 %.">
+      <img src="../img/barra.png" alt="La barra de arriba de GNOME con tres medidores: una cuenta al 32 %, otra al 27 % y otra al 50 %.">
     </figure>
-    <div class="marco"><img src="img/panel.png" alt="El panel de quartermaster: el anillo de «lo primero que te frena» al 100 %, y una tarjeta por cuenta con sus barras, la curva de las últimas horas y cuándo se reinicia."></div>
-    <p class="pie">One meter per account up top. The full panel one click away.</p>
+    <div class="marco"><img src="../img/panel.png" alt="El panel de quartermaster: el anillo de «lo primero que te frena» al 100 %, y una tarjeta por cuenta con sus barras, la curva de las últimas horas y cuándo se reinicia."></div>
+    <p class="pie">Un medidor por cuenta arriba. El panel completo a un click.</p>
   </div>
 </div>
 
 <section id="problema">
   <div class="env">
     <div class="titulo aparece">
-      <div class="rotulo"><b>01</b> The problem</div>
-      <h2>Monitors read one credential. You have three accounts.</h2>
+      <div class="rotulo"><b>01</b> El problema</div>
+      <h2>Los monitores leen una credencial. Vos tenés tres cuentas.</h2>
       <p>
-        Claude Code supports several profiles through <code>CLAUDE_CONFIG_DIR</code>, and each
-        one has its own account and its own credential. A work seat and a personal
-        subscription on the same laptop is ordinary. What exists reads <b>one</b>: the default
-        directory's — which tends to be exactly the empty one.
+        Claude Code soporta varios perfiles con <code>CLAUDE_CONFIG_DIR</code>, y cada uno
+        tiene su cuenta y su credencial. Un asiento de trabajo y una suscripción personal
+        en la misma laptop es lo normal. Lo que existe lee <b>una</b>: la del directorio por
+        defecto — que suele ser justo el que está vacío.
       </p>
     </div>
     <div class="rejilla c3">
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg></div>
-        <h3>Every profile</h3>
-        <p>It finds every <code>CLAUDE_CONFIG_DIR</code> on the machine, not just <code>~/.claude</code>. Plus Codex and the providers opencode stores.</p>
+        <h3>Todos los perfiles</h3>
+        <p>Descubre cada <code>CLAUDE_CONFIG_DIR</code> de la máquina, no sólo <code>~/.claude</code>. Y suma Codex y los proveedores que guarda opencode.</p>
       </div>
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/></svg></div>
-        <h3>No credentials</h3>
-        <p>It does not open your keychain or read a token. The number comes from <code>cachedUsageUtilization</code>, where Claude Code leaves the server's last answer.</p>
+        <h3>Sin credenciales</h3>
+        <p>No abre tu llavero ni lee un token. El número sale de <code>cachedUsageUtilization</code>, donde Claude Code deja la última respuesta del servidor.</p>
       </div>
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
-        <h3>And it warns you</h3>
-        <p>At 80% and 95%, when the projection says you hit the wall <em>before</em> the reset, and — most usefully — when you are free again.</p>
+        <h3>Y te avisa</h3>
+        <p>Al cruzar el 80 % y el 95 %, cuando la proyección dice que chocás <em>antes</em> del reinicio, y —lo más útil— cuando te liberás.</p>
       </div>
     </div>
   </div>
@@ -320,18 +319,18 @@ footer a:hover{color:var(--texto)}
 <section id="hallazgo">
   <div class="env">
     <div class="titulo aparece">
-      <div class="rotulo"><b>02</b> The evidence</div>
-      <h2>The finding that justifies it</h2>
+      <div class="rotulo"><b>02</b> La evidencia</div>
+      <h2>El hallazgo que lo justifica</h2>
       <p>
-        Inside <code>limits[]</code> there are bars with <b>no named key of their own</b>.
-        Reading only the two famous ones showed a comfortable account. The one actually
-        about to stop it was 67 points higher, flagged by the server.
+        Dentro de <code>limits[]</code> hay barras que <b>no tienen clave propia arriba</b>.
+        Leyendo sólo las dos famosas se veía una cuenta cómoda. La que realmente frenaba
+        iba 67 puntos más arriba, con aviso del servidor.
       </p>
     </div>
     <div class="hallazgo aparece">
       <div class="barras">
         <div class="fila mal">
-          <div class="et"><span><code>five_hour</code> — what the others read</span><b>8 %</b></div>
+          <div class="et"><span><code>five_hour</code> — lo que leen los demás</span><b>8 %</b></div>
           <div class="pista"><i style="width:8%;background:#3ddc97"></i></div>
         </div>
         <div class="fila mal">
@@ -339,16 +338,16 @@ footer a:hover{color:var(--texto)}
           <div class="pista"><i style="width:59%;background:#3ddc97"></i></div>
         </div>
         <div class="fila">
-          <div class="et"><span><code>weekly_scoped</code> — the one that stops you</span><b>75 %</b></div>
+          <div class="et"><span><code>weekly_scoped</code> — la que te frena</span><b>75 %</b></div>
           <div class="pista"><i style="width:75%;background:linear-gradient(90deg,#ffa348,#f66151)"></i></div>
         </div>
       </div>
       <div>
-        <h3>67 points of difference, and it looks calm</h3>
+        <h3>67 puntos de diferencia que se ven cómodos</h3>
         <p style="color:var(--medio);margin-top:12px;font-size:15px">
-          That bar was marked <code>warning</code> by the server itself and showed up in no
-          monitor, because it has no named key: it lives inside the list. quartermaster shows
-          whichever one stops you <em>first</em>.
+          Esa barra estaba marcada <code>warning</code> por el propio servidor y no aparecía
+          en ningún monitor, porque no tiene una clave con nombre propio: vive adentro de la
+          lista. quartermaster muestra la que frena <em>antes</em>, sea cual sea.
         </p>
       </div>
     </div>
@@ -358,83 +357,83 @@ footer a:hover{color:var(--texto)}
 <section id="superficies">
   <div class="env">
     <div class="titulo aparece">
-      <div class="rotulo"><b>03</b> The surfaces</div>
-      <h2>Where you are already looking</h2>
-      <p>The same number, drawn for each desktop. There is no app to open.</p>
+      <div class="rotulo"><b>03</b> Las superficies</div>
+      <h2>Donde ya estás mirando</h2>
+      <p>El mismo número, dibujado para cada escritorio. No hay una app que abrir.</p>
     </div>
     <div class="rejilla c4">
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 20h8"/></svg></div>
         <h3>GNOME</h3>
-        <p>One meter per account in the top bar, and the panel on one click with its own extension.</p>
+        <p>Un medidor por cuenta en la barra, y el panel a un click con su extensión.</p>
         <p><code>make indicador</code></p>
       </div>
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M9 9h6v6H9z"/><path d="M9 9V7a2 2 0 1 0-2 2z"/><path d="M15 9V7a2 2 0 1 1 2 2z"/><path d="M9 15v2a2 2 0 1 1-2-2z"/><path d="M15 15v2a2 2 0 1 0 2-2z"/></svg></div>
         <h3>macOS</h3>
-        <p>The menu bar, with the same panel and the same meter.</p>
+        <p>La barra de menú, con el mismo panel y el mismo medidor.</p>
         <p><code>make barra</code></p>
       </div>
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="7.5" height="6.5" rx="1"/><rect x="13" y="3.5" width="7.5" height="7.5" rx="1"/><rect x="3.5" y="13" width="7.5" height="6.5" rx="1"/><rect x="13" y="13" width="7.5" height="7.5" rx="1"/></svg></div>
         <h3>Windows</h3>
-        <p>The notification area, with a ring that says how much is left. Native, or from WSL.</p>
+        <p>La bandeja, con un anillo que dice cuánto queda. Anda desde WSL.</p>
         <p><code>make tray</code></p>
       </div>
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M4 17l5-5-5-5"/><path d="M12 19h8"/></svg></div>
-        <h3>The terminal</h3>
-        <p>A table, or one line for your statusline. And <code>--json</code> for scripts.</p>
+        <h3>La terminal</h3>
+        <p>Una tabla, o una línea para tu statusline. Y <code>--json</code> para scripts.</p>
         <p><code>qm --breve</code></p>
       </div>
     </div>
     <div class="galeria tiras aparece">
       <figure>
-        <div class="tira"><img src="img/barra.png" alt="La barra de arriba de GNOME con tres medidores verticales y sus números."></div>
-        <figcaption><b>GNOME</b> · one meter per account, top right</figcaption>
+        <div class="tira"><img src="../img/barra.png" alt="La barra de arriba de GNOME con tres medidores verticales y sus números."></div>
+        <figcaption><b>GNOME</b> · un medidor por cuenta, arriba a la derecha</figcaption>
       </figure>
       <figure>
-        <div class="tira"><img src="img/windows-bandeja.png" alt="La bandeja de Windows con un icono por producto: opencode, codex y Claude con su medidor."></div>
-        <figcaption><b>Windows</b> · one icon per product in the tray</figcaption>
+        <div class="tira"><img src="../img/windows-bandeja.png" alt="La bandeja de Windows con un icono por producto: opencode, codex y Claude con su medidor."></div>
+        <figcaption><b>Windows</b> · un icono por producto en la bandeja</figcaption>
       </figure>
     </div>
 
     <div class="galeria paneles aparece">
       <figure>
-        <div class="recorte"><img src="img/panel.png" alt="El panel en GNOME, tema oscuro: el anillo de lo primero que te frena y una tarjeta por cuenta."></div>
+        <div class="recorte"><img src="../img/panel.png" alt="El panel en GNOME, tema oscuro: el anillo de lo primero que te frena y una tarjeta por cuenta."></div>
         <figcaption><b>GNOME</b> · tema oscuro</figcaption>
       </figure>
       <figure>
-        <div class="recorte"><img src="img/windows-panel.png" alt="El mismo panel en Windows, tema claro, con la cuenta main al 100 % de su barra semanal."></div>
+        <div class="recorte"><img src="../img/windows-panel.png" alt="El mismo panel en Windows, tema claro, con la cuenta main al 100 % de su barra semanal."></div>
         <figcaption><b>Windows</b> · tema claro</figcaption>
       </figure>
     </div>
 
     <pre class="aparece" style="margin-top:22px"><span class="p">$</span> qm --breve
 main 46/89%! · teams 36/60%! · codex 50/100%!
-<span class="c"># session/week per account. "!" is a bar the server flagged with a warning.</span></pre>
+<span class="c"># sesión/semana por cuenta. «!» es una barra que el servidor marcó con aviso.</span></pre>
   </div>
 </section>
 
 <section id="instalar">
   <div class="env">
     <div class="titulo aparece">
-      <div class="rotulo"><b>04</b> Install</div>
-      <h2>Getting it running</h2>
-      <p>There is no build step: <code>qm</code> reads its TypeScript directly, which is why it asks for Node ≥ 22.6.</p>
+      <div class="rotulo"><b>04</b> Instalar</div>
+      <h2>Ponerlo a andar</h2>
+      <p>No hay paso de compilación: <code>qm</code> lee el TypeScript directo, y por eso pide Node ≥ 22.6.</p>
     </div>
     <div class="pestanas aparece" role="tablist">
       <button role="tab" aria-selected="true" data-t="brew">Homebrew</button>
       <button role="tab" aria-selected="false" data-t="npm">npm</button>
       <button role="tab" aria-selected="false" data-t="apt">apt · Debian / Ubuntu</button>
       <button role="tab" aria-selected="false" data-t="win">Windows</button>
-      <button role="tab" aria-selected="false" data-t="src">From the repo</button>
+      <button role="tab" aria-selected="false" data-t="src">Desde el repo</button>
     </div>
     <pre id="t-brew"><span class="p">$</span> brew install legiosai/tap/quartermaster
 <span class="p">$</span> qm</pre>
     <pre id="t-npm" hidden><span class="p">$</span> npm install -g @legios/quartermaster
 <span class="p">$</span> qm</pre>
-    <pre id="t-apt" hidden><span class="c"># once: the key and the repo</span>
+    <pre id="t-apt" hidden><span class="c"># una vez: la clave y el repo</span>
 <span class="p">$</span> sudo install -d -m 0755 /etc/apt/keyrings
 <span class="p">$</span> curl -fsSL https://quartermaster.legios.com.ar/apt/legios.gpg \
     | sudo tee /etc/apt/keyrings/legios.asc &gt;/dev/null
@@ -442,24 +441,24 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
     https://quartermaster.legios.com.ar/apt stable main" \
     | sudo tee /etc/apt/sources.list.d/legios.list &gt;/dev/null
 
-<span class="c"># and from then on, like any other package</span>
+<span class="c"># y desde ahí, como cualquier otro paquete</span>
 <span class="p">$</span> sudo apt update &amp;&amp; sudo apt install quartermaster</pre>
-    <pre id="t-win" hidden><span class="c"># the installer from the latest release: puts qm on your
-# PATH and the tray in the Start menu. Per-user, no UAC.</span>
+    <pre id="t-win" hidden><span class="c"># el instalador de la última release: deja qm en el PATH
+# y la bandeja en el menú Inicio. Por usuario, sin UAC.</span>
 <span class="p">&gt;</span> quartermaster-0.1.5-setup.exe
 <span class="p">&gt;</span> qm
 
-<span class="c"># (winget and scoop: the manifests are written and not
-#  approved yet. npm works in the meantime.)</span>
+<span class="c"># (winget y scoop: el manifest está armado y todavía
+#  no aprobado. Mientras tanto, npm también sirve.)</span>
 <span class="p">&gt;</span> npm install -g @legios/quartermaster</pre>
     <pre id="t-src" hidden><span class="p">$</span> git clone https://github.com/legiosai/quartermaster
 <span class="p">$</span> cd quartermaster && npm install
-<span class="p">$</span> make instalar   <span class="c"># puts `qm` in ~/.local/bin</span></pre>
+<span class="p">$</span> make instalar   <span class="c"># deja `qm` en ~/.local/bin</span></pre>
     <p class="nota">
-      The apt repo is signed and lives on this same page, so
-      <code>apt upgrade</code> brings the new version by itself. The launcher looks for a
-      usable Node on the <code>PATH</code> and in nvm; if it finds none, it says so and
-      explains how to get one.
+      El repo de apt está firmado y vive en esta misma página, así que
+      <code>apt upgrade</code> trae la versión nueva sola. El lanzador busca un Node
+      que sirva en el <code>PATH</code> y en nvm; si no encuentra ninguno, lo dice y
+      explica cómo conseguirlo.
     </p>
   </div>
 </section>
@@ -467,23 +466,22 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
 <footer>
   <div class="env">
     <div class="pie-legios">
-      <a href="https://github.com/legiosai" aria-label="Legios"><img src="legios.svg" alt="Legios" width="190" height="62"></a>
+      <a href="https://github.com/legiosai" aria-label="Legios"><img src="../legios.svg" alt="Legios" width="190" height="62"></a>
       <p>
-        quartermaster is an instrument by <b>Legios</b>: the pieces it takes for a
-        software change to go from a symptom to a pull request without anyone having to
-        hold the whole system in their head.
+        quartermaster es un instrumento de <b>Legios</b>: las piezas que hacen falta
+        para que un cambio de software vaya de un síntoma a un PR sin que nadie tenga
+        que sostener el sistema entero en la cabeza.
       </p>
     </div>
-    <p class="firma">Built by <b>Valentín Torassa</b> and <b>Sol Soletti</b>.</p>
+    <p class="firma">Construido por <b>Valentín Torassa</b> y <b>Sol Soletti</b>.</p>
   </div>
   <div class="env pie-fila">
-    <span>MIT · <a href="https://github.com/legiosai/quartermaster/releases">v0.1.6</a></span>
+    <span>MIT · <a href="https://github.com/legiosai/quartermaster/releases">v0.1.2</a></span>
     <span>
-      <a href="https://github.com/legiosai/quartermaster#readme">Docs</a> ·
-      <a href="es/" hreflang="es">Español</a> ·
-      <a href="https://github.com/legiosai/quartermaster">Code</a> ·
+      <a href="documentacion.html">Documentación</a> ·
+      <a href="https://github.com/legiosai/quartermaster">Código</a> ·
       <a href="https://github.com/legiosai/quartermaster/releases">Releases</a> ·
-      <a href="https://github.com/legiosai/quartermaster/issues">Report something</a>
+      <a href="https://github.com/legiosai/quartermaster/issues">Reportar algo</a>
     </span>
   </div>
 </footer>
@@ -493,14 +491,14 @@ main 46/89%! · teams 36/60%! · codex 50/100%!
 document.querySelectorAll('.copiar').forEach(b=>{
   b.addEventListener('click',async()=>{
     const t=document.querySelector(b.dataset.copiar).textContent.trim();
-    try{await navigator.clipboard.writeText(t);b.textContent='copied';
-      setTimeout(()=>b.textContent='copy',1400);}catch(e){b.textContent="couldn't";}
+    try{await navigator.clipboard.writeText(t);b.textContent='copiado';
+      setTimeout(()=>b.textContent='copiar',1400);}catch(e){b.textContent='no pude';}
   });
 });
 const CMD={
-  mac:['brew install legiosai/tap/quartermaster','Homebrew. Also on npm.'],
-  linux:['sudo apt install quartermaster','From the Legios repo — <a href="#instalar">two lines</a> to add it. Homebrew and npm work too.'],
-  win:['quartermaster-setup.exe','The installer from the <a href="https://github.com/legiosai/quartermaster/releases/latest">latest release</a>. Also on npm; winget and scoop on the way.']
+  mac:['brew install legiosai/tap/quartermaster','Homebrew. También por npm.'],
+  linux:['sudo apt install quartermaster','Del repo de Legios — se agrega con <a href="#instalar">dos líneas</a>. También Homebrew y npm.'],
+  win:['quartermaster-setup.exe','El instalador de la <a href="https://github.com/legiosai/quartermaster/releases/latest">última release</a>. También por npm; winget y scoop, en camino.']
 };
 const sos=document.querySelectorAll('.so button');
 function elegirSO(b){
