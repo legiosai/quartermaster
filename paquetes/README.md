@@ -145,7 +145,14 @@ con el uuid), el `stylesheet.css` adentro, que el uuid coincida con el
 directorio y que el `metadata.json` **no** traiga `"version"` — ese número lo
 pone el sitio, lo nuestro va en `version-name`.
 
-Subir a <https://extensions.gnome.org/upload/> con cuenta propia. Después la
+El script corre además **`shexli`**, el analizador estático que recomienda el
+propio sitio, y falla si encuentra algo — porque eso mismo lo va a marcar la
+revisión. La primera vez que se corrió sacó dos: señales sin desconectar (la
+causa de rechazo más común) y una lectura sincrónica adentro del compositor.
+
+Publicada como
+[extension/10949/quartermaster](https://extensions.gnome.org/extension/10949/quartermaster/).
+Las versiones nuevas se suben por el mismo formulario, con cuenta propia. Después la
 revisa una persona, y lo que mira es:
 
 - que `disable()` deshaga todo lo que hizo `enable()`. Acá: se saca el timeout

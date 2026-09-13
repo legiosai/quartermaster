@@ -74,6 +74,10 @@ jobs:
       # directorio y sin "version" en el metadata.json (ese número lo pone el
       # sitio). Sin esto, el error se descubre subiendo — y ahí del otro lado
       # hay una persona esperando.
+      # shexli es el analizador que recomienda extensions.gnome.org. La primera
+      # vez que se corrió encontró dos cosas que la revisión marca, una de
+      # ellas la causa de rechazo más común del sitio. Acá lo corre el gate.
+      - run: pipx install shexli || pip install --user -U shexli
       - run: ./scripts/hacer-extension-zip.sh
       - uses: actions/upload-artifact@v4
         with:

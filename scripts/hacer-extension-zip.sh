@@ -91,6 +91,33 @@ uuid=$(sed -n 's/.*"uuid"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$fuente/m
 [ "$uuid" = "$(basename "$fuente")" ] || {
   echo "✗ el uuid ($uuid) no coincide con el directorio ($(basename "$fuente"))" >&2; exit 1; }
 
+# ── el analizador que recomienda el propio sitio ───────────────────────
+# `shexli` es de extensions.gnome.org y encuentra lo que marca la revisión. La
+# primera vez que se corrió sacó dos: señales sin desconectar (la causa de
+# rechazo más común) y una lectura de archivo sincrónica adentro del
+# compositor. Dos minutos de análisis contra una vuelta de revisión de semanas.
+#
+# No es obligatorio tenerlo: si no está, se dice y se sigue. Instalarlo:
+#   python3 -m venv venv && ./venv/bin/pip install -U shexli
+if command -v shexli >/dev/null 2>&1; then
+  ANALIZADOR=shexli
+elif [ -x "$raiz/venv/bin/shexli" ]; then
+  ANALIZADOR="$raiz/venv/bin/shexli"
+else
+  ANALIZADOR=""
+fi
+
+if [ -n "$ANALIZADOR" ]; then
+  if ! "$ANALIZADOR" "$zip"; then
+    echo "" >&2
+    echo "✗ shexli encontró algo. Eso mismo lo va a marcar la revisión." >&2
+    exit 1
+  fi
+else
+  echo "· sin shexli: el análisis estático que recomienda el sitio no se corrió"
+  echo "  (python3 -m venv venv && ./venv/bin/pip install -U shexli)"
+fi
+
 bytes=$(wc -c < "$zip")
 echo "✓ $zip  (${bytes} bytes)"
 echo "  subir a: https://extensions.gnome.org/upload/"
