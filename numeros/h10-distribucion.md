@@ -351,11 +351,20 @@ desde afuera**, que es distinto de lo que dijo el resumen del workflow:
 | brew | success | la fórmula del tap apunta al tarball de `v0.1.6` |
 | apt | success | `dists/stable/Release` en `Version: 0.1.6`, `InRelease` firmado |
 | scoop | publicado | `bucket/quartermaster.json` en `0.1.6` |
-| winget | **failure** | no hay PR |
+| winget | **failure**, y después success | ver abajo: hubo que arreglar el token |
 | AUR | success, pero NO publicó | correcto: el registro sigue cerrado |
 | gnome | a mano | la 10949 sigue en `Unreviewed` |
 
-Seis de ocho, y las dos que faltan por razones distintas y las dos conocidas.
+Siete de ocho después del segundo intento de winget, y la que falta —el AUR—
+por una razón conocida y ajena.
+
+**winget, al segundo intento.** El token era el problema y nada más: con
+`TOKEN_WINGET` regenerado (classic, `public_repo`) y un rerun de ese solo job,
+`wingetcreate` forkeó `microsoft/winget-pkgs` y abrió
+[el PR #434159](https://github.com/microsoft/winget-pkgs/pull/434159),
+`Legios.Quartermaster version 0.1.6`. Comprobado consultando el PR, no leyendo
+el notice del workflow — que en ese rerun seguía siendo el viejo, porque un
+rerun usa el workflow del tag y el arreglo se commiteó después.
 
 ### Lo que rompió, que es lo que vale anotar
 
@@ -391,9 +400,9 @@ y había una línea diciendo que sí.
   2026-09-13** por la release de 0.1.6: `winget validate` corrió sobre los
   cuatro manifests generados y dijo `Manifest validation succeeded` (con un
   aviso de que no puede validar la dependencia `OpenJS.NodeJS.LTS`, que es
-  esperable: valida forma, no catálogo). El PR sigue sin mandarse porque el
-  token falló, así que lo que nadie vio todavía es la reacción del CI de
-  `microsoft/winget-pkgs` del otro lado.
+  esperable: valida forma, no catálogo), y el PR salió: el #434159. Lo que
+  falta ver es del otro lado: qué dice el CI de `microsoft/winget-pkgs` y qué
+  pide el revisor. Eso no depende de nosotros y no tiene fecha.
 
 La diferencia entre esta sección y el resto del archivo es la de siempre:
 arriba están los números, acá están las preguntas, y ninguna de las dos se
