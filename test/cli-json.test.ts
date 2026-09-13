@@ -90,3 +90,20 @@ test('una opción que no existe sigue saliendo 2, y explica', () => {
   assert.strictEqual(codigo, 2);
   assert.match(salida, /opción desconocida/);
 });
+
+// `--breve` tiene que traer `ultimoUso` aunque `local` vaya en null.
+//
+// La regresión que esto fija: el campo se agregó ADENTRO de `local`, y `local`
+// se anula entero en --breve. El único consumidor del campo es el sondeo de la
+// barra de GNOME, y ese sondeo corre justamente `--json --breve`. O sea que el
+// campo existía, estaba bien calculado, y no llegaba nunca a quien lo pedía.
+// El arreglo se vio funcionar en `qm --json` y falló en producción igual.
+test('--breve trae ultimoUso aunque local sea null', () => {
+  const { salida, codigo } = correr(['--json', '--breve']);
+  assert.strictEqual(codigo, 0, `salió ${codigo}: ${salida.slice(0, 200)}`);
+  const d = JSON.parse(salida) as { perfiles: Record<string, unknown>[] };
+  for (const p of d.perfiles) {
+    assert.ok('ultimoUso' in p, `el perfil ${String(p['perfil'])} no trae ultimoUso en --breve`);
+    assert.strictEqual(p['local'], null, '--breve no mide consumo: local va en null');
+  }
+});

@@ -38,6 +38,33 @@ function nuevoAcumulador(): Acumulador {
   };
 }
 
+/**
+ * Cuándo se usó este perfil por última vez, SIN leer una sola línea.
+ *
+ * Es el mtime más nuevo de sus transcripciones: Claude Code escribe el archivo
+ * en cada turno, así que «el archivo cambió» y «la cuenta se usó» son el mismo
+ * hecho. La fecha de adentro del transcript diría casi exactamente lo mismo y
+ * cuesta parsear todo.
+ *
+ * Barato a propósito. El consumidor es `qm --breve`, que existe para tardar
+ * milisegundos porque corre en una statusline y en el sondeo de la barra: si
+ * esto costara lo que cuesta `consumoDesde()`, no podría estar ahí — y ahí es
+ * exactamente donde hace falta, porque es la barra la que decide a qué cuenta
+ * le pregunta la cuota.
+ */
+export function ultimaActividad(perfil: Perfil): Date | null {
+  let masNuevo = 0;
+  for (const archivo of transcripciones(perfil)) {
+    try {
+      const m = statSync(archivo).mtimeMs;
+      if (m > masNuevo) masNuevo = m;
+    } catch {
+      // un archivo que desaparece entre el listado y el stat no es un error
+    }
+  }
+  return masNuevo === 0 ? null : new Date(masNuevo);
+}
+
 /** Todos los .jsonl de un perfil, recursivo. */
 export function transcripciones(perfil: Perfil): string[] {
   const raiz = join(perfil.directorio, 'projects');

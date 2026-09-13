@@ -16,7 +16,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { descubrirPerfiles } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
-import { consumoDesde, transcripciones } from '../adapters/transcripciones.ts';
+import { consumoDesde, transcripciones, ultimaActividad } from '../adapters/transcripciones.ts';
 import { cuotaEnCache } from '../adapters/cache-cuota.ts';
 import { anotar, claveBarra, muestras, type Lectura } from '../adapters/historial.ts';
 import { proyectar, VENTANA_AJUSTE_MS, type Proyeccion } from '../core/proyeccion.ts';
@@ -494,7 +494,10 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
           tokens: 0,
           tokensVentana: 0,
           porModelo: [],
-          ultimoUso: null,
+          // Sí se mide incluso en --breve: es barato (un stat por transcripción,
+          // sin parsear) y es justo lo que la barra necesita para decidir a qué
+          // cuenta le pregunta la cuota.
+          ultimoUso: ultimaActividad(perfil),
         };
       }
 
@@ -514,7 +517,11 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
         tokens: totalTokens(c),
         tokensVentana: totalTokens(v),
         porModelo: [...c.porModelo].sort((a, b) => b[1] - a[1]).slice(0, 3),
-        ultimoUso: c.ultimo,
+        // La misma fuente que en --breve, a propósito: un solo campo con un
+        // solo significado. `c.ultimo` diría casi lo mismo pero sólo existe
+        // cuando se parsearon las transcripciones, y entonces el valor
+        // cambiaría de origen según la bandera.
+        ultimoUso: ultimaActividad(perfil),
       };
     }),
   );
@@ -831,6 +838,19 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
       // porque contesta la otra mitad de la misma pregunta: el ritmo dice hacia
       // dónde vas, el presupuesto a cuánto tendrías que ir.
       presupuesto: presupuestoJson(f.cuota),
+      // Cuándo se usó esta cuenta por última vez.
+      //
+      // Va AL LADO de `local` y no adentro, a propósito. `local` se anula
+      // entero en --breve y está bien que así sea: son cuentas de consumo que
+      // ahí no se midieron, e informar 0 sería decir «no consumiste nada»
+      // cuando lo que pasa es «no lo medí».
+      //
+      // Esto es otra clase de hecho —cuándo, no cuánto— y se mide distinto: un
+      // stat por transcripción, sin parsear nada. Así que existe en los dos
+      // modos, que es lo que hace falta: el consumidor es el sondeo de la
+      // barra, y el sondeo corre --breve. Adentro de `local` el campo estaba
+      // escrito pero nunca llegaba a quien lo necesitaba.
+      ultimoUso: f.ultimoUso?.toISOString() ?? null,
       // En --breve no se leyeron las transcripciones. Informar 0 sería decir
       // "no consumiste nada" cuando lo que pasa es "no lo medí".
       local: o.breve || !f.localMedido
@@ -841,11 +861,6 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
             requests: f.requests,
             transcripciones: f.archivos,
             porModelo: Object.fromEntries(f.porModelo),
-            // Campo agregado: cuándo se usó esta cuenta por última vez, de sus
-            // transcripciones. Lo consume la barra para decidir a quién le
-            // pregunta la cuota — una cuenta que se está usando es la única
-            // cuyo número está cambiando.
-            ultimoUso: f.ultimoUso?.toISOString() ?? null,
           },
     })),
   };
