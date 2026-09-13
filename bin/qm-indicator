@@ -969,7 +969,7 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             # Cuándo se usó esta cuenta por última vez. Es lo que distingue una
             # cuenta al 2 % que está quieta de una al 2 % que estás gastando
             # ahora mismo: el número de la segunda se mueve, el de la primera no.
-            "ultimo_uso": (p.get("local") or {}).get("ultimoUso"),
+            "ultimo_uso": p.get("ultimoUso"),
             "viejo": (cuota.get("edadSegundos") or 0) >= VIEJO_SEGUNDOS,
         })
         if avisar is not None:

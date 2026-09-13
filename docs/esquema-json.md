@@ -52,20 +52,25 @@ Each entry of `perfiles`:
 }
 ```
 
-### `local`
+### `ultimoUso`
+
+A sibling of `local`, **not** a field inside it — and the difference matters.
+
+`local` is `null` under `--breve`, correctly: those are consumption counts that
+were not measured, and reporting `0` would say "you used nothing" when the truth
+is "I did not measure". `ultimoUso` is a different kind of fact — *when*, not
+*how much* — and it is measured differently: one `stat` per transcript, nothing
+parsed. So it exists in **both** modes.
+
+That placement is the whole point. Its consumer is the GNOME item's polling
+loop, and that loop runs `--breve`. Inside `local` the field was written and
+never reached the one caller that needed it.
 
 ```jsonc
-{
-  "tokens": 2865448922,
-  "tokensVentana": 254809725,
-  "requests": 8051,
-  "transcripciones": 69,
-  "porModelo": { "claude-opus-5": 2707726317 },
-  "ultimoUso": "2026-09-13T19:15:42.186Z"   // last local activity, or null
-}
+"ultimoUso": "2026-09-13T19:15:42.186Z"   // or null
 ```
 
-`ultimoUso` is the newest timestamp across the profile's transcripts — when this
+It is the newest timestamp across the profile's transcripts — when this
 account was last actually used. It is `null` where it cannot be measured (Codex
 and the opencode providers do not expose it per account); `null` means *not
 known*, never *not used*.
