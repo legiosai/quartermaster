@@ -273,9 +273,15 @@ jobs:
           git diff --stat
           git config user.name "quartermaster release"
           git config user.email "noreply@legios.com.ar"
-          git commit -aqm "quartermaster $V"
-          git push
-          echo "::notice::Homebrew: la fórmula quedó en $V"
+          # Si la fórmula ya estaba en esta versión, `git commit` sale 1 y con
+          # set -e eso tumbaba el job por algo que no es un error.
+          if git diff --quiet; then
+            echo "::warning::la fórmula ya estaba en $V: no había nada que cambiar"
+          else
+            git commit -aqm "quartermaster $V"
+            git push
+            echo "::notice::Homebrew: la fórmula quedó en $V"
+          fi
 
   # ── apt: el repo firmado, que vive en docs/ ───────────────────────────
   # No es un .deb colgado de una release: es un repo con índices y firma, así
@@ -346,12 +352,15 @@ jobs:
     needs: [canales, version, release]
     if: needs.canales.outputs.scoop == 'si'
     runs-on: ubuntu-latest
+    outputs:
+      publicado: ${{ steps.empujar.outputs.publicado }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: generar y empujar
+        id: empujar
         env:
           GH_TOKEN: ${{ secrets.TOKEN_PAQUETES }}
           V: ${{ needs.version.outputs.version }}
@@ -366,8 +375,9 @@ jobs:
           zip=$(sha256sum win.zip | cut -d' ' -f1)
           node scripts/hacer-manifests.mjs --exe "$exe" --zip "$zip"
 
+          echo "publicado=no" >> "$GITHUB_OUTPUT"
           if ! git clone "https://x-access-token:$GH_TOKEN@github.com/legiosai/scoop-bucket" bucket 2>/dev/null; then
-            echo "::warning::el bucket legiosai/scoop-bucket no existe todavía: el manifest queda en los artefactos"
+            echo "::warning::el bucket legiosai/scoop-bucket no existe o el token no lo alcanza: el manifest queda en los artefactos"
             exit 0
           fi
           mkdir -p bucket/bucket
@@ -377,6 +387,7 @@ jobs:
           git config user.email "noreply@legios.com.ar"
           git add -A
           git diff --cached --quiet || { git commit -qm "quartermaster $V"; git push; }
+          echo "publicado=si" >> "$GITHUB_OUTPUT"
           echo "::notice::scoop: el bucket quedó en $V"
 
   # ── winget: el PR a microsoft/winget-pkgs ─────────────────────────────
@@ -436,9 +447,12 @@ jobs:
     needs: [canales, version, release]
     if: needs.canales.outputs.aur == 'si'
     runs-on: ubuntu-latest
+    outputs:
+      publicado: ${{ steps.empujar.outputs.publicado }}
     steps:
       - uses: actions/checkout@v4
       - name: empujar al AUR
+        id: empujar
         env:
           AUR_SSH: ${{ secrets.AUR_SSH }}
           V: ${{ needs.version.outputs.version }}
@@ -460,6 +474,7 @@ jobs:
           # VACÍO para un paquete que no existe todavía —así es como se crea
           # uno— así que un clone exitoso y vacío es el camino normal la primera
           # vez.
+          echo "publicado=no" >> "$GITHUB_OUTPUT"
           if ! git clone ssh://aur@aur.archlinux.org/quartermaster.git aur 2>error.txt; then
             echo "::warning::el AUR rechazó la conexión: falta la cuenta o la clave no está cargada en el perfil"
             sed 's/^/  /' error.txt
@@ -479,6 +494,7 @@ jobs:
           git config user.email "noreply@legios.com.ar"
           git add -A
           git diff --cached --quiet || { git commit -qm "$V"; git push; }
+          echo "publicado=si" >> "$GITHUB_OUTPUT"
           echo "::notice::AUR: quartermaster $V"
 
   # ── qué se publicó, y qué no ──────────────────────────────────────────
@@ -496,12 +512,22 @@ jobs:
           fila() { printf '  %-10s %s\n' "$1" "$2"; }
           echo "quartermaster $V"
           echo ""
+          # OJO con leer sólo el result del job: un canal a medio configurar
+          # avisa y sale 0, así que aparecería como 'success' sin haber
+          # publicado nada. Los que pueden quedar a medias informan aparte.
+          scoop='${{ needs.scoop.outputs.publicado }}'
+          aur='${{ needs.aur.outputs.publicado }}'
+          detalle() { # $1 = result del job, $2 = publicado (si/no/vacío)
+            if [ "$1" != "success" ]; then echo "$1"
+            elif [ "$2" = "no" ]; then echo "success, pero NO publicó — mirá el warning"
+            else echo "publicado"; fi
+          }
           fila npm    "${{ needs.npm.result || 'sin correr' }}"
           fila brew   "${{ needs.brew.result }}"
           fila apt    "${{ needs.apt.result }}"
-          fila scoop  "${{ needs.scoop.result }}"
+          fila scoop  "$(detalle '${{ needs.scoop.result }}' "$scoop")"
           fila winget "${{ needs.winget.result }}"
-          fila aur    "${{ needs.aur.result }}"
+          fila aur    "$(detalle '${{ needs.aur.result }}' "$aur")"
           fila gnome  "a mano — no hay API de subida"
           echo ""
           echo "::notice::Falta subir el .shell-extension.zip de la release a https://extensions.gnome.org/upload/"

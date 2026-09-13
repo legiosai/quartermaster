@@ -15,7 +15,7 @@ sale una versión.
 | release de GitHub | `.deb`, `setup.exe`, los dos zips | la release | sí | — |
 | scoop | el zip portable | `legiosai/scoop-bucket` | sí | `TOKEN_PAQUETES` |
 | winget | el instalador | PR a `microsoft/winget-pkgs` | sí, manda el PR | `TOKEN_WINGET` |
-| AUR | el `PKGBUILD` | `aur.archlinux.org` | sí | `AUR_SSH` |
+| AUR | el `PKGBUILD` | `aur.archlinux.org` | sí, cuando exista la cuenta | `AUR_SSH` |
 | extensions.gnome.org | el zip de la extensión | el sitio | **no: no tiene API** | — |
 | Nix | `flake.nix` | nada: se instala del repo | — | — |
 | waybar | `paquetes/waybar/` | se copia a mano | — | — |
@@ -175,6 +175,24 @@ cp paquetes/aur/PKGBUILD paquetes/aur/.SRCINFO aur-quartermaster/
 cd aur-quartermaster && updpkgsums && makepkg --printsrcinfo > .SRCINFO
 git add -A && git commit -m "0.1.6" && git push
 ```
+
+## AUR: el registro está cerrado (2026-09-13)
+
+La clave dedicada ya está generada y `AUR_SSH` puesta, pero **el AUR tiene el
+registro de cuentas nuevas pausado**:
+
+> Registration on the AUR is paused while we deal with a wave of automated
+> account creation. (HTTP 503)
+
+No hay cola manual ni forma de apurarlo, y ellos mismos piden no reintentar por
+script. Se anuncia cuando reabre en `aur-general` y en el feed de noticias de
+Arch.
+
+Mientras tanto el canal queda a medio configurar a propósito, y eso está
+contemplado: el job corre, el clone por SSH es rechazado, deja un warning con el
+error del servidor y sale 0 — y el resumen lo muestra como **«success, pero NO
+publicó»**, que es distinto de haber publicado. Cuando reabra: crear la cuenta,
+pegar la clave pública del perfil, y el paquete se crea solo en el primer push.
 
 ## Nix
 
