@@ -126,11 +126,26 @@ journalctl --user -b | grep qm-indicator
 ```
 
 ```
+qm-indicator: pedido accion=actualizar
+qm-indicator: calentar cuentas=.claude,.claude-teams,codex
 qm-indicator: panel.abierto donde=arriba-derecha alto=1032
 qm-indicator: panel.cerrado vivio_ms=3999
 qm-indicator: panel.agarre-roto
-qm-indicator: calentar cuentas=codex
+qm-indicator: aviso clave=teams|weekly_all|2026-09-13T11:00|80 urgente=False
+qm-indicator: qm.sin-datos motivo=qm salió 2: opción desconocida
 ```
+
+The events, and the question each one answers:
+
+| event | answers |
+| --- | --- |
+| `pedido` | did the click reach the indicator at all? |
+| `calentar` / `calentar.fallo` | which accounts were re-read, and why a refresh did not happen |
+| `panel.abierto` / `panel.cerrado` | `vivio_ms` — a panel that lived 40 ms was not closed by you |
+| `panel.agarre-roto` | the compositor took the grab away |
+| `aviso` / `aviso.repetido` / `aviso.fallo` | it fired, it was suppressed as a duplicate, or the notification server refused it |
+| `qm.sin-datos` | why there is no number, instead of only a phrase on screen |
+| `reinicio` | the process replaced itself because the source changed |
 
 `vivio_ms` is the one that matters for "the panel closes on its own": a panel
 that lives 40 ms was not closed by you. `QM_SILENCIO=1` turns it off.

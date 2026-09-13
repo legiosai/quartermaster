@@ -1448,6 +1448,10 @@ class Avisos:
             self.vistos = set(json.loads(self.ruta.read_text()))
         except (OSError, ValueError):
             self.vistos = set()
+        # Sólo para el registro: qué avisos repetidos ya se dijeron en ESTE
+        # proceso. No se persiste — al reiniciar conviene volver a decirlo una
+        # vez, porque el registro nuevo arranca vacío.
+        self.repetidos_dichos: set[str] = set()
 
     def guardar(self) -> None:
         try:
@@ -1459,9 +1463,21 @@ class Avisos:
     def avisar(self, clave: str, titulo: str, cuerpo: str, urgente: bool) -> None:
         """Una vez por clave y nunca más."""
         if clave in self.vistos:
+            # Que un aviso NO salga por repetido es una decisión, no un
+            # no-evento: explica «no me avisó» cuando el aviso sí correspondía.
+            #
+            # Pero esto se evalúa en CADA refresco, o sea cada pocos segundos
+            # mientras la barra siga alta. Registrarlo siempre son tres líneas
+            # iguales cada veinte segundos hasta que la ventana se reinicie: el
+            # registro deja de leerse y el evento que importa queda enterrado.
+            # Se dice una vez por clave y por proceso, que es cuando aporta.
+            if clave not in self.repetidos_dichos:
+                self.repetidos_dichos.add(clave)
+                registrar("aviso.repetido", clave=clave)
             return
         self.vistos.add(clave)
         self.guardar()
+        registrar("aviso", clave=clave, urgente=urgente)
         self.notificar(titulo, cuerpo, urgente)
 
     def notificar(self, titulo: str, cuerpo: str, urgente: bool) -> None:
@@ -1491,8 +1507,11 @@ class Avisos:
                 -1,
                 None,
             )
-        except GLib.Error:
-            pass  # sin servidor de notificaciones el indicador igual funciona
+        except GLib.Error as e:
+            # El indicador igual funciona sin servidor de notificaciones, pero
+            # «te liberaste» es el aviso más útil que da el programa: si no sale,
+            # tiene que quedar dicho por qué.
+            registrar("aviso.fallo", motivo=str(e).replace("\n", " ")[:100])
 
 
 # ── leer a qm ────────────────────────────────────────────────────────────
@@ -1661,9 +1680,14 @@ class Indicador:
             print(f"la versión nueva no compila, me quedo con ésta: {e}", file=sys.stderr)
             return False
         self.panel.menu.popdown()
+        # Un proceso que se reemplaza a sí mismo en silencio explica cualquier
+        # rareza posterior —contadores en cero, panel cerrado, avisos de nuevo—
+        # y hasta acá no dejaba una línea.
+        registrar("reinicio", motivo="el fuente cambió")
         try:
             os.execv(sys.executable, [sys.executable, str(YO), *sys.argv[1:]])
         except OSError as e:
+            registrar("reinicio.fallo", error=str(e)[:80])
             print(f"no pude reiniciarme: {e}", file=sys.stderr)
         return False
 
@@ -1706,14 +1730,24 @@ class Indicador:
         self.pedido_pendiente = None
         try:
             accion = PEDIDO.read_text().split(" ", 1)[0].strip()
-        except OSError:
+        except OSError as e:
+            # Un pedido que no se puede leer es un click que se perdió, y sin
+            # esta línea se pierde sin dejar rastro.
+            registrar("pedido.ilegible", error=str(e)[:80])
             return False
+        # Saber si el click LLEGÓ es la mitad de cualquier diagnóstico de «no
+        # hace nada»: separa «la extensión no pidió» de «pidió y no pasó nada».
+        # Sin esto hubo que disparar el pedido a mano y mirar el mtime de
+        # estado.json para saber de qué lado estaba el problema.
+        registrar("pedido", accion=accion or "(vacío)")
         if accion == "alternar":
             # La extensión sólo pide esto cuando NO puede dibujar el panel ella
             # misma; si puede, abre su propio menú y no manda nada.
             self.abrir_panel()
         elif accion == "actualizar":
             self.refrescar()
+        else:
+            registrar("pedido.desconocido", accion=accion[:40])
         return False
 
     def extension_viva(self) -> bool:
@@ -1908,6 +1942,12 @@ class Indicador:
     # Dibujo ----------------------------------------------------------------
     def refrescar(self) -> bool:
         datos = self.leer()
+        # `leer_qm` devuelve una FRASE cuando no pudo: se muestra en el menú y
+        # hasta acá no quedaba escrita en ningún lado. Si qm falla a las tres de
+        # la mañana, mañana no hay forma de saber por qué.
+        if isinstance(datos, str) and datos != getattr(self, "_ultimo_fallo", None):
+            registrar("qm.sin-datos", motivo=datos[:110])
+        self._ultimo_fallo = datos if isinstance(datos, str) else None
         self.datos = datos
         for hijo in self.menu.get_children():
             self.menu.remove(hijo)
