@@ -454,7 +454,17 @@ jobs:
             User aur
           EOF
 
-          git clone ssh://aur@aur.archlinux.org/quartermaster.git aur
+          # Un clone que falla acá significa una de dos, y las dos son «todavía
+          # no está configurado», no «se rompió»: o la cuenta del AUR no existe,
+          # o esta clave no está cargada en su perfil. El AUR devuelve un repo
+          # VACÍO para un paquete que no existe todavía —así es como se crea
+          # uno— así que un clone exitoso y vacío es el camino normal la primera
+          # vez.
+          if ! git clone ssh://aur@aur.archlinux.org/quartermaster.git aur 2>error.txt; then
+            echo "::warning::el AUR rechazó la conexión: falta la cuenta o la clave no está cargada en el perfil"
+            sed 's/^/  /' error.txt
+            exit 0
+          fi
           cp paquetes/aur/PKGBUILD paquetes/aur/.SRCINFO aur/
 
           # El sha256sums, que el PKGBUILD deja en SKIP hasta que el tag existe.
