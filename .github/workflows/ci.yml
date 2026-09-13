@@ -17,6 +17,11 @@ jobs:
       # manifests). Editar seis no rompe nada visible acá: rompe del otro lado,
       # en un catálogo con una persona esperando.
       - run: ./scripts/gate-paquetes.sh
+      # Y que ese gate sepa fallar. El pie de las landings entró tarde al gate:
+      # docs/es/index.html anunció v0.1.2 durante cuatro releases con el resto en
+      # 0.1.6 y esto en verde, porque sólo se miraba el nombre del instalador.
+      - name: y ese gate falla en rojo con una landing vieja
+        run: make gate-paquetes-rojo
 
       # `npm test` corre el TypeScript DESDE EL FUENTE, que es justo el caso
       # que no se parece a un `npm install -g`: ahí el paquete cae bajo
