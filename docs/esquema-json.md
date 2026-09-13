@@ -52,6 +52,34 @@ Each entry of `perfiles`:
 }
 ```
 
+### `local`
+
+```jsonc
+{
+  "tokens": 2865448922,
+  "tokensVentana": 254809725,
+  "requests": 8051,
+  "transcripciones": 69,
+  "porModelo": { "claude-opus-5": 2707726317 },
+  "ultimoUso": "2026-09-13T19:15:42.186Z"   // last local activity, or null
+}
+```
+
+`ultimoUso` is the newest timestamp across the profile's transcripts — when this
+account was last actually used. It is `null` where it cannot be measured (Codex
+and the opencode providers do not expose it per account); `null` means *not
+known*, never *not used*.
+
+It exists because **level does not predict movement**. A bar at 2% tells you how
+much is left; it does not tell you whether the number is about to change. The
+account you are using right now is the one whose number is moving, whatever the
+level. The GNOME item uses this to decide which accounts to re-read from the
+endpoint.
+
+> Measured 2026-09-13 with two sessions open: a team account sitting at 2% got
+> **one** endpoint read in 55 minutes, because the warm-up filtered by level
+> (`40 <= tope < 100`) and everything below 40% was treated as quiet.
+
 ### `cuota`
 
 When it worked:

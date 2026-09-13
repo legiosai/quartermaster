@@ -56,6 +56,10 @@ from gi.repository import Gdk, Gio, GLib, Gtk, Pango, PangoCairo  # noqa: E402
 ID = "quartermaster"
 # Red de seguridad: el FileMonitor es el que manda. Esto sólo cubre el caso de
 # un monitor que se pierda un evento (montajes raros, archivos reemplazados).
+# Cuánto hace falta que una cuenta esté sin usarse para dejar de preguntarle.
+# Diez minutos aguantan una pausa entre prompts sin seguir preguntando por una
+# cuenta que ya cerraste.
+ACTIVA_SEGUNDOS = 600
 SEGUNDOS_SONDEO = 300
 # Piso para cualquier cadencia que salga a la RED. Claude Code pide la cuota del
 # orden de una vez por sesión; un endpoint no documentado, que además puede
@@ -962,6 +966,10 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             # número que tiene es de una ventana que ya cerró.
             "reinicia_sesion": ses.get("reinicia") if ses else None,
             "reinicia_semanal": sem.get("reinicia") if sem else None,
+            # Cuándo se usó esta cuenta por última vez. Es lo que distingue una
+            # cuenta al 2 % que está quieta de una al 2 % que estás gastando
+            # ahora mismo: el número de la segunda se mueve, el de la primera no.
+            "ultimo_uso": (p.get("local") or {}).get("ultimoUso"),
             "viejo": (cuota.get("edadSegundos") or 0) >= VIEJO_SEGUNDOS,
         })
         if avisar is not None:
@@ -1771,6 +1779,12 @@ class Indicador:
                 return True
         return False
 
+    @staticmethod
+    def _activa_hace_poco(t: dict) -> bool:
+        """Si se usó hace poco. Entonces su número se está moviendo."""
+        seg = faltan(t.get("ultimo_uso"))
+        return seg is not None and -ACTIVA_SEGUNDOS <= seg <= 0
+
     def _vale_preguntar(self, t: dict) -> bool:
         """A qué cuentas se les pregunta en el próximo calentado.
 
@@ -1795,6 +1809,18 @@ class Indicador:
         nuevo para contar.
         """
         if self._ya_reinicio(t):
+            return True
+        # Y la cuenta que estás usando AHORA, esté donde esté.
+        #
+        # El corte de abajo —«una cuenta al 9 % no da noticias»— es cierto de
+        # una cuenta QUIETA. De una que estás gastando es exactamente al revés:
+        # es la única cuyo número está cambiando, y con el corte por nivel se
+        # quedaba sin preguntar hasta llegar al 40 %.
+        #
+        # Medido el 2026-09-13, con dos sesiones abiertas: la cuenta de teams
+        # iba al 2 % y en 55 minutos la barra le preguntó al endpoint UNA vez.
+        # Todos los demás calentados fueron para codex, que estaba al 85 %.
+        if self._activa_hace_poco(t):
             return True
         return 40 <= self._tope(t) < 100
 

@@ -53,8 +53,8 @@ def funcion(nombre: str) -> str:
     return cuerpo
 
 
-ambito: dict = {"datetime": datetime, "timezone": timezone}
-for nombre in ("faltan", "_tope", "_ya_reinicio", "_vale_preguntar"):
+ambito: dict = {"datetime": datetime, "timezone": timezone, "ACTIVA_SEGUNDOS": 600}
+for nombre in ("faltan", "_tope", "_ya_reinicio", "_activa_hace_poco", "_vale_preguntar"):
     exec(compile(funcion(nombre), "qm-indicator", "exec"), ambito)  # noqa: S102
 
 # `_vale_preguntar` es un método y llama a `self._tope` y a `self._ya_reinicio`,
@@ -63,6 +63,7 @@ for nombre in ("faltan", "_tope", "_ya_reinicio", "_vale_preguntar"):
 class Indicador:
     _tope = staticmethod(ambito["_tope"])
     _ya_reinicio = staticmethod(ambito["_ya_reinicio"])
+    _activa_hace_poco = staticmethod(ambito["_activa_hace_poco"])
     _vale_preguntar = ambito["_vale_preguntar"]
 
 
@@ -73,10 +74,11 @@ def iso(delta_horas: float) -> str:
     return (datetime.now(timezone.utc) + timedelta(hours=delta_horas)).isoformat()
 
 
-def pieza(sesion=None, semanal=None, r_sesion=None, r_semanal=None) -> dict:
+def pieza(sesion=None, semanal=None, r_sesion=None, r_semanal=None, uso=None) -> dict:
     return {
         "perfil": ".claude", "sesion": sesion, "semanal": semanal,
         "reinicia_sesion": r_sesion, "reinicia_semanal": r_semanal,
+        "ultimo_uso": uso,
     }
 
 
@@ -94,6 +96,14 @@ CASOS = [
      pieza(sesion=9, semanal=9, r_sesion=iso(-1), r_semanal=iso(50)), True),
     ("sin fecha de reinicio no se puede afirmar que venció",
      pieza(sesion=100, semanal=100, r_sesion=None, r_semanal=None), False),
+
+    # La cuenta que estás usando ahora, esté donde esté el nivel.
+    ("una cuenta al 2 % que se está usando AHORA: sí — es el caso del segundo bug",
+     pieza(sesion=2, semanal=5, r_sesion=iso(3), r_semanal=iso(50), uso=iso(-0.02)), True),
+    ("la misma cuenta al 2 %, sin tocar hace dos horas: no",
+     pieza(sesion=2, semanal=5, r_sesion=iso(3), r_semanal=iso(50), uso=iso(-2)), False),
+    ("una cuenta al 2 % sin dato de último uso: no se inventa actividad",
+     pieza(sesion=2, semanal=5, r_sesion=iso(3), r_semanal=iso(50), uso=None), False),
 ]
 
 fallas = 0

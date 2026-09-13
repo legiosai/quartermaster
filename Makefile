@@ -175,8 +175,15 @@ gate-calentado-rojo:  ## los dos rojos de gate-calentado: el filtro y la regla
 	  mv .qm-indicator.gate bin/qm-indicator; \
 	  echo "✗ gate-calentado NO falló con la regla ignorando el reinicio"; exit 1; \
 	fi
+	@cp -f .qm-indicator.gate bin/qm-indicator
+	@# 3. que deje de mirar si la cuenta se está usando
+	@python3 -c "import pathlib; p=pathlib.Path('bin/qm-indicator'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('if self._activa_hace_poco(t):\n            return True', 'if False:\n            return True'), encoding='utf-8')"
+	@if python3 scripts/gate-calentado.py >/dev/null 2>&1; then \
+	  mv .qm-indicator.gate bin/qm-indicator; \
+	  echo "✗ gate-calentado NO falló con la regla ciega a la actividad"; exit 1; \
+	fi
 	@mv .qm-indicator.gate bin/qm-indicator
-	@echo "✓ gate-calentado falla en rojo con el corte < 100 y con la regla ciega al reinicio"
+	@echo "✓ gate-calentado falla en rojo con el corte < 100, con la regla ciega al reinicio y con la ciega a la actividad"
 
 .PHONY: gate-dibujo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
