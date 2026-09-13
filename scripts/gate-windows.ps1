@@ -127,10 +127,16 @@ try {
 # y al invocarlo sale 1 con «El sistema no puede encontrar la ruta
 # especificada», sin una sola palabra sobre qué falta.
 #
-# Esto lo vuelve a medir en cada máquina donde corra, y NO falla el gate: el
-# resultado depende de si esa máquina tiene un `sh` en el PATH —una con Git for
-# Windows instalado con todas las opciones puede tenerlo— y un rojo por la
-# configuración del PATH de un runner no diría nada.
+# Esto lo vuelve a medir en cada máquina donde corra. La primera respuesta que
+# dio fue mejor que la hipótesis: en el runner de windows-latest, que SÍ tiene
+# `C:\Program Files\Git\bin\sh.exe` en el PATH, el shim viejo falla igual. El
+# .cmd que genera npm no busca `sh` en el PATH: invoca `/bin/sh`, una ruta
+# POSIX absoluta, salvo que exista `%dp0%\/bin/sh.exe`, que no existe nunca. O
+# sea que el defecto no era «Windows sin Git», era Windows.
+#
+# Aun así NO falla el gate: sigue siendo una medición del entorno y no una
+# propiedad de este repo, y un rojo por cómo está armado el PATH de una máquina
+# no diría nada útil. Lo que hace es dejar el número en el log.
 #
 # $ErrorActionPreference vuelve a Continue acá adentro a propósito: con 'Stop',
 # la primera línea que el shim viejo escribe en stderr es un error terminante y

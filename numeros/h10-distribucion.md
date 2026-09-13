@@ -160,6 +160,25 @@ exit 1
 que no nombra ni a `sh` ni a Node ni a quartermaster. Es **exactamente** el
 defecto de H9 una capa más arriba: no en el tarball, en el shim.
 
+### Y no depende de que falte Git, que es lo que yo suponía
+
+La primera versión de esta página decía que el defecto aparecía «en un Windows
+sin Git», porque esa era la máquina donde se midió. El runner de
+`windows-latest` contestó la otra mitad en la primera corrida del gate:
+
+```
+· sh en el PATH de esta máquina: C:\Program Files\Git\bin\sh.exe
+· con bin/qm (sh) el shim NO arranca: salió 1 — The system cannot find the path specified.
+```
+
+**Con `sh.exe` instalado y en el PATH, el shim falla igual.** Mirando el .cmd
+que genera npm se ve por qué: no busca `sh` en el PATH, invoca `/bin/sh` —una
+ruta POSIX absoluta— salvo que exista `%dp0%\/bin/sh.exe`, que no existe nunca.
+O sea que no es «Windows sin Git»: es Windows.
+
+Dos máquinas, dos configuraciones opuestas de `sh`, el mismo exit 1. El gate lo
+sigue midiendo en vez de afirmarlo, que es de donde salió esta corrección.
+
 Con `bin.qm = "bin/qm.mjs"`, en la misma máquina:
 
 ```
