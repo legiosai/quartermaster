@@ -58,6 +58,14 @@ jobs:
       # para Swift antes de mirar qué había en el de Ubuntu: sobraba, y encima
       # fallaba porque ahí no está el cairo que necesita el panel de GNOME.
       - run: python3 scripts/gate-duraciones.py
+
+      # A quién se le pregunta en el próximo calentado. La cuenta frenada
+      # quedaba fuera de todos los calentados por un `< 100`, así que la única
+      # que no podía enterarse de que se liberó era justo la que esperaba
+      # liberarse.
+      - run: make gate-calentado
+      - name: y ese gate falla en rojo
+        run: make gate-calentado-rojo
         env:
           QM_GATE_EXIGE: swift,pwsh
 

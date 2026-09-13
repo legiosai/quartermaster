@@ -926,6 +926,10 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             "sesion_alerta": alerta(ses),
             "semanal": sem.get("porcentaje") if sem else None,
             "semanal_alerta": alerta(sem),
+            # Cuándo se reinicia cada una. Lo usa `calentar()` para saber si el
+            # número que tiene es de una ventana que ya cerró.
+            "reinicia_sesion": ses.get("reinicia") if ses else None,
+            "reinicia_semanal": sem.get("reinicia") if sem else None,
             "viejo": (cuota.get("edadSegundos") or 0) >= VIEJO_SEGUNDOS,
         })
         if avisar is not None:
@@ -1698,6 +1702,46 @@ class Indicador:
     def _tope(t: dict) -> int:
         return max(t["sesion"] or 0, t["semanal"] or 0)
 
+    @staticmethod
+    def _ya_reinicio(t: dict) -> bool:
+        """Si alguna de sus ventanas ya pasó su instante de reinicio.
+
+        El número guardado es de ANTES de ese instante, así que no es viejo: es
+        de otra ventana, una que ya cerró. Ahí sí hay algo nuevo que leer.
+        """
+        for iso in (t.get("reinicia_sesion"), t.get("reinicia_semanal")):
+            seg = faltan(iso)
+            if seg is not None and seg <= 0:
+                return True
+        return False
+
+    def _vale_preguntar(self, t: dict) -> bool:
+        """A qué cuentas se les pregunta en el próximo calentado.
+
+        El corte de abajo es ahorro: una cuenta al 9 % no da noticias.
+
+        El de arriba ERA un bug. `cadencia()` tiene razón en no sondear cada
+        minuto una barra en 100 —no puede subir, y el instante del reinicio ya
+        lo sabemos sin preguntar— pero eso es un argumento sobre CADA CUÁNTO, y
+        se había colado acá como un argumento sobre A QUIÉN. Resultado: la
+        cuenta frenada quedaba excluida de todos los calentados, o sea que la
+        única que no podía enterarse de que se liberó era justo la que estaba
+        esperando liberarse. Y «te liberaste» es el aviso más útil que da este
+        programa.
+
+        Medido el 2026-09-13: una cuenta con weekly_all 96 % y weekly_scoped
+        100 % (las dos `critical`) siguió mostrando eso nueve horas, con el
+        reinicio dos horas atrás. Un solo `qm --calentar --cuentas=…` devolvió
+        2 % y 0 %, las dos `normal`.
+
+        Así que el 100 % se saltea mientras su ventana siga abierta, y entra
+        apenas pasa el reinicio — que es el único momento en que tiene algo
+        nuevo para contar.
+        """
+        if self._ya_reinicio(t):
+            return True
+        return 40 <= self._tope(t) < 100
+
     def cadencia(self) -> int:
         # Una barra que ya está en 100 no puede subir: hasta el reinicio no hay
         # nada nuevo que leer, y el instante del reinicio ya lo sabemos sin
@@ -1744,7 +1788,7 @@ class Indicador:
         args = [self.qm, "--calentar"]
         # Sólo las cuentas que se mueven: refrescar una que va al 9 % es gastar
         # un pedido para confirmar que no pasó nada.
-        mueven = [t["perfil"] for t in self.piezas if 40 <= self._tope(t) < 100]
+        mueven = [t["perfil"] for t in self.piezas if self._vale_preguntar(t)]
         if mueven and len(mueven) != len(self.piezas):
             args.append("--cuentas=" + ",".join(mueven))
         try:

@@ -155,6 +155,29 @@ gate-paquetes-rojo:  ## el rojo de gate-paquetes: el pie de una landing con la v
 	  echo "✓ gate-paquetes falla en rojo con el pie de una landing en una versión vieja"; \
 	fi
 
+.PHONY: gate-calentado
+gate-calentado:  ## que la cuenta frenada vuelva a preguntar apenas pasa su reinicio
+	@python3 scripts/gate-calentado.py
+
+.PHONY: gate-calentado-rojo
+gate-calentado-rojo:  ## los dos rojos de gate-calentado: el filtro y la regla
+	@cp bin/qm-indicator .qm-indicator.gate
+	@# 1. reintroducir el corte `< 100` en calentar()
+	@python3 -c "import pathlib; p=pathlib.Path('bin/qm-indicator'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('if self._vale_preguntar(t)]', 'if 40 <= self._tope(t) < 100]'), encoding='utf-8')"
+	@if python3 scripts/gate-calentado.py >/dev/null 2>&1; then \
+	  mv .qm-indicator.gate bin/qm-indicator; \
+	  echo "✗ gate-calentado NO falló con el corte < 100 de vuelta en calentar()"; exit 1; \
+	fi
+	@cp -f .qm-indicator.gate bin/qm-indicator
+	@# 2. que la regla misma deje de mirar el reinicio
+	@python3 -c "import pathlib; p=pathlib.Path('bin/qm-indicator'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('if self._ya_reinicio(t):\n            return True', 'if False:\n            return True'), encoding='utf-8')"
+	@if python3 scripts/gate-calentado.py >/dev/null 2>&1; then \
+	  mv .qm-indicator.gate bin/qm-indicator; \
+	  echo "✗ gate-calentado NO falló con la regla ignorando el reinicio"; exit 1; \
+	fi
+	@mv .qm-indicator.gate bin/qm-indicator
+	@echo "✓ gate-calentado falla en rojo con el corte < 100 y con la regla ciega al reinicio"
+
 .PHONY: gate-dibujo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
