@@ -33,6 +33,7 @@ import {
   DIRECTORIO_CODEX,
 } from '../adapters/codex.ts';
 import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
+import * as entorno from '../adapters/entorno.ts';
 import { leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
 import {
   consumoOpencode,
@@ -127,6 +128,8 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --cuentas=a,b    con --calentar: sólo esas cuentas. Cada una que se saltea
                       es un pedido menos a un endpoint que no es nuestro
   qm --calentar-codex igual pero sólo Codex, sin tocar el llavero
+  qm --diagnostico    todo lo que hace falta para reportar un bug, en un solo
+                      comando y ya redactado: pegalo tal cual en el issue
 
 Nunca refresca un token. Si una credencial venció, lo dice y sigue con el
 resto de los perfiles — la cuota igual se lee, porque sale del disco.`;
@@ -833,6 +836,115 @@ function maximo(filas: readonly FilaPerfil[]): number {
     for (const v of f.cuota.ventanas) m = Math.max(m, v.porcentaje);
   }
   return m;
+}
+
+/**
+ * La lectura del estado de la extensión, en palabras.
+ *
+ * Existe porque los dos datos que hacen falta —el estado y las dos fechas— por
+ * separado no dicen nada a quien no conoce GNOME. Juntos dicen exactamente qué
+ * hacer, y es una sola cosa: cerrar sesión.
+ */
+function veredictoExtension(x: ReturnType<typeof entorno.extension>, e: ReturnType<typeof entorno.escritorio>): string[] {
+  if (!x.instalada) return [];
+  const enError = 'valor' in x.estado && x.estado.valor.includes('ERROR');
+  const masNuevaQueLaSesion =
+    x.tocadoMs !== null && e.arrancoMs !== null && x.tocadoMs > e.arrancoMs;
+
+  if (enError && masNuevaQueLaSesion) {
+    const horas = ((x.tocadoMs! - e.arrancoMs!) / 3_600_000).toFixed(1);
+    return [
+      '',
+      `  ⚠ extension.js es ${horas} h MÁS NUEVO que la sesión gráfica.`,
+      '    El shell carga el módulo una vez y lo deja en memoria: lo que está',
+      '    corriendo es el archivo viejo, y el ERROR de arriba es de ESE. En',
+      '    Wayland no hay forma de recargarlo —`ReloadExtension` está declarado',
+      '    en DBus y devuelve UnknownMethod— así que:',
+      '',
+      '      → cerrá sesión y volvé a entrar. Es el único paso que falta.',
+      '',
+      '    Hasta entonces el item lo dibuja AppIndicator y el panel es un menú de',
+      '    GTK, que no sostiene el agarre y se cierra apenas lo tocás.',
+    ];
+  }
+  if (enError) {
+    return [
+      '',
+      '  ⚠ la extensión está en ERROR y su archivo NO es más nuevo que la sesión:',
+      '    el error de arriba es del código que está corriendo ahora. Esto es un',
+      '    bug de verdad — pegá este diagnóstico en un issue.',
+    ];
+  }
+  return [];
+}
+
+/**
+ * Todo lo que hace falta para reportar un bug, en un solo comando.
+ *
+ * Va REDACTADO por defecto —las rutas de casa se vuelven `~`, y no se imprime
+ * ningún mail, token ni accountUuid— porque un diagnóstico que no se puede
+ * pegar en un issue público no sirve para lo único que existe.
+ *
+ * El orden no es decorativo: arriba va lo que más veces resultó ser la causa.
+ * «La sesión arrancó ANTES de que se tocara la extensión» explica, sin que
+ * haya que saber nada de GNOME, por qué un arreglo que está en el disco no
+ * está corriendo.
+ */
+function diagnostico(): string {
+  const l: string[] = [];
+  const t = entorno.texto;
+  const titulo = (s: string) => l.push('', `── ${s} ${'─'.repeat(Math.max(0, 62 - s.length))}`);
+  const campo = (k: string, v: string) => l.push(`  ${k.padEnd(18)} ${v}`);
+
+  l.push(`quartermaster ${VERSION} · diagnóstico`);
+  l.push(`generado ${new Date().toISOString()} · redactado: sin rutas de casa, sin mails, sin tokens`);
+
+  titulo('la máquina');
+  const e = entorno.escritorio();
+  campo('node', process.version);
+  campo('sistema', e.so);
+  campo('escritorio', t(e.escritorio));
+  campo('sesión', t(e.sesion));
+  campo('shell', t(e.shell).split('\n')[0] ?? '—');
+  campo('sesión arrancó', t(e.arrancoLaSesion));
+
+  titulo('la extensión de GNOME');
+  const x = entorno.extension();
+  campo('instalada', x.instalada ? 'sí' : 'NO');
+  campo('estado', t(x.estado));
+  campo('extension.js', t(x.archivoTocado));
+  campo('latido', t(x.latido));
+  if ('valor' in x.ultimoError) {
+    l.push('  último error que guardó el shell:');
+    for (const linea of x.ultimoError.valor.split('\n')) l.push(`    ${linea}`);
+  } else {
+    campo('último error', t(x.ultimoError));
+  }
+  // La conclusión, CALCULADA y no insinuada. Es el caso que costó una tarde:
+  // el arreglo estaba en el disco, el shell corría el módulo viejo, y desde
+  // afuera se veía igual que «el arreglo no sirvió».
+  for (const linea of veredictoExtension(x, e)) l.push(linea);
+
+  titulo('el indicador');
+  l.push(`  ${t(entorno.indicador()).split('\n').join('\n  ')}`);
+
+  titulo('el cache');
+  const c = entorno.cache();
+  if (c.length === 0) l.push('  (vacío o inaccesible)');
+  for (const f of c) campo(f.nombre, f.edad);
+
+  titulo('lo que anotó el sistema');
+  l.push(`  ${t(entorno.journal()).split('\n').join('\n  ')}`);
+
+  l.push('');
+  return `${l.join('\n')}\n`;
+}
+
+// --diagnostico sale primero: tiene que contestar incluso cuando lo demás está
+// roto. Es lo único que se le pide a alguien que reporta un bug.
+if (process.argv.includes('--diagnostico')) {
+  process.stdout.write(diagnostico());
+  process.exit(0);
 }
 
 // --calentar sale antes que nada: es lo que corre el item de la barra en su

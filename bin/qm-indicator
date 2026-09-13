@@ -105,6 +105,38 @@ def corto(nombre: str) -> str:
     return nombre.removeprefix(".claude").lstrip("-") or "main"
 
 
+# ── el registro ──────────────────────────────────────────────────────────
+#
+# Este programa no anotaba NADA. Arrancado por el autostart queda como un scope
+# de systemd, así que todo lo que escriba a stderr lo levanta el journal solo —
+# pero en veinte horas de sesión el journal tenía dos renglones, los que pone
+# systemd al abrir y cerrar el scope, porque el programa nunca dijo nada.
+#
+# Se notó reportando «toco Panel de cuota y se cierra al instante»: no había una
+# sola línea que dijera si el panel había llegado a abrirse, ni cuánto había
+# durado, ni por qué se había cerrado. Un monitor mudo es el bug que originó
+# este repo; el monitor estaba mudo sobre sí mismo.
+#
+# Va a stderr y no a un archivo propio a propósito: el journal ya rota, ya
+# fecha, ya lo sabe leer `journalctl --user`, y `qm --diagnostico` lo recoge de
+# ahí. Un archivo nuestro sería una cosa más que mantener y que se llena sola.
+#
+# QM_SILENCIO=1 lo apaga. No hay nivel de detalle: son unos pocos eventos por
+# apertura de panel, no una traza.
+SILENCIO = os.environ.get("QM_SILENCIO") == "1"
+
+
+def registrar(evento: str, **datos) -> None:
+    """Un evento por renglón, con sus datos. Nunca puede tirar."""
+    if SILENCIO:
+        return
+    try:
+        extra = " ".join(f"{k}={v}" for k, v in datos.items() if v is not None)
+        print(f"qm-indicator: {evento}{' ' + extra if extra else ''}", file=sys.stderr, flush=True)
+    except Exception:  # noqa: BLE001 — registrar no puede romper al programa
+        pass
+
+
 def faltan(iso: str | None) -> int | None:
     if not iso:
         return None
@@ -1182,8 +1214,11 @@ class Panel:
         # Si el compositor le rompe el agarre —pasa cuando el foco se va al lado
         # Wayland— el menú tiene que cerrarse, no quedarse colgado arriba de
         # todo sin forma de sacarlo.
-        self.menu.connect("grab-broken-event", lambda *_: (self.menu.popdown(), False)[1])
+        self.menu.connect("grab-broken-event", self._agarre_roto)
         self.menu.connect("unmap", self._al_cerrar)
+        # Cuándo se abrió, para poder decir cuánto duró. Un panel que vive 40 ms
+        # no es lo mismo que uno que el usuario cerró, y desde afuera se ven igual.
+        self.abierto_en = 0
 
     @property
     def abierto(self) -> bool:
@@ -1200,7 +1235,24 @@ class Panel:
         except (AttributeError, TypeError):
             return False
 
+    def _agarre_roto(self, *_):
+        """El compositor le sacó el agarre al menú.
+
+        Es la firma del panel que «se cierra solo»: si esto llega a los pocos
+        milisegundos de abrir, el panel no lo cerró el usuario.
+        """
+        registrar("panel.agarre-roto", vivio_ms=self._vivio_ms())
+        self.menu.popdown()
+        return False
+
+    def _vivio_ms(self) -> int | None:
+        if not self.abierto_en:
+            return None
+        return int((GLib.get_monotonic_time() - self.abierto_en) / 1000)
+
     def _al_cerrar(self, *_) -> None:
+        registrar("panel.cerrado", vivio_ms=self._vivio_ms())
+        self.abierto_en = 0
         self.cerrado = GLib.get_monotonic_time()
         if self.tictac is not None:
             GLib.source_remove(self.tictac)
@@ -1346,8 +1398,12 @@ class Panel:
         donde.x, donde.y, donde.width, donde.height = area.x + area.width - 6, area.y, 1, 1
         raiz = Gdk.get_default_root_window()
         if raiz is None:  # sin X11 no hay dónde anclarlo; que lo ubique GTK
+            registrar("panel.abierto", donde="puntero", raiz="sin-x11")
+            self.abierto_en = GLib.get_monotonic_time()
             self.menu.popup_at_pointer(None)
             return
+        registrar("panel.abierto", donde="arriba-derecha", alto=self.alto)
+        self.abierto_en = GLib.get_monotonic_time()
         self.menu.popup_at_rect(raiz, donde, Gdk.Gravity.NORTH_EAST,
                                 Gdk.Gravity.NORTH_EAST, self._disparo(raiz))
         if self.tictac is None:
@@ -1791,6 +1847,7 @@ class Indicador:
         mueven = [t["perfil"] for t in self.piezas if self._vale_preguntar(t)]
         if mueven and len(mueven) != len(self.piezas):
             args.append("--cuentas=" + ",".join(mueven))
+        registrar("calentar", cuentas=",".join(mueven) if mueven else "todas")
         try:
             proc = Gio.Subprocess.new(
                 args, Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE
@@ -1806,8 +1863,11 @@ class Indicador:
         self.calentando = False
         try:
             proc.wait_finish(resultado)
-        except GLib.Error:
-            pass  # si el endpoint no contesta se sigue mostrando lo viejo, con su edad a la vista
+        except GLib.Error as e:
+            # Se sigue mostrando lo viejo, con su edad a la vista — pero ahora
+            # queda anotado POR QUÉ quedó viejo. Este `except` se tragaba la
+            # única pista de que el refresco no estaba pasando.
+            registrar("calentar.fallo", motivo=str(e).replace("\n", " ")[:120])
         self.refrescar()
 
     def disparar(self) -> bool:

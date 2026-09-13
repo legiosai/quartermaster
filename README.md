@@ -75,6 +75,7 @@ qm --refrescar      # also ask the endpoint (needs a live token)
 qm --watch 60       # redraw every N seconds
 qm --umbral=80      # exit 3 if any bar is over N%
 qm --esperar        # block until quota drops:  qm --esperar && codex ...
+qm --diagnostico    # everything a bug report needs, already redacted
 ```
 
 In Claude Code's `settings.json`:
@@ -91,6 +92,48 @@ personal 23/75%! · teams 9/42% · codex 49/59%
 the bar that stops you first. They answer different questions — "can I keep
 going right now?" and "do I make it to the end of the week?" — and either one
 alone is half an answer.
+
+## When something is wrong
+
+```sh
+qm --diagnostico
+```
+
+One command, and you can paste the output straight into an issue: home paths
+become `~`, and no e-mail, token or account id is ever printed.
+
+It gathers what otherwise takes five commands nobody should have to know —
+`gnome-extensions info`, `gdbus … GetExtensionErrors`, `journalctl --user -b`,
+the cache directory, and `ps` for when the graphical session started — and it
+**states the conclusion** rather than leaving you the data. The case that
+prompted it:
+
+```
+  ⚠ extension.js es 12.9 h MÁS NUEVO que la sesión gráfica.
+    El shell carga el módulo una vez y lo deja en memoria: lo que está
+    corriendo es el archivo viejo …
+      → cerrá sesión y volvé a entrar. Es el único paso que falta.
+```
+
+Anything it cannot find out it says so — it never omits and never guesses. It
+works with none of those commands installed.
+
+**The GNOME item also writes what it does** to stderr, which systemd's journal
+picks up when it starts from the autostart entry:
+
+```sh
+journalctl --user -b | grep qm-indicator
+```
+
+```
+qm-indicator: panel.abierto donde=arriba-derecha alto=1032
+qm-indicator: panel.cerrado vivio_ms=3999
+qm-indicator: panel.agarre-roto
+qm-indicator: calentar cuentas=codex
+```
+
+`vivio_ms` is the one that matters for "the panel closes on its own": a panel
+that lives 40 ms was not closed by you. `QM_SILENCIO=1` turns it off.
 
 ## Where you can see it
 

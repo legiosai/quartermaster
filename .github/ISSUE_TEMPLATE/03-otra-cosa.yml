@@ -14,10 +14,16 @@ body:
       label: How to reproduce / Cómo reproducirlo
     validations:
       required: true
-  - type: input
+  - type: textarea
     id: entorno
     attributes:
       label: Environment / Entorno
-      placeholder: "qm 0.1.6 · macOS 15 · Node 22.6 · instalado por brew"
+      description: >-
+        Pegá la salida de `qm --diagnostico`. Trae versión, sistema, escritorio,
+        el estado de las superficies y lo que anotó el sistema — y ya viene
+        redactado: sin rutas de casa, sin mails y sin tokens.
+        / Paste the output of `qm --diagnostico`. It is already redacted.
+      render: text
+      placeholder: "$ qm --diagnostico"
     validations:
       required: true
