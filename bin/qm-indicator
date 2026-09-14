@@ -1678,6 +1678,19 @@ class Indicador:
         # Desde cuándo. Sin esto, una bandera que se queda pegada no se puede
         # distinguir de un calentado que recién arrancó.
         self.calentando_desde: int | None = None
+        # Lo último que falló de cada cosa, para anotar CAMBIOS y no repetir, y
+        # para poder decir cuándo volvió a andar. Un log que repite la misma
+        # falla cada dos minutos no se lee, y uno que nunca dice «volvió» deja
+        # cada falla abierta para siempre: leyéndolo mañana no hay forma de
+        # saber si el problema duró un minuto o duró toda la noche.
+        self._fallo_calentado: str | None = None
+        self._fallo_lectura: str | None = None
+        self._fallo_lectura_desde: float | None = None
+        # Los motivos por cuenta que qm ya explicó en esta corrida. Van una vez
+        # y no tienen «volvió»: los calentados alternan entre todas las cuentas
+        # y sólo las que se mueven, así que que un motivo no aparezca NO dice
+        # que se arregló.
+        self._motivos_calentado: set[str] = set()
         self.reloj: int | None = None
         self.proxima_lectura: int | None = None
         self.turno = 0
@@ -2071,27 +2084,67 @@ class Indicador:
             args.append("--cuentas=" + ",".join(mueven))
         registrar("calentar", cuentas=",".join(mueven) if mueven else "todas")
         try:
+            # El stderr se PIDE, no se tira. Desde 0.1.8 `qm --calentar` explica
+            # ahí por qué una cuenta no se calentó —sin credencial, token
+            # vencido—, y con STDERR_SILENCE esa explicación se iba a /dev/null:
+            # la barra de macOS la anota desde esa misma versión y acá se
+            # perdía.
             proc = Gio.Subprocess.new(
-                args, Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE
+                args, Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_PIPE
             )
-        except GLib.Error:
+        except GLib.Error as e:
+            self._anotar_calentado(f"no pude correr qm: {str(e).replace(chr(10), ' ')[:110]}")
             self.programar_calentado()
             return False
         self.calentando = True
         self.calentando_desde = GLib.get_monotonic_time()
-        proc.wait_async(None, self._fin_calentado)
+        proc.communicate_utf8_async(None, None, self._fin_calentado)
         return False
+
+    def _anotar_calentado(self, fallo: str | None) -> None:
+        """La falla del calentado, anotada cuando CAMBIA y con su vuelta."""
+        if fallo == self._fallo_calentado:
+            return
+        if fallo is not None:
+            registrar("calentar.fallo", motivo=fallo)
+        else:
+            registrar("calentar.volvio")
+        self._fallo_calentado = fallo
 
     def _fin_calentado(self, proc, resultado) -> None:
         self.calentando = False
         self.calentando_desde = None
+        fallo, dicho = None, ""
         try:
-            proc.wait_finish(resultado)
+            _, _, dicho = proc.communicate_utf8_finish(resultado)
         except GLib.Error as e:
             # Se sigue mostrando lo viejo, con su edad a la vista — pero ahora
             # queda anotado POR QUÉ quedó viejo. Este `except` se tragaba la
             # única pista de que el refresco no estaba pasando.
-            registrar("calentar.fallo", motivo=str(e).replace("\n", " ")[:120])
+            fallo = str(e).replace("\n", " ")[:120]
+        else:
+            # Y acá estaba el agujero: NADA de esto tira. `wait_finish` y
+            # `communicate_utf8_finish` devuelven bien con el hijo saliendo 1
+            # —medido: exit=1, sin excepción—, así que el código de salida hay
+            # que mirarlo a mano. Un `qm --calentar` que salía 1 no dejaba una
+            # sola línea. Es justo lo que pasó en 0.1.9, cuando la barra mandaba
+            # `--cuentas=personal` y el CLI comparaba `.claude-personal`: en
+            # macOS se vio en el log y acá no había log que ver.
+            if not proc.get_if_exited():
+                fallo = f"lo mató la señal {proc.get_term_sig()}"
+            elif proc.get_exit_status() != 0:
+                primera = [l.strip() for l in (dicho or "").splitlines() if l.strip()]
+                fallo = f"salió {proc.get_exit_status()}"
+                if primera:
+                    fallo += f": {primera[0][:110]}"
+        self._anotar_calentado(fallo)
+        # Los motivos por cuenta van aunque el calentado haya salido 0: que una
+        # cuenta no se pueda calentar no hace fallar a las otras, y sin esto la
+        # única pista de que esa cuenta quedó afuera es un número viejo.
+        for m in [l.strip() for l in (dicho or "").splitlines() if l.strip()]:
+            if m not in self._motivos_calentado:
+                self._motivos_calentado.add(m)
+                registrar("calentar.cuenta", motivo=m[:110])
         self.refrescar()
 
     def disparar(self) -> bool:
@@ -2109,9 +2162,22 @@ class Indicador:
         # `leer_qm` devuelve una FRASE cuando no pudo: se muestra en el menú y
         # hasta acá no quedaba escrita en ningún lado. Si qm falla a las tres de
         # la mañana, mañana no hay forma de saber por qué.
-        if isinstance(datos, str) and datos != getattr(self, "_ultimo_fallo", None):
-            registrar("qm.sin-datos", motivo=datos[:110])
-        self._ultimo_fallo = datos if isinstance(datos, str) else None
+        if isinstance(datos, str):
+            if datos != self._fallo_lectura:
+                registrar("qm.sin-datos", motivo=datos[:110])
+            if self._fallo_lectura_desde is None:
+                self._fallo_lectura_desde = time.time()
+            self._fallo_lectura = datos
+        else:
+            # La caída ya se anotaba; la VUELTA no, y sin ella toda falla queda
+            # abierta para siempre. Leyendo el journal al otro día no había
+            # forma de saber si qm estuvo caído un minuto o toda la noche, que
+            # es justo lo que se va a buscar. Con el rato que duró, que es el
+            # número que contesta esa pregunta.
+            if self._fallo_lectura is not None:
+                registrar("qm.volvio", tras=duracion(int(time.time() - (self._fallo_lectura_desde or time.time()))))
+            self._fallo_lectura = None
+            self._fallo_lectura_desde = None
         self.datos = datos
         for hijo in self.menu.get_children():
             self.menu.remove(hijo)
@@ -2410,6 +2476,11 @@ def main() -> int:
         print("ya hay un quartermaster corriendo en esta sesión.", file=sys.stderr)
         return 0
 
+    # La primera línea del journal la pone systemd y dice el scope, no dice
+    # QUÉ arrancó: ni qué qm encontró —puede haber uno en ~/.local/bin y otro
+    # del paquete—, ni con qué tema, ni con qué pid. Leyendo el log de ayer eso
+    # es lo primero que hace falta. La barra de macOS lo anota desde 0.1.8.
+    registrar("arranca", qm=qm, pid=os.getpid(), tema="oscuro" if TEMA.oscuro else "claro")
     Indicador(qm)
     Gtk.main()
     return 0
