@@ -158,6 +158,25 @@ The events, and the question each one answers:
 `vivio_ms` is the one that matters for "the panel closes on its own": a panel
 that lives 40 ms was not closed by you. `QM_SILENCIO=1` turns it off.
 
+**The macOS menu bar writes a log too**, timestamped and capped at 1 MB. With
+brew it is `$(brew --prefix)/var/log/quartermaster.log`:
+
+```
+2026-09-14T11:40:02-03:00 [qm-barra] arranca · qm=/opt/homebrew/opt/quartermaster/libexec/bin/qm · pid 812
+2026-09-14T11:40:03-03:00 [qm-barra] posición: ancho=125.0 x=985.0..1110.0 muescaDerechaMinX=825.0 pantalla=1470.0 escondido=false
+2026-09-14T11:40:04-03:00 [qm-barra] calentar · .claude: sin credencial — corré: …
+2026-09-14T12:02:10-03:00 [qm-barra] aviso: quartermaster · teams — …
+2026-09-14T13:15:40-03:00 [qm-barra] calentado (--calentar) falló: salió 1
+2026-09-14T13:21:41-03:00 [qm-barra] calentado volvió a andar
+```
+
+It writes changes, not repeats: the item's position once per screen when it
+moves, a refresh or a read the first time it fails and again when it recovers,
+why an account was not refreshed (once per reason), and every notification —
+with a line if `osascript` did not show it.
+`escondido=true` is the one to look for when the item does not appear: macOS
+put it under the notch or ran out of room.
+
 ## Where you can see it
 
 | | |

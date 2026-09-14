@@ -8,7 +8,7 @@
 // las ramas del comando.
 
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -106,4 +106,20 @@ test('--breve trae ultimoUso aunque local sea null', () => {
     assert.ok('ultimoUso' in p, `el perfil ${String(p['perfil'])} no trae ultimoUso en --breve`);
     assert.strictEqual(p['local'], null, '--breve no mide consumo: local va en null');
   }
+});
+
+// `--calentar` no imprime nada cuando anda: es lo que corre la barra en su
+// sondeo. Pero cuando NO anda salía 1 igual de callado, y la barra manda su
+// stderr al log: un calentado roto quedaba sin una sola palabra en ningún lado.
+// Silencio es el bug, también acá.
+test('--calentar que no puede calentar nada sale 1 y dice por qué', () => {
+  const casa = mkdtempSync(join(tmpdir(), 'qm-vacio-'));
+  const r = spawnSync(join(RAIZ, 'bin', 'qm'), ['--calentar'], {
+    encoding: 'utf8',
+    env: entornoVacio(casa),
+    timeout: 30_000,
+  });
+  assert.strictEqual(r.status, 1, `salió ${r.status}`);
+  assert.strictEqual(r.stdout, '', 'calentar no imprime nada por stdout');
+  assert.match(r.stderr, /\S/, 'salió 1 sin decir nada por stderr');
 });

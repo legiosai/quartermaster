@@ -65,6 +65,43 @@ func rutaQm() -> String {
     return (NSHomeDirectory() as NSString).appendingPathComponent(".local/bin/qm")
 }
 
+// ── el log ───────────────────────────────────────────────────────────────
+// Todo lo que la barra tiene para decir va a stderr, que launchd (o `brew
+// services`) manda a un archivo. Antes ahí sólo quedaba dónde se dibujaba el
+// item, sin hora, un renglón por minuto; lo que de verdad importa —un calentado
+// que falla, una lectura que no vuelve, un aviso que no sale— se tiraba. Un
+// calentado roto se veía igual que uno sano: la barra seguía mostrando el
+// número viejo con su edad, y el archivo no decía por qué.
+//
+// Con hora, y con tope: el archivo lo abre launchd y nadie lo rota.
+
+let LOG_MAXIMO_BYTES: off_t = 1_000_000
+let colaLog = DispatchQueue(label: "quartermaster.log")
+let horaLog: ISO8601DateFormatter = {
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime]
+    f.timeZone = .current
+    return f
+}()
+
+func registrar(_ texto: String) {
+    let ahora = Date()
+    colaLog.async {
+        // Sólo se recorta un archivo de verdad: corriendo a mano, stderr es la
+        // terminal y no hay nada que recortar.
+        var st = stat()
+        if fstat(STDERR_FILENO, &st) == 0, (st.st_mode & S_IFMT) == S_IFREG, st.st_size > LOG_MAXIMO_BYTES {
+            ftruncate(STDERR_FILENO, 0)
+            lseek(STDERR_FILENO, 0, SEEK_SET)
+            FileHandle.standardError.write(
+                "\(horaLog.string(from: ahora)) [qm-barra] log recortado: pasaba de \(LOG_MAXIMO_BYTES) bytes\n"
+                    .data(using: .utf8)!)
+        }
+        let una = texto.replacingOccurrences(of: "\n", with: " / ")
+        FileHandle.standardError.write("\(horaLog.string(from: ahora)) [qm-barra] \(una)\n".data(using: .utf8)!)
+    }
+}
+
 /// La paleta de estado, la misma del tablero y validada contra los dos fondos
 /// que puede tener la barra. El color va en la MARCA, nunca en el texto: el
 /// número se queda con el color de etiqueta del sistema, que se adapta solo.
@@ -375,7 +412,12 @@ func notificar(titulo: String, cuerpo: String) {
     let p = Process()
     p.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
     p.arguments = ["-e", "display notification \"\(limpio(cuerpo))\" with title \"\(limpio(titulo))\""]
-    try? p.run()
+    registrar("aviso: \(titulo) — \(cuerpo)")
+    // Si osascript no sale 0 el aviso no se vio, y es el único rastro de eso.
+    p.terminationHandler = { t in
+        if t.terminationStatus != 0 { registrar("el aviso no salió: osascript salió \(t.terminationStatus)") }
+    }
+    do { try p.run() } catch { registrar("el aviso no salió: no pude correr osascript: \(error.localizedDescription)") }
 }
 
 
@@ -706,6 +748,14 @@ final class Barra: NSObject, NSApplicationDelegate {
     /// Lo último que se vio, para decidir cada cuánto volver a mirar.
     var ultimas: [Trozo] = []
     var avisoBarraLlena = false
+    /// Lo último que se anotó de cada cosa, para anotar CAMBIOS y no repetir:
+    /// la posición se revisa en cada redibujo —un renglón por minuto, igual en
+    /// cada vuelta— y un calentado roto falla en cada sondeo.
+    var ultimaPosicion: [String: String] = [:]
+    var ultimaFalla: String?
+    var ultimoCalentado: String?
+    /// Los motivos por cuenta ya anotados en esta corrida («.claude: sin credencial»).
+    var motivosCalentado: Set<String> = []
     /// `perfil|barra` -> [minuto de reinicio, porcentaje] de la última vuelta.
     /// Persistido: es lo que permite notar que una ventana se dio vuelta.
     var previos: [String: [Int]] = Barra.leerPrevios()
@@ -730,6 +780,9 @@ final class Barra: NSObject, NSApplicationDelegate {
         // barra llena, cmd-arrastrar el item a un hueco es LA salida, y sin
         // esto se perdería en cada arranque.
         item.autosaveName = "quartermaster"
+        // El renglón que separa una corrida de otra en el log: sin esto no se
+        // sabe si dos líneas son del mismo proceso ni desde cuándo corre.
+        registrar("arranca · qm=\(rutaQm()) · pid \(ProcessInfo.processInfo.processIdentifier)")
         item.button?.title = "qm…"
         item.menu = NSMenu()
         actividad = ProcessInfo.processInfo.beginActivity(
@@ -792,11 +845,45 @@ final class Barra: NSObject, NSApplicationDelegate {
             p.arguments = vale.isEmpty || vale.count == self.ultimas.count
                 ? ["--calentar"]
                 : ["--calentar", "--cuentas=" + vale.joined(separator: ",")]
+            // stdout no dice nada; stderr es el porqué de cada cuenta que no se
+            // calentó, y antes iba a /dev/null junto con el código de salida.
+            let errores = Pipe()
             p.standardOutput = FileHandle.nullDevice
-            p.standardError = FileHandle.nullDevice
-            try? p.run()
-            p.waitUntilExit()
-            DispatchQueue.main.async { self.refrescar() }
+            p.standardError = errores
+            // Dos cosas distintas, y mezclarlas daba un log que mentía:
+            //   · el calentado FALLÓ: salió distinto de 0, ninguna cuenta volvió.
+            //     Se anota cuando empieza y cuando vuelve a andar.
+            //   · una cuenta no se calentó (sin credencial, token vencido) aunque
+            //     otras sí. Cada motivo se anota una vez y no tiene «volvió»: los
+            //     calentados alternan entre todas las cuentas y sólo las que se
+            //     mueven, así que que un motivo no aparezca NO dice que se arregló.
+            var fallo: String?
+            var motivos: [String] = []
+            do {
+                try p.run()
+                let dicho = String(data: errores.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                p.waitUntilExit()
+                motivos = dicho.split(separator: "\n").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                if p.terminationStatus != 0 {
+                    fallo = "calentado (\(p.arguments?.joined(separator: " ") ?? "")) falló: salió \(p.terminationStatus)"
+                }
+            } catch {
+                fallo = "calentado falló: no pude correr qm: \(error.localizedDescription)"
+            }
+            DispatchQueue.main.async {
+                if let fallo {
+                    if fallo != self.ultimoCalentado { registrar(fallo) }
+                    self.ultimoCalentado = fallo
+                } else if self.ultimoCalentado != nil {
+                    registrar("calentado volvió a andar")
+                    self.ultimoCalentado = nil
+                }
+                for m in motivos where !self.motivosCalentado.contains(m) {
+                    self.motivosCalentado.insert(m)
+                    registrar(m)
+                }
+                self.refrescar()
+            }
         }
     }
 
@@ -859,11 +946,17 @@ final class Barra: NSObject, NSApplicationDelegate {
 
         switch lectura {
         case .falla(let porque):
+            // En el menú ya se veía; en el log no, así que una lectura que falló
+            // y se recuperó sola no dejaba rastro de haber pasado.
+            if porque != ultimaFalla { registrar("lectura de qm falló: \(porque)") }
+            ultimaFalla = porque
             item.button?.attributedTitle = comoRenglones("qm ✕")
             item.button?.image = icono("exclamationmark.triangle.fill")
             agregar(menu, porque, activo: false)
 
         case .ok(let perfiles):
+            if ultimaFalla != nil { registrar("lectura de qm volvió a andar") }
+            ultimaFalla = nil
             vigilar(perfiles)
             // Por cuenta: la sesión (la ventana corta) y la barra que frena
             // antes. Son dos preguntas distintas —«¿puedo seguir ahora?» y
@@ -995,13 +1088,18 @@ final class Barra: NSObject, NSApplicationDelegate {
         let suya = v.screen ?? NSScreen.main
         let afuera = suya.map { v.frame.minX < $0.frame.minX || v.frame.maxX > $0.frame.maxX } ?? false
         let escondido = afuera || tapadoPorLaMuesca()
-        // A stderr, siempre: es lo único que explica por qué no se ve nada.
+        // Al log, porque es lo único que explica por qué no se ve nada. Pero
+        // sólo cuando CAMBIA, y por pantalla: con tres monitores esto se
+        // revisaba en cada redibujo y dejaba el mismo renglón una vez por minuto.
         let pant = v.screen ?? NSScreen.main
-        FileHandle.standardError.write(
-            ("[qm-barra] titulo=\(item.button?.attributedTitle.string.replacingOccurrences(of: "\n", with: " / ") ?? "?") "
-             + "ancho=\(v.frame.width) x=\(v.frame.minX)..\(v.frame.maxX) "
-             + "muescaDerechaMinX=\(pant?.auxiliaryTopRightArea?.minX ?? -1) "
-             + "pantalla=\(pant?.frame.width ?? -1) escondido=\(escondido)\n").data(using: .utf8)!)
+        let linea = "posición: ancho=\(v.frame.width) x=\(v.frame.minX)..\(v.frame.maxX) "
+            + "muescaDerechaMinX=\(pant?.auxiliaryTopRightArea?.minX ?? -1) "
+            + "pantalla=\(pant?.frame.width ?? -1) escondido=\(escondido)"
+        let clave = "\(pant?.frame.width ?? -1)x\(pant?.frame.height ?? -1)"
+        if ultimaPosicion[clave] != linea {
+            ultimaPosicion[clave] = linea
+            registrar(linea)
+        }
         // Una sola vez por corrida. Antes se re-armaba al volver a entrar, así
         // que un item que oscila entre visible y tapado avisaba en cada vuelta.
         if escondido, !avisoBarraLlena {
@@ -1267,7 +1365,7 @@ final class Barra: NSObject, NSApplicationDelegate {
                     .write(to: URL(fileURLWithPath: ruta.replacingOccurrences(of: ".png", with: "\(sufijo).png")))
             }
         }
-        FileHandle.standardError.write("[qm-barra] capturado ancho=\(caja.width) alto=\(caja.height) filas=\(vistas.count)\n".data(using: .utf8)!)
+        registrar("capturado ancho=\(caja.width) alto=\(caja.height) filas=\(vistas.count)")
     }
 
     // Acciones -------------------------------------------------------------

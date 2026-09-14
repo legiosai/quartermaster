@@ -1014,6 +1014,10 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
   const filtro = process.argv.find((a) => a.startsWith('--cuentas='));
   const cuentas = filtro === undefined ? null : new Set(filtro.slice('--cuentas='.length).split(','));
   let bien = false;
+  // Por qué no se calentó cada cuenta que no se calentó. Va a stderr y no a
+  // stdout: la barra manda su stderr al log, y un calentado roto que sale 1 sin
+  // decir nada es un número viejo sin explicación.
+  const fallas: string[] = [];
   if (!soloCodex) {
     for (const perfil of descubrirPerfiles()) {
       if (cuentas !== null && !cuentas.has(perfil.nombre)) continue;
@@ -1021,13 +1025,21 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
       if (r.estado === 'ok') {
         guardarEndpoint(perfil.nombre, r);
         bien = true;
-      }
+      } else fallas.push(`${perfil.nombre}: ${frase(r, perfil.directorio)}`);
     }
   }
   const c = cuentas !== null && !cuentas.has('codex')
     ? { cuota: { estado: 'no-consultada' as const } }
     : await consultarCodex();
-  process.exit(c.cuota.estado === 'ok' || bien ? 0 : 1);
+  // Sin Codex instalado, o con API key, no hay nada que calentar: no es una falla.
+  if (c.cuota.estado !== 'ok' && c.cuota.estado !== 'no-consultada' &&
+      c.cuota.estado !== 'sin-cache' && c.cuota.estado !== 'sin-suscripcion') {
+    fallas.push(`codex: ${frase(c.cuota, 'codex')}`);
+  }
+  const codigo = c.cuota.estado === 'ok' || bien ? 0 : 1;
+  if (codigo !== 0 && fallas.length === 0) fallas.push('no hay ninguna cuenta a la que preguntarle');
+  for (const f of fallas) console.error(`calentar · ${f}`);
+  process.exit(codigo);
 }
 
 /**
