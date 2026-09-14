@@ -60,6 +60,10 @@ ID = "quartermaster"
 # Diez minutos aguantan una pausa entre prompts sin seguir preguntando por una
 # cuenta que ya cerraste.
 ACTIVA_SEGUNDOS = 600
+# Cuánto se le da a un calentado antes de darlo por colgado. `qm --calentar`
+# tiene su propio timeout de red adentro, así que si en dos minutos no contestó
+# es que su callback no va a llegar.
+CALENTADO_PLAZO_US = 120 * 1_000_000
 SEGUNDOS_SONDEO = 300
 # Piso para cualquier cadencia que salga a la RED. Claude Code pide la cuota del
 # orden de una vez por sesión; un endpoint no documentado, que además puede
@@ -1590,6 +1594,9 @@ class Indicador:
         self.piezas: list[dict] = []
         self.minutos_al_techo: float | None = None
         self.calentando = False
+        # Desde cuándo. Sin esto, una bandera que se queda pegada no se puede
+        # distinguir de un calentado que recién arrancó.
+        self.calentando_desde: int | None = None
         self.reloj: int | None = None
         self.proxima_lectura: int | None = None
         self.turno = 0
@@ -1603,6 +1610,7 @@ class Indicador:
         self.vigilar_version()
         GLib.timeout_add_seconds(SEGUNDOS_SONDEO, self.refrescar)
         self.programar_calentado(5)
+        self.vigilar_suspension()
 
     # Vigilancia de archivos ------------------------------------------------
     def vigilar(self) -> None:
@@ -1690,6 +1698,56 @@ class Indicador:
             registrar("reinicio.fallo", error=str(e)[:80])
             print(f"no pude reiniciarme: {e}", file=sys.stderr)
         return False
+
+    def vigilar_suspension(self) -> None:
+        """Enterarse de que la máquina durmió, y refrescar al volver.
+
+        Sin esto, volver de una suspensión es la peor pantalla que da el
+        programa: los números son de antes de dormir y las ventanas que se
+        reiniciaron mientras tanto salen marcadas «vencida». Todo correcto y
+        todo inútil — lo que hace falta es el número de ahora.
+
+        Y no alcanza con esperar al próximo sondeo. Los timeouts de GLib corren
+        contra el reloj MONOTÓNICO, que en Linux no avanza mientras la máquina
+        duerme: cuatro horas suspendida son cero segundos para el temporizador.
+        El reloj de pared sí saltó, así que la lectura queda vieja de horas
+        mientras el sondeo cree que recién empieza.
+
+        logind avisa con PrepareForSleep: `true` antes de dormir, `false` al
+        volver. El `false` es el que importa.
+
+        Va en el bus del SISTEMA, no en el de sesión. Si no se puede —un
+        contenedor, una máquina sin logind— se sigue sin esto, que es como
+        estaba hasta hoy.
+        """
+        try:
+            sistema = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
+            sistema.signal_subscribe(
+                "org.freedesktop.login1",
+                "org.freedesktop.login1.Manager",
+                "PrepareForSleep",
+                "/org/freedesktop/login1",
+                None,
+                Gio.DBusSignalFlags.NONE,
+                self._al_dormir_o_volver,
+            )
+            self.bus_sistema = sistema
+        except GLib.Error as e:
+            registrar("suspension.sin-logind", motivo=str(e)[:90])
+
+    def _al_dormir_o_volver(self, _con, _emisor, _ruta, _iface, _senal, params) -> None:
+        durmiendo = bool(params[0]) if params and len(params) else False
+        if durmiendo:
+            registrar("suspension.duerme")
+            return
+        registrar("suspension.vuelve")
+        # La bandera se suelta a mano: si había un calentado en vuelo cuando la
+        # máquina se durmió, su callback es justo el que puede no llegar.
+        self.calentando = False
+        self.calentando_desde = None
+        # Y se pregunta YA, no en el próximo sondeo: al volver, lo que hay en
+        # pantalla es de antes de dormir.
+        self.programar_calentado(2)
 
     def vigilar_tema(self) -> None:
         """El tema del escritorio se cambia con esto andando.
@@ -1900,7 +1958,30 @@ class Indicador:
     def calentar(self) -> bool:
         self.reloj = None
         if self.calentando:
-            return False
+            # Acá había un `return False` pelado, y eso MATABA el lazo: al
+            # devolver False la fuente de GLib se quita, y como `self.reloj` ya
+            # se soltó arriba, nadie la vuelve a armar. Una sola bandera pegada
+            # dejaba al indicador sin volver a preguntarle al endpoint en lo que
+            # le quedaba de vida — dibujando cada pocos minutos un número que no
+            # se actualizaba nunca.
+            #
+            # Visto el 2026-09-13 después de una suspensión de 4,1 h: el proceso
+            # vivo, estado.json reescrito hacía 4 minutos, y la cuota leída
+            # hacía 5,2 horas.
+            #
+            # `calentando` sólo se apaga en el callback de wait_async. Si ese
+            # callback no llega —y una suspensión en el medio es justo cuando no
+            # llega— no hay nada más que lo apague. Así que además de
+            # reprogramar, se le pone un plazo: pasado eso, el callback no viene
+            # y la bandera se suelta.
+            desde = self.calentando_desde
+            if desde is not None and (GLib.get_monotonic_time() - desde) > CALENTADO_PLAZO_US:
+                registrar("calentar.colgado", segundos=int((GLib.get_monotonic_time() - desde) / 1_000_000))
+                self.calentando = False
+                self.calentando_desde = None
+            else:
+                self.programar_calentado()
+                return False
         args = [self.qm, "--calentar"]
         # Sólo las cuentas que se mueven: refrescar una que va al 9 % es gastar
         # un pedido para confirmar que no pasó nada.
@@ -1916,11 +1997,13 @@ class Indicador:
             self.programar_calentado()
             return False
         self.calentando = True
+        self.calentando_desde = GLib.get_monotonic_time()
         proc.wait_async(None, self._fin_calentado)
         return False
 
     def _fin_calentado(self, proc, resultado) -> None:
         self.calentando = False
+        self.calentando_desde = None
         try:
             proc.wait_finish(resultado)
         except GLib.Error as e:

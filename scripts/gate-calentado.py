@@ -123,6 +123,42 @@ if re.search(r"mueven\s*=.*<\s*100", FUENTE):
           file=sys.stderr)
     fallas += 1
 
+# ── que el lazo no se pueda matar solo ────────────────────────────────────
+#
+# `calentar()` empieza soltando `self.reloj`. Si después devuelve False sin
+# reprogramar, la fuente de GLib se quita y nadie la vuelve a armar: el
+# indicador no le pregunta más al endpoint en lo que le queda de vida.
+#
+# Pasó de verdad el 2026-09-13, después de una suspensión de 4,1 h: proceso
+# vivo, dibujando cada pocos minutos, con la cuota leída hacía 5,2 horas.
+cuerpo_calentar = funcion("calentar")
+rama = cuerpo_calentar.split("if self.calentando:", 1)
+if len(rama) != 2:
+    print("✗ no encontré la guarda `if self.calentando:` en calentar()", file=sys.stderr)
+    fallas += 1
+else:
+    # Hasta el siguiente `args =`, que es donde sigue el camino normal.
+    guarda = rama[1].split("args =", 1)[0]
+    if "programar_calentado" not in guarda:
+        print("✗ calentar() sale de `if self.calentando:` sin reprogramar: "
+              "el lazo se muere y no vuelve a preguntar nunca más", file=sys.stderr)
+        fallas += 1
+    elif "CALENTADO_PLAZO_US" not in guarda:
+        print("✗ la bandera `calentando` no tiene plazo: si el callback no llega "
+              "—una suspensión en el medio— se queda pegada para siempre", file=sys.stderr)
+        fallas += 1
+    else:
+        print("  ✓ un calentado en vuelo reprograma el lazo, y la bandera tiene plazo")
+
+# ── que se entere de la suspensión ────────────────────────────────────────
+if "PrepareForSleep" not in FUENTE or "vigilar_suspension()" not in FUENTE:
+    print("✗ el indicador no escucha PrepareForSleep: al volver de suspender muestra "
+          "los números de antes de dormir hasta el próximo sondeo, y el sondeo corre "
+          "contra un reloj que no avanzó", file=sys.stderr)
+    fallas += 1
+else:
+    print("  ✓ escucha PrepareForSleep y pregunta al volver")
+
 if fallas:
     print(f"\ngate de calentado: ROJO ({fallas})", file=sys.stderr)
     raise SystemExit(1)

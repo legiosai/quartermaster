@@ -182,8 +182,22 @@ gate-calentado-rojo:  ## los dos rojos de gate-calentado: el filtro y la regla
 	  mv .qm-indicator.gate bin/qm-indicator; \
 	  echo "✗ gate-calentado NO falló con la regla ciega a la actividad"; exit 1; \
 	fi
+	@cp -f .qm-indicator.gate bin/qm-indicator
+	@# 4. que calentar() se muera cuando ya hay uno en vuelo
+	@python3 -c "import pathlib,re; p=pathlib.Path('bin/qm-indicator'); s=p.read_text(encoding='utf-8'); i=s.index('if self.calentando:'); j=s.index('args = [self.qm', i); p.write_text(s[:i]+'if self.calentando:\n            return False\n        '+s[j:], encoding='utf-8')"
+	@if python3 scripts/gate-calentado.py >/dev/null 2>&1; then \
+	  mv .qm-indicator.gate bin/qm-indicator; \
+	  echo "✗ gate-calentado NO falló con el lazo que se mata solo"; exit 1; \
+	fi
+	@cp -f .qm-indicator.gate bin/qm-indicator
+	@# 5. que deje de escuchar la suspensión
+	@python3 -c "import pathlib; p=pathlib.Path('bin/qm-indicator'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('self.vigilar_suspension()', 'pass  # sin suspension'), encoding='utf-8')"
+	@if python3 scripts/gate-calentado.py >/dev/null 2>&1; then \
+	  mv .qm-indicator.gate bin/qm-indicator; \
+	  echo "✗ gate-calentado NO falló sin la escucha de suspensión"; exit 1; \
+	fi
 	@mv .qm-indicator.gate bin/qm-indicator
-	@echo "✓ gate-calentado falla en rojo con el corte < 100, con la regla ciega al reinicio y con la ciega a la actividad"
+	@echo "✓ gate-calentado falla en rojo con el corte < 100, la regla ciega al reinicio, la ciega a la actividad, el lazo que se mata solo y sin escuchar la suspensión"
 
 .PHONY: gate-dibujo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja

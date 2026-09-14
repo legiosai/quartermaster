@@ -146,6 +146,8 @@ The events, and the question each one answers:
 | `aviso` / `aviso.repetido` / `aviso.fallo` | it fired, it was suppressed as a duplicate, or the notification server refused it |
 | `qm.sin-datos` | why there is no number, instead of only a phrase on screen |
 | `reinicio` | the process replaced itself because the source changed |
+| `suspension.duerme` / `.vuelve` | the machine slept, and the quota was re-read on resume |
+| `calentar.colgado` | a warm never called back and its flag was released after the deadline |
 
 `vivio_ms` is the one that matters for "the panel closes on its own": a panel
 that lives 40 ms was not closed by you. `QM_SILENCIO=1` turns it off.
