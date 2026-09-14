@@ -139,6 +139,38 @@ extension-zip:  ## el zip de la extensión con la forma que pide extensions.gnom
 gate-duraciones:  ## que las cuatro escaleras de duración den lo mismo
 	@python3 scripts/gate-duraciones.py
 
+.PHONY: gate-presupuesto
+gate-presupuesto:  ## que las cinco frases de presupuesto digan los mismos números
+	@python3 scripts/gate-presupuesto.py
+
+.PHONY: gate-presupuesto-rojo
+gate-presupuesto-rojo:  ## los tres rojos de gate-presupuesto: GNOME, el tablero y la redacción de la barra
+	@cp bin/qm-indicator .qm-indicator.gate
+	@# 1. el doble descuento de 0.1.11 de vuelta en GNOME: porDia en vez de porDiaHoy
+	@python3 -c "import pathlib; p=pathlib.Path('bin/qm-indicator'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('por_dia_hoy = pre.get(\"porDiaHoy\", pre.get(\"porDia\")) or 0', 'por_dia_hoy = pre.get(\"porDia\") or 0'), encoding='utf-8')"
+	@if python3 scripts/gate-presupuesto.py >/dev/null 2>&1; then \
+	  mv .qm-indicator.gate bin/qm-indicator; \
+	  echo "✗ gate-presupuesto NO falló con el doble descuento de vuelta en GNOME"; exit 1; \
+	fi
+	@mv .qm-indicator.gate bin/qm-indicator
+	@# 2. el tablero calculando la resta en vez de leerla
+	@cp src/render/tablero.html .tablero.gate
+	@sed -i 's|const porDiaHoy = pre.porDiaHoy ?? pre.porDia;|const porDiaHoy = pre.porDia;|' src/render/tablero.html
+	@if python3 scripts/gate-presupuesto.py >/dev/null 2>&1; then \
+	  mv .tablero.gate src/render/tablero.html; \
+	  echo "✗ gate-presupuesto NO falló con el tablero volviendo a porDia"; exit 1; \
+	fi
+	@mv .tablero.gate src/render/tablero.html
+	@# 3. una palabra distinta en la barra de macOS: la redacción también es la frase
+	@cp bin/qm-barra.swift .qm-barra.gate
+	@sed -i 's|desde las %@ · te queda %.1f|desde las %@ · te quedan %.1f|' bin/qm-barra.swift
+	@if python3 scripts/gate-presupuesto.py >/dev/null 2>&1; then \
+	  mv .qm-barra.gate bin/qm-barra.swift; \
+	  echo "✗ gate-presupuesto NO falló con la barra de macOS diciendo «te quedan»"; exit 1; \
+	fi
+	@mv .qm-barra.gate bin/qm-barra.swift
+	@echo "✓ gate-presupuesto falla en rojo con el doble descuento en GNOME, con el tablero calculando la resta y con una palabra cambiada en la barra de macOS"
+
 .PHONY: gate-paquetes
 gate-paquetes:  ## que la versión coincida en los siete lugares donde vive
 	@./scripts/gate-paquetes.sh

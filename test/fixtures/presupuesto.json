@@ -1,0 +1,137 @@
+{
+  "canon": "src/core/presupuesto.ts::frasePresupuesto",
+  "sacado": "corriendo el núcleo el 2026-09-14; el caso 1 es el de la captura que originó 0.1.11",
+  "hora": "{desde} es la hora local de medidoDesde: cada pantalla la escribe con el reloj de la máquina, así que se compara entre pantallas y no contra un string congelado",
+  "casos": [
+    {
+      "nombre": "el caso de la captura: 16.1 de presupuesto y 2.1 de saldo, no 14.3 y 0.3",
+      "entrada": {
+        "estado": "ok",
+        "barra": "weekly_scoped (Fable)",
+        "clave": "weekly_scoped",
+        "alcance": "Fable",
+        "porDia": 14.3,
+        "porDiaHoy": 16.1,
+        "restanteMedido": 2.1,
+        "quedaHoy": 5,
+        "gastadoHoy": null,
+        "restanteHoy": null,
+        "gastadoMedido": 14,
+        "medidoDesde": "2026-09-14T12:27:00.000Z",
+        "cubreElDia": false,
+        "restante": 77,
+        "horasHoy": 8.5,
+        "horasRestantes": 129.4
+      },
+      "esperado": "podés gastar 16.1 %/día · gastaste 14.0 % desde las {desde} · te queda 2.1 %"
+    },
+    {
+      "nombre": "el historial cubre el día: la rama «hoy», con las dos cuentas separadas",
+      "entrada": {
+        "estado": "ok",
+        "barra": "weekly_all",
+        "clave": "weekly_all",
+        "alcance": null,
+        "porDia": 18.7,
+        "porDiaHoy": 19.3,
+        "restanteMedido": 2.3,
+        "quedaHoy": 4.7,
+        "gastadoHoy": 17,
+        "restanteHoy": 2.3,
+        "gastadoMedido": 17,
+        "medidoDesde": "2026-09-14T03:00:00.000Z",
+        "cubreElDia": true,
+        "restante": 78,
+        "horasHoy": 6,
+        "horasRestantes": 100
+      },
+      "esperado": "podés gastar 19.3 %/día · gastaste 17.0 % hoy · te queda 2.3 %"
+    },
+    {
+      "nombre": "sin medición: el reparto por hora, dicho como lo que es",
+      "entrada": {
+        "estado": "ok",
+        "barra": "weekly_all",
+        "clave": "weekly_all",
+        "alcance": null,
+        "porDia": 16,
+        "porDiaHoy": 16,
+        "restanteMedido": null,
+        "quedaHoy": 6.7,
+        "gastadoHoy": null,
+        "restanteHoy": null,
+        "gastadoMedido": null,
+        "medidoDesde": null,
+        "cubreElDia": false,
+        "restante": 60,
+        "horasHoy": 10,
+        "horasRestantes": 90
+      },
+      "esperado": "podés gastar 16.0 %/día · de acá a medianoche te toca 6.7 %"
+    },
+    {
+      "nombre": "gastar EXACTAMENTE el presupuesto del día deja cero, no pasado",
+      "entrada": {
+        "estado": "ok",
+        "barra": "weekly_all",
+        "clave": "weekly_all",
+        "alcance": null,
+        "porDia": 15.3,
+        "porDiaHoy": 18,
+        "restanteMedido": 0,
+        "quedaHoy": 5.1,
+        "gastadoHoy": null,
+        "restanteHoy": null,
+        "gastadoMedido": 18,
+        "medidoDesde": "2026-09-14T12:00:00.000Z",
+        "cubreElDia": false,
+        "restante": 72,
+        "horasHoy": 8,
+        "horasRestantes": 113
+      },
+      "esperado": "podés gastar 18.0 %/día · gastaste 18.0 % desde las {desde} · te queda 0.0 %"
+    },
+    {
+      "nombre": "la ventana en 100 %: no hay presupuesto de acá en adelante y el saldo es cero",
+      "entrada": {
+        "estado": "ok",
+        "barra": "weekly_all",
+        "clave": "weekly_all",
+        "alcance": null,
+        "porDia": 0,
+        "porDiaHoy": 0.8,
+        "restanteMedido": 0,
+        "quedaHoy": 0,
+        "gastadoHoy": null,
+        "restanteHoy": null,
+        "gastadoMedido": 3,
+        "medidoDesde": "2026-09-14T11:00:00.000Z",
+        "cubreElDia": false,
+        "restante": 0,
+        "horasHoy": 4,
+        "horasRestantes": 80
+      },
+      "esperado": "podés gastar 0.8 %/día · gastaste 3.0 % desde las {desde} · te queda 0.0 %"
+    },
+    {
+      "nombre": "un qm anterior, sin los campos nuevos: todas caen a la misma cuenta vieja",
+      "entrada": {
+        "estado": "ok",
+        "barra": "weekly_scoped (Fable)",
+        "clave": "weekly_scoped",
+        "alcance": "Fable",
+        "porDia": 14.3,
+        "quedaHoy": 5,
+        "gastadoHoy": null,
+        "gastadoMedido": 14,
+        "medidoDesde": "2026-09-14T12:27:00.000Z",
+        "cubreElDia": false,
+        "restante": 77,
+        "horasHoy": 8.5,
+        "horasRestantes": 129.4,
+        "restanteHoy": null
+      },
+      "esperado": "podés gastar 14.3 %/día · gastaste 14.0 % desde las {desde} · te queda 0.3 %"
+    }
+  ]
+}

@@ -32,6 +32,16 @@ jobs:
       # nada —sin token, sin versión, con un token muerto— salgan en rojo.
       - run: make gate-winget-rojo
 
+      # La frase del presupuesto está escrita cinco veces, una por pantalla, y
+      # 0.1.11 tuvo que arreglar el mismo error en las cinco. Que sigan diciendo
+      # lo mismo no lo comprobaba nada: medido el 2026-09-14, volver a poner el
+      # doble descuento en bin/qm-indicator dejaba gate-dibujo, gate-tarjetas y
+      # los 148 tests en verde. Acá corren el núcleo, GNOME y el tablero; la
+      # bandeja la corre el job de Windows.
+      - run: make gate-presupuesto
+      - name: y ese gate falla en rojo con el doble descuento de vuelta
+        run: make gate-presupuesto-rojo
+
       - name: el paquete de npm se instala y corre
         run: ./scripts/el-paquete-de-npm-corre.sh
       - name: y ese gate falla en rojo sin dist/
@@ -108,6 +118,11 @@ jobs:
           node-version: '22'
       - run: npm install
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-bandeja.ps1
+
+      # El mismo gate que corre en Ubuntu, pero acá agarra la pantalla que allá
+      # se saltea: RenglonesPresupuesto se EJECUTA, con el Windows PowerShell 5.1
+      # de verdad, contra el mismo canon que el núcleo, GNOME y el tablero.
+      - run: python scripts/gate-presupuesto.py
 
       # Windows como PLATAFORMA, que es otra cosa que la bandeja como dibujo.
       # El job de arriba comprueba que `npm install -g` deje un qm que corre en
