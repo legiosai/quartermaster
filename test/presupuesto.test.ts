@@ -129,7 +129,11 @@ const semanalDe = (pct: number) => [{
   clave: 'weekly_all', porcentaje: pct, reinicia: RESET,
   severidad: 'normal', activa: true, alcance: null, grupo: 'weekly',
 }];
-const HORA = (h: number) => new Date(`2026-09-13T${String(h).padStart(2, '0')}:00:00-03:00`).getTime();
+// En hora LOCAL, como AHORA. Iba con `-03:00` fijo y el código corta el día en
+// la medianoche local: en Buenos Aires coincidían, en el runner de CI (UTC) la
+// primera lectura caía a las 03:00 y gastadoHoy daba null. Tres tests rojos en
+// CI y verdes en la máquina de quien los escribió.
+const HORA = (h: number) => new Date(2026, 8, 13, h, 0, 0).getTime();
 
 test('sin gastar nada, lo que queda hoy NO baja con el reloj', () => {
   const quieto = [0, 3, 6, 9, 12].map((h) => ({ t: HORA(h), porcentaje: 20 }));
