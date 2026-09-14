@@ -144,9 +144,13 @@ test('sin gastar nada, lo que queda hoy NO baja con el reloj', () => {
   if (manana.estado !== 'ok' || noche.estado !== 'ok') return;
   assert.equal(manana.gastadoHoy, 0);
   assert.equal(noche.gastadoHoy, 0);
-  // Lo que queda sigue al presupuesto del día, no a la hora que es.
-  assert.equal(manana.restanteHoy, manana.porDia);
-  assert.equal(noche.restanteHoy, noche.porDia);
+  // Lo que queda sigue al presupuesto del día, no a la hora que es. Es el
+  // presupuesto fijado al arrancar el día (`porDiaHoy`), no el `porDia` de cada
+  // hora: ése sube con el reloj cuando no se gasta, y restarle lo gastado
+  // contaba dos veces cada punto.
+  assert.equal(manana.restanteHoy, manana.porDiaHoy);
+  assert.equal(noche.restanteHoy, noche.porDiaHoy);
+  assert.equal(manana.restanteHoy, noche.restanteHoy);
   // Y el viejo `quedaHoy` sigue existiendo, pero se desploma: por eso no se
   // muestra más con esa frase.
   assert.ok(noche.quedaHoy < manana.quedaHoy);

@@ -484,7 +484,12 @@ function RenglonesPresupuesto($pre) {
   # Invariante y no la cultura de la máquina, por lo mismo que el ritmo: el
   # separador decimal acá es parte del dibujo y tiene que coincidir entre
   # pantallas.
-  $porDia = ([double]$pre.porDia).ToString('0.0', [cultureinfo]::InvariantCulture)
+  # El presupuesto de HOY es el que había al arrancar la medición (`porDiaHoy`):
+  # `porDia` es el de ahora en adelante y ya tiene descontado lo gastado hoy, así
+  # que restarle `gastadoMedido` contaba cada punto dos veces. El núcleo manda
+  # la resta hecha en `restanteMedido`; `porDia` queda para un qm anterior.
+  $porDiaHoy = if ($pre.PSObject.Properties['porDiaHoy'] -and $null -ne $pre.porDiaHoy) { [double]$pre.porDiaHoy } else { [double]$pre.porDia }
+  $porDia = $porDiaHoy.ToString('0.0', [cultureinfo]::InvariantCulture)
   $un = { param($n) ([double]$n).ToString('0.0', [cultureinfo]::InvariantCulture) }
 
   # Las mismas tres ramas que `frasePresupuesto` en el núcleo, y por el mismo
@@ -504,7 +509,7 @@ function RenglonesPresupuesto($pre) {
   if ($pre.PSObject.Properties['gastadoMedido'] -and $null -ne $pre.gastadoMedido -and
       $pre.PSObject.Properties['medidoDesde'] -and $null -ne $pre.medidoDesde) {
     $desde = ([datetime]$pre.medidoDesde).ToLocalTime().ToString('HH:mm', [cultureinfo]::InvariantCulture)
-    $queda = [math]::Max(0, [double]$pre.porDia - [double]$pre.gastadoMedido)
+    $queda = if ($pre.PSObject.Properties['restanteMedido'] -and $null -ne $pre.restanteMedido) { [double]$pre.restanteMedido } else { [math]::Max(0, $porDiaHoy - [double]$pre.gastadoMedido) }
     return @($dia, "gastaste $(& $un $pre.gastadoMedido) % desde las $desde · te queda $(& $un $queda) %")
   }
   $hoy = ([double]$pre.quedaHoy).ToString('0.0', [cultureinfo]::InvariantCulture)
@@ -526,7 +531,8 @@ function PctDiario($pre) {
   if (-not $pre.PSObject.Properties['estado'] -or $pre.estado -ne 'ok') { return $null }
   if (-not $pre.PSObject.Properties['gastadoMedido'] -or $null -eq $pre.gastadoMedido) { return $null }
   $gastado = [double]$pre.gastadoMedido
-  $porDia = [double]$pre.porDia
+  # El presupuesto de hoy, no el de ahora en adelante: ése ya descontó lo gastado.
+  $porDia = if ($pre.PSObject.Properties['porDiaHoy'] -and $null -ne $pre.porDiaHoy) { [double]$pre.porDiaHoy } else { [double]$pre.porDia }
   # Sin presupuesto —la ventana ya está en 100 %— cualquier gasto es de más.
   if ($porDia -le 0) { if ($gastado -gt 0) { return 100.0 } else { return 0.0 } }
   return [math]::Max(0.0, [math]::Min(100.0, $gastado / $porDia * 100.0))

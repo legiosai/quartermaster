@@ -18,6 +18,10 @@
 // `quedaHoy` con él; si no tocaste nada, sube. Nunca da negativo: el piso es
 // cero, que es exactamente lo que te podés gastar cuando ya no queda nada.
 //
+// Y justamente por eso a `porDia` NO se le puede restar lo gastado hoy: ya lo
+// tiene adentro. «Te queda» se le resta al presupuesto que había cuando arrancó
+// la medición, `porDiaHoy` — ver `presupuestoDiario`.
+//
 // El reparto es sobre la ventana LARGA, no sobre la que frena. Una ventana de
 // 5 h se reinicia cuatro veces por día: «cuánto por día» ahí no quiere decir
 // nada, y un número que no quiere decir nada al lado de uno que sí es peor que
@@ -34,6 +38,12 @@ export type Presupuesto =
       /** Puntos de cuota por día, de ahora al reinicio, para llegar justo al 100 %. */
       readonly porDia: number;
       /**
+       * El presupuesto de HOY: el `porDia` que había en la lectura con la que
+       * arranca la medición (o en la primera después de un reinicio de la
+       * ventana). Es al que se le resta lo gastado. Sin medición es `porDia`.
+       */
+      readonly porDiaHoy: number;
+      /**
        * Puntos que le tocan a lo que queda de hoy a ritmo parejo.
        *
        * NO es «lo que te queda de la cuota de hoy»: no le resta lo que ya
@@ -46,7 +56,7 @@ export type Presupuesto =
        * para saberlo. `null` es «no se pudo medir», no «no gastaste nada».
        */
       readonly gastadoHoy: number | null;
-      /** `porDia − gastadoHoy`, con piso en cero. `null` si no hay `gastadoHoy`. */
+      /** `restanteMedido` cuando la medición cubre el día; `null` si no. */
       readonly restanteHoy: number | null;
       /**
        * Lo que subió la barra desde `medidoDesde`, que es la medianoche cuando
@@ -58,6 +68,8 @@ export type Presupuesto =
        * «no hay dos lecturas de hoy»: ahí sí no se midió nada.
        */
       readonly gastadoMedido: number | null;
+      /** `porDiaHoy` menos lo gastado desde el ancla, con piso en cero. `null` sin medición. */
+      readonly restanteMedido: number | null;
       /** Desde qué instante vale `gastadoMedido`. `null` si no hay medición. */
       readonly medidoDesde: number | null;
       /** Si `gastadoMedido` arranca en la medianoche —o sea, si es el día entero—. */
@@ -79,11 +91,22 @@ export type Presupuesto =
  */
 export const MINIMO_HORAS = 1;
 
+/**
+ * Cuánto tiene que bajar la barra entre dos lecturas para contarlo como un
+ * reinicio de la ventana y no como ruido. Un reinicio real va a casi cero desde
+ * donde estuviera (84 → 2 el 2026-09-13); un punto para abajo es el cache de
+ * Claude Code y el del endpoint redondeando distinto, y re-anclar el
+ * presupuesto ahí volvería a contar dos veces lo gastado antes.
+ */
+export const BAJADA_DE_REINICIO = 5;
+
 /** La medianoche que viene, en hora local: donde empieza el presupuesto nuevo. */
 function finDelDia(ahora: number): number {
   const d = new Date(ahora);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0).getTime();
 }
+
+type Muestra = { readonly t: number; readonly porcentaje: number };
 
 /**
  * Lo que subió esta barra, y DESDE CUÁNDO se lo puede afirmar.
@@ -106,11 +129,21 @@ function finDelDia(ahora: number): number {
  * medianoche. Si es de hace tres días, el salto entre aquel número y el primero
  * de hoy pasó en algún momento de esos tres días, y cargárselo a hoy es
  * inventar al revés: de más.
+ *
+ * `ancla` es la lectura desde la que se fija el presupuesto de hoy: la línea de
+ * base, o la primera después de un reinicio de la ventana. `puntosDesdeAncla`
+ * es lo gastado de ESA ventana: lo de antes del reinicio era de otra cuota.
  */
 export function subidaDeHoy(
-  lecturas: readonly { readonly t: number; readonly porcentaje: number }[],
+  lecturas: readonly Muestra[],
   ahora: number = Date.now(),
-): { readonly puntos: number; readonly desde: number; readonly cubreElDia: boolean } | null {
+): {
+  readonly puntos: number;
+  readonly desde: number;
+  readonly cubreElDia: boolean;
+  readonly ancla: Muestra;
+  readonly puntosDesdeAncla: number;
+} | null {
   const d = new Date(ahora);
   const medianoche = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const deHoy = lecturas.filter((l) => l.t >= medianoche && l.t <= ahora).sort((a, b) => a.t - b.t);
@@ -124,15 +157,25 @@ export function subidaDeHoy(
   const cubreElDia = pegada || deHoy[0]!.t - medianoche <= TOLERANCIA_ARRANQUE_MS;
 
   let subida = 0;
+  let ancla: Muestra = base;
+  let desdeAncla = 0;
   let previo = base.porcentaje;
   for (const l of deHoy) {
-    if (l.porcentaje > previo) subida += l.porcentaje - previo;
+    if (l.porcentaje > previo) {
+      subida += l.porcentaje - previo;
+      desdeAncla += l.porcentaje - previo;
+    } else if (previo - l.porcentaje >= BAJADA_DE_REINICIO) {
+      ancla = l;
+      desdeAncla = 0;
+    }
     previo = l.porcentaje;
   }
   return {
     puntos: Math.round(subida * 10) / 10,
     desde: cubreElDia ? medianoche : deHoy[0]!.t,
     cubreElDia,
+    ancla,
+    puntosDesdeAncla: Math.round(desdeAncla * 10) / 10,
   };
 }
 
@@ -146,7 +189,7 @@ export function subidaDeHoy(
  * hora vale.
  */
 export function gastadoDesdeMedianoche(
-  lecturas: readonly { readonly t: number; readonly porcentaje: number }[],
+  lecturas: readonly Muestra[],
   ahora: number = Date.now(),
 ): number | null {
   const s = subidaDeHoy(lecturas, ahora);
@@ -164,7 +207,7 @@ export const TOLERANCIA_ARRANQUE_MS = 30 * 60_000;
 export function presupuestoDiario(
   ventanas: readonly VentanaCuota[],
   ahora: number = Date.now(),
-  lecturas: readonly { readonly t: number; readonly porcentaje: number }[] = [],
+  lecturas: readonly Muestra[] = [],
 ): Presupuesto {
   const v = semanal(ventanas);
   if (v === null) {
@@ -188,15 +231,33 @@ export function presupuestoDiario(
   // El día se corta donde corte primero: la medianoche o el reinicio.
   const horasHoy = Math.min(finDelDia(ahora) - ahora, msRestantes) / 3600_000;
   const medido = subidaDeHoy(lecturas, ahora);
+
+  // El presupuesto de hoy se fija en el ancla, no ahora. `porDia` sale del
+  // porcentaje de AHORA, que ya tiene adentro todo lo gastado hoy: restarle lo
+  // gastado contaba cada punto dos veces. Medido el 2026-09-14: 9 % a las 09:27
+  // con 135,5 h al reinicio es 16,1 %/día; a las 15:32, con 14 puntos gastados,
+  // `porDia` daba 14,3 y «te queda» 0,3 en vez de 2,1. Gastar EXACTAMENTE el
+  // presupuesto del día te declaraba pasado.
+  let porDiaHoy = porDia;
+  let restanteMedido: number | null = null;
+  if (medido !== null) {
+    const horasEnElAncla = (v.reinicia.getTime() - medido.ancla.t) / 3600_000;
+    if (horasEnElAncla >= MINIMO_HORAS) {
+      porDiaHoy = Math.max(0, 100 - medido.ancla.porcentaje) / (horasEnElAncla / 24);
+    }
+    restanteMedido = Math.max(0, porDiaHoy - medido.puntosDesdeAncla);
+  }
   const gastadoHoy = medido !== null && medido.cubreElDia ? medido.puntos : null;
   return {
     estado: 'ok',
     ventana: v,
     porDia,
+    porDiaHoy,
     quedaHoy: porDia * (horasHoy / 24),
     gastadoHoy,
-    restanteHoy: gastadoHoy === null ? null : Math.max(0, porDia - gastadoHoy),
+    restanteHoy: gastadoHoy === null ? null : restanteMedido,
     gastadoMedido: medido === null ? null : medido.puntos,
+    restanteMedido,
     medidoDesde: medido === null ? null : medido.desde,
     cubreElDia: medido !== null && medido.cubreElDia,
     restante,
@@ -220,17 +281,19 @@ export function presupuestoDiario(
  *     hora se lo midió. Una portátil que se prende a las 11 no tiene la mañana
  *     y eso se dice, no se esconde ni se redondea a «hoy»;
  *   - sin ninguna de las dos: el reparto por hora, dicho como lo que es.
+ *
+ * El «podés gastar» de las dos primeras es `porDiaHoy`: es del que se resta, y
+ * mostrar otro número al lado dejaba una resta que no cerraba a la vista.
  */
 export function frasePresupuesto(p: Presupuesto): string {
   if (p.estado === 'sin-datos') return `presupuesto diario: ${p.motivo}`;
-  const dia = `podés gastar ${p.porDia.toFixed(1)} %/día`;
+  const dia = `podés gastar ${p.porDiaHoy.toFixed(1)} %/día`;
   if (p.gastadoHoy !== null && p.restanteHoy !== null) {
     return `${dia} · gastaste ${p.gastadoHoy.toFixed(1)} % hoy · te queda ${p.restanteHoy.toFixed(1)} %`;
   }
-  if (p.gastadoMedido !== null && p.medidoDesde !== null) {
-    const queda = Math.max(0, p.porDia - p.gastadoMedido);
+  if (p.gastadoMedido !== null && p.medidoDesde !== null && p.restanteMedido !== null) {
     return `${dia} · gastaste ${p.gastadoMedido.toFixed(1)} % desde las ${horaCorta(p.medidoDesde)}`
-      + ` · te queda ${queda.toFixed(1)} %`;
+      + ` · te queda ${p.restanteMedido.toFixed(1)} %`;
   }
   return `${dia} · de acá a medianoche te toca ${p.quedaHoy.toFixed(1)} %`;
 }

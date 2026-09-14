@@ -58,9 +58,11 @@ Each entry of `perfiles`:
 {
   "estado": "ok",
   "barra": "weekly_all",
-  "porDia": 11.6,          // puntos por día para llegar justo al reinicio
+  "porDia": 11.6,          // puntos por día, de AHORA al reinicio, para llegar justo
+  "porDiaHoy": 11.9,       // el presupuesto de hoy: el porDia que había al arrancar la medición
   "gastadoHoy": 4.2,       // lo que subió la barra desde medianoche, o null
-  "restanteHoy": 7.4,      // porDia - gastadoHoy, piso 0; null si gastadoHoy es null
+  "restanteHoy": 7.7,      // porDiaHoy - lo gastado, piso 0; null si gastadoHoy es null
+  "restanteMedido": 7.7,   // lo mismo cubra el día o no; null si no hay medición
   "quedaHoy": 5.8,         // el reparto a ritmo parejo de las horas que faltan HOY
   "gastadoMedido": 4.2,    // lo que subió desde medidoDesde, cubra el día o no
   "medidoDesde": "2026-09-13T03:00:00.000Z",  // desde cuándo vale, o null
@@ -68,6 +70,18 @@ Each entry of `perfiles`:
   "restante": 80, "horasHoy": 12, "horasRestantes": 167
 }
 ```
+
+**`porDia` es de ahora en adelante; `porDiaHoy` es el de hoy.** `porDia` se
+calcula con el porcentaje actual, que ya tiene adentro todo lo gastado hoy.
+Restarle lo gastado contaba cada punto dos veces: medido el 2026-09-14, una
+cuenta que a las 09:27 iba 9 % con 135,5 h al reinicio mostraba «podés gastar
+14.3 %/día · gastaste 14.0 % · te queda 0.3 %», cuando el presupuesto de ese día
+era 91 / 5,65 = 16,1 y quedaban 2,1. Gastar exactamente el presupuesto te
+declaraba pasado. `porDiaHoy` es el `porDia` que había en la lectura con la que
+arranca la medición (o en la primera después de un reinicio de la ventana), y
+`restanteHoy` / `restanteMedido` le restan a ÉSE lo gastado desde entonces.
+Sin medición, `porDiaHoy` es igual a `porDia`. Los que dibujan leen la resta
+hecha: no la calculan.
 
 **`quedaHoy` no es «lo que te queda de hoy».** Es el reparto a ritmo parejo de
 las horas que faltan del día, y no le resta lo gastado. Con la cuota quieta baja

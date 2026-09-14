@@ -772,6 +772,11 @@ function presupuestoJson(cuota: ResultadoCuota, perfil: string): Record<string, 
     clave: p.ventana.clave,
     alcance: p.ventana.alcance,
     porDia: un(p.porDia),
+    // El presupuesto de HOY, fijado al arrancar la medición, y lo que queda de
+    // él. Los que dibujan leen estos dos: restarle lo gastado a `porDia`, que
+    // ya lo tiene adentro, contaba cada punto dos veces.
+    porDiaHoy: un(p.porDiaHoy),
+    restanteMedido: p.restanteMedido === null ? null : un(p.restanteMedido),
     quedaHoy: un(p.quedaHoy),
     // Lo que subió la barra desde la medianoche, y lo que queda del día
     // descontándolo. `null` es «el historial no cubre el día», no «cero».

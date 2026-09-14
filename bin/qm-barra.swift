@@ -255,8 +255,11 @@ enum Presupuesto {
     /// prendió la máquina. La diferencia es la que separa «gastaste 12 % hoy»
     /// de «gastaste 12 % desde las 11:54», y no se puede borrar: llamar «hoy» a
     /// un tramo que empieza al mediodía es decir de menos con cara de exacto.
-    case reparte(porDia: Double, quedaHoy: Double,
-                 gastado: Double?, desde: Date?, cubreElDia: Bool)
+    /// `porDiaHoy` es el presupuesto fijado al arrancar la medición y `restante`
+    /// la resta ya hecha por qm. Restar `gastado` de `porDia` —que es el de ahora
+    /// en adelante y ya lo tiene descontado— contaba cada punto dos veces.
+    case reparte(porDia: Double, porDiaHoy: Double, quedaHoy: Double,
+                 gastado: Double?, restante: Double?, desde: Date?, cubreElDia: Bool)
     case no(String)
 
     /// Qué parte del presupuesto de HOY ya se gastó, en porcentaje de ese
@@ -269,10 +272,10 @@ enum Presupuesto {
     ///
     /// `nil` es «no se pudo medir» y deja la pista vacía, nunca un cero.
     var pctDiario: Int? {
-        guard case let .reparte(porDia, _, gastado, _, _) = self, let g = gastado else { return nil }
+        guard case let .reparte(_, porDiaHoy, _, gastado, _, _, _) = self, let g = gastado else { return nil }
         // Sin presupuesto —la ventana ya está en 100 %— cualquier gasto es de más.
-        guard porDia > 0 else { return g > 0 ? 100 : 0 }
-        return Int(max(0, min(100, (g / porDia * 100).rounded())))
+        guard porDiaHoy > 0 else { return g > 0 ? 100 : 0 }
+        return Int(max(0, min(100, (g / porDiaHoy * 100).rounded())))
     }
 }
 
@@ -448,9 +451,14 @@ func leer() -> Lectura {
                 // se midió aunque arranque más tarde, y es lo que dibuja el
                 // medidor: una máquina que se apaga de noche no tiene nunca el
                 // día entero, y un medidor que no dibuja nunca no es honesto.
-                pre = .reparte(porDia: pp["porDia"] as? Double ?? 0,
+                let porDia = pp["porDia"] as? Double ?? 0
+                pre = .reparte(porDia: porDia,
+                               // Un qm anterior no manda los dos campos nuevos: ahí
+                               // queda la cuenta vieja antes que ninguna.
+                               porDiaHoy: pp["porDiaHoy"] as? Double ?? porDia,
                                quedaHoy: pp["quedaHoy"] as? Double ?? 0,
                                gastado: pp["gastadoMedido"] as? Double,
+                               restante: pp["restanteMedido"] as? Double,
                                desde: fecha(pp["medidoDesde"]),
                                cubreElDia: pp["cubreElDia"] as? Bool ?? false)
             } else if let motivo = pp["motivo"] as? String {
@@ -648,7 +656,7 @@ final class VistaCuenta: NSView {
         // y vuelven antes de llegar hasta acá.
         if let pre = p.presupuesto, p.hayNumero {
             switch pre {
-            case .reparte(let porDia, let quedaHoy, let gastado, let desde, let cubreElDia):
+            case .reparte(_, let porDiaHoy, let quedaHoy, let gastado, let restante, let desde, let cubreElDia):
                 // Las mismas tres ramas que `frasePresupuesto` en el núcleo.
                 // «hoy te queda X %» se leía como una resta que no ocurría —era
                 // el reparto de las horas que faltaban del día, y bajaba solo
@@ -658,15 +666,18 @@ final class VistaCuenta: NSView {
                 // En DOS renglones, como la bandeja y GNOME: en uno solo el menú
                 // cortaba la frase justo en «te queda X %», que es el número que
                 // se viene a buscar. Visto en una captura del menú de la barra.
-                let dia = String(format: "podés gastar %.1f %%/día", porDia)
+                // `porDiaHoy` y `restante` vienen de qm: el presupuesto fijado al
+                // arrancar la medición y la resta ya hecha. `porDia - g` contaba
+                // dos veces lo gastado hoy; queda sólo para un qm anterior.
+                let dia = String(format: "podés gastar %.1f %%/día", porDiaHoy)
                 if let g = gastado, cubreElDia {
                     self.presupuesto = [dia, String(format: "gastaste %.1f %% hoy · te queda %.1f %%",
-                                                    g, max(0, porDia - g))]
+                                                    g, restante ?? max(0, porDiaHoy - g))]
                 } else if let g = gastado, let d = desde {
                     let hhmm = DateFormatter()
                     hhmm.dateFormat = "HH:mm"
                     self.presupuesto = [dia, String(format: "gastaste %.1f %% desde las %@ · te queda %.1f %%",
-                                                    g, hhmm.string(from: d), max(0, porDia - g))]
+                                                    g, hhmm.string(from: d), restante ?? max(0, porDiaHoy - g))]
                 } else {
                     self.presupuesto = [dia, String(format: "de acá a medianoche te toca %.1f %%", quedaHoy)]
                 }

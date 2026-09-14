@@ -504,9 +504,14 @@ function presupuesto(pre) {
     // igual en todas o deja de ser la misma frase.
     ? new Date(pre.medidoDesde).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
     : null;
+  // El presupuesto de HOY es el que había al arrancar la medición: `porDia` es
+  // el de ahora en adelante y ya tiene adentro lo gastado hoy, así que restarle
+  // `medido` contaba cada punto dos veces. La resta la hace el núcleo; `porDia`
+  // queda sólo para un qm anterior que no mande los campos nuevos.
+  const porDiaHoy = pre.porDiaHoy ?? pre.porDia;
   const queda = medido === null || medido === undefined
     ? null
-    : Math.max(0, pre.porDia - medido);
+    : (pre.restanteMedido ?? Math.max(0, porDiaHoy - medido));
   const tip = esc(JSON.stringify({
     t: 'presupuesto diario · ' + pre.barra,
     l: [
@@ -526,7 +531,7 @@ function presupuesto(pre) {
       + `<span class="v">${unDecimal(medido)} %</span></span>`
       + `<span class="par"><span class="k">te queda</span><span class="v">${unDecimal(queda)} %</span></span>`;
   return `<div class="presupuesto" data-tip='${tip}'>
-    <span class="par"><span class="k">podés gastar</span><span class="v">${unDecimal(pre.porDia)} %/día</span></span>
+    <span class="par"><span class="k">podés gastar</span><span class="v">${unDecimal(porDiaHoy)} %/día</span></span>
     ${segundo}
     <span class="ventana">${esc(pre.barra)}</span>
   </div>`;

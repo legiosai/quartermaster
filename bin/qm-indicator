@@ -192,7 +192,10 @@ def pct_diario(pre: dict | None) -> float | None:
     gastado = pre.get("gastadoMedido")
     if gastado is None:
         return None
-    por_dia = pre.get("porDia") or 0
+    # El presupuesto de HOY, fijado al arrancar la medición. `porDia` es el de
+    # ahora en adelante y ya descontó lo gastado hoy: dividir por él contaba
+    # cada punto dos veces. `porDia` queda sólo para un qm anterior.
+    por_dia = pre.get("porDiaHoy", pre.get("porDia")) or 0
     # Sin presupuesto —la ventana ya está en 100 %— cualquier gasto es de más.
     if por_dia <= 0:
         return 100.0 if gastado > 0 else 0.0
@@ -218,13 +221,19 @@ def renglones_presupuesto(pre: dict) -> list[str]:
     # tarjeta muestra tres ventanas y el número reparte UNA, y sin decir cuál
     # queda un 24.1 que no cierra con ninguno de los tres porcentajes de arriba.
     barra = pre.get("barra")
-    dia = f"podés gastar {pre.get('porDia', 0):.1f} %/día" + (f" · {barra}" if barra else "")
+    # `porDiaHoy` y `restanteMedido`: el presupuesto fijado al arrancar la
+    # medición y la resta ya hecha por el núcleo. Restar de `porDia` contaba dos
+    # veces lo gastado hoy. Los de antes quedan para un qm anterior.
+    por_dia_hoy = pre.get("porDiaHoy", pre.get("porDia")) or 0
+    dia = f"podés gastar {por_dia_hoy:.1f} %/día" + (f" · {barra}" if barra else "")
     gastado, restante = pre.get("gastadoHoy"), pre.get("restanteHoy")
     if gastado is not None and restante is not None:
         return [dia, f"gastaste {gastado:.1f} % hoy · te queda {restante:.1f} %"]
     medido, desde = pre.get("gastadoMedido"), hora_local(pre.get("medidoDesde"))
     if medido is not None and desde is not None:
-        queda = max(0.0, (pre.get("porDia") or 0) - medido)
+        queda = pre.get("restanteMedido")
+        if queda is None:
+            queda = max(0.0, por_dia_hoy - medido)
         return [dia, f"gastaste {medido:.1f} % desde las {desde} · te queda {queda:.1f} %"]
     return [dia, f"de acá a medianoche te toca {pre.get('quedaHoy', 0):.1f} %"]
 
