@@ -115,6 +115,11 @@ def sin_campos_nuevos(entrada: dict) -> bool:
 
 
 # ── las implementaciones ─────────────────────────────────────────────────
+#
+# Todas leen la salida del hijo con encoding="utf-8" explícito. Sin eso Python
+# la decodifica con la codepage de la máquina, que en Windows no es UTF-8: las
+# cinco frases volvían con `é` y `·` rotos y el gate comparaba mojibake contra
+# el canon. Medido en el CI el 2026-09-14, no supuesto.
 def por_typescript() -> list[str]:
     """El núcleo. `frasePresupuesto` come el Presupuesto de adentro, no el JSON,
     así que se le arma uno con los campos que la frase usa. Un caso sin
@@ -137,7 +142,7 @@ def por_typescript() -> list[str]:
         "{...c, medidoDesde: c.medidoDesde===null?null:new Date(c.medidoDesde).getTime()}))));"
     )
     r = subprocess.run(["node", "--experimental-strip-types", "-e", guion],
-                       cwd=RAIZ, capture_output=True, text=True, timeout=60)
+                       cwd=RAIZ, capture_output=True, text=True, encoding="utf-8", timeout=60)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "node falló")
     return [SALTEADO if s is None else s for s in json.loads(r.stdout)]
@@ -173,13 +178,18 @@ def por_powershell() -> list[str]:
             "$dicho = foreach ($c in $casos) { (RenglonesPresupuesto $c) -join ' · ' }\n"
             f"[System.IO.File]::WriteAllLines('{dicho}', [string[]]$dicho, "
             "(New-Object System.Text.UTF8Encoding $false))\n",
-            encoding="utf-8")
+            # Con BOM: el Windows PowerShell 5.1 lee un .ps1 sin BOM en la
+            # codepage de la máquina, no en UTF-8, así que el `·` y los acentos
+            # del guión —los de la frase, justamente— le llegaban rotos y la
+            # bandeja «decía» otra cosa que las demás. Medido en el CI el
+            # 2026-09-14. scripts/gate-bandeja.ps1 ya arranca con BOM por esto.
+            encoding="utf-8-sig")
         orden = [EXE_PS, "-NoProfile"]
         if sys.platform == "win32":
             # Sólo existe en Windows: en el pwsh de Linux el proceso ni arranca.
             orden += ["-ExecutionPolicy", "Bypass"]
         r = subprocess.run(orden + ["-File", str(guion)],
-                           capture_output=True, text=True, timeout=120)
+                           capture_output=True, text=True, encoding="utf-8", timeout=120)
         if r.returncode != 0:
             raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "powershell falló")
         lineas = dicho.read_text(encoding="utf-8").splitlines()
@@ -202,7 +212,7 @@ def por_tablero() -> list[str]:
     with tempfile.TemporaryDirectory() as d:
         p = pathlib.Path(d) / "t.mjs"
         p.write_text(guion, encoding="utf-8")
-        r = subprocess.run(["node", str(p)], capture_output=True, text=True, timeout=60)
+        r = subprocess.run(["node", str(p)], capture_output=True, text=True, encoding="utf-8", timeout=60)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "node falló")
     salidas = []
@@ -260,7 +270,7 @@ def por_swift() -> list[str]:
             "                  c.desde.map { Date(timeIntervalSince1970: $0) }, c.cubreElDia)\n"
             '        .joined(separator: " · "))\n'
             "}\n", encoding="utf-8")
-        r = subprocess.run(["swift", str(p)], capture_output=True, text=True, timeout=300)
+        r = subprocess.run(["swift", str(p)], capture_output=True, text=True, encoding="utf-8", timeout=300)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "swift falló")
     dichas = iter(r.stdout.strip().split("\n"))
