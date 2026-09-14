@@ -131,8 +131,23 @@ V=0.1.6 DIR=dist/paquetes/winget/manifests/l/Legios/Quartermaster/0.1.6 \
   GITHUB_TOKEN=$(gh auth token) node scripts/mandar-pr-winget.mjs --en-seco
 ```
 
-`--en-seco` llega hasta comprobar el token, el fork y la sincronización con
-Microsoft, y para antes de tocar nada.
+`--en-seco` llega hasta comprobar el token y el fork, y para antes de tocar
+nada. `--plan` va un paso más: dice si el paquete ya está en el catálogo, si hay
+un PR abierto, y qué haría con esta versión — tampoco toca nada.
+
+**Un solo PR mientras el paquete no esté en el catálogo.** Hasta la 0.1.11 cada
+release abría su propio «New package»: el 2026-09-14 había seis abiertos, de
+0.1.6 a 0.1.11, esperando al mismo moderador voluntario, con el primero validado
+desde el día anterior. Se cerraron los cinco viejos a favor del de 0.1.11
+(#434699). Ahora, si hay un PR abierto de este paquete —de la versión que sea—,
+la release nueva se empuja a esa rama, se le cambia el título y se deja un
+comentario para el moderador. Cuando el paquete ya está en el catálogo, cada
+versión va en su propio PR, que es lo normal ahí.
+
+**El CLA se contesta en cada PR nuevo.** El bot marca `Needs-CLA` en cada PR
+aunque la cuenta ya haya firmado, y no la saca hasta que se le responde en ESE
+PR (`@microsoft-github-policy-service agree company="Legios"`). El job lo
+responde solo al abrir uno: el token es de la cuenta que firmó.
 
 El manifest declara `OpenJS.NodeJS.LTS` como dependencia: eso es lo que hace que
 `winget install Legios.Quartermaster` en una máquina sin Node resuelva las dos

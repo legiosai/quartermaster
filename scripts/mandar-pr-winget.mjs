@@ -17,6 +17,19 @@
 //
 // Todo por la API, sin clonar: winget-pkgs son cientos de miles de archivos y
 // un clone en cada release sería minutos de runner para tocar cuatro YAML.
+//
+// UN SOLO PR MIENTRAS EL PAQUETE NO ESTÉ EN EL CATÁLOGO. Hasta el 2026-09-14
+// cada release abría su propio «New package»: seis PRs abiertos a la vez, de
+// 0.1.6 a 0.1.11, esperando al mismo moderador, con el primero validado desde
+// el día anterior. Un paquete nuevo lo aprueba a mano un moderador voluntario,
+// y seis envíos del mismo paquete son ruido en el repo de otro y un motivo para
+// cerrarlos. Ahora, si hay un PR abierto de este paquete —de la versión que
+// sea—, la release NUEVA se empuja a esa rama y se le cambia el título: el
+// moderador ve un solo envío, siempre con la última versión. Una vez que el
+// paquete está en el catálogo, cada versión va en su PR, que es lo normal ahí.
+//
+//   --en-seco   ¿el token llega a la org y al fork? No toca nada.
+//   --plan      además dice qué haría con esta versión. Tampoco toca nada.
 
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -27,17 +40,20 @@ const DIR    = process.env.DIR;
 const ARRIBA = process.env.UPSTREAM ?? 'microsoft/winget-pkgs';
 const FORK   = process.env.FORK ?? 'legiosai/winget-pkgs';
 const SECO   = process.argv.includes('--en-seco');
+const PLAN   = process.argv.includes('--plan');
 
 // DIR sólo hace falta cuando de verdad se va a mandar algo: --en-seco existe
 // para poder preguntar «¿este token llega a la organización?» sin haber armado
 // los manifests, que es lo que hay que poder contestar ANTES de tirar un tag.
-for (const [k, v] of Object.entries({ GITHUB_TOKEN: TOKEN, V, ...(SECO ? {} : { DIR }) })) {
+for (const [k, v] of Object.entries({ GITHUB_TOKEN: TOKEN, V, ...(SECO || PLAN ? {} : { DIR }) })) {
   if (!v) { console.error(`falta ${k}`); process.exit(2); }
 }
 
 const [ORG] = FORK.split('/');
-const RAMA  = `Legios.Quartermaster-${V}`;
-const RUTA  = `manifests/l/Legios/Quartermaster/${V}`;
+const PAQUETE = 'Legios.Quartermaster';
+const PREFIJO_RAMA = `${PAQUETE}-`;
+const RUTA_PAQUETE = 'manifests/l/Legios/Quartermaster';
+const RUTA  = `${RUTA_PAQUETE}/${V}`;
 
 async function api(metodo, ruta, cuerpo) {
   const r = await fetch(`https://api.github.com/${ruta}`, {
@@ -85,6 +101,7 @@ if (!org.ok) {
 // ── el fork de la org ─────────────────────────────────────────────────
 let fork = await api('GET', `repos/${FORK}`);
 if (!fork.ok) {
+  if (PLAN) { console.log(`· --plan: ${FORK} no existe; se forkearía ${ARRIBA} y se abriría un PR nuevo`); process.exit(0); }
   console.log(`· ${FORK} no existe: forkeando ${ARRIBA} a la organización`);
   const hecho = await api('POST', `repos/${ARRIBA}/forks`, {
     organization: ORG, default_branch_only: true,
@@ -104,6 +121,55 @@ if (!fork.datos.permissions?.push) {
 const base = fork.datos.default_branch;
 console.log(`· fork: ${FORK} (rama base ${base})`);
 
+if (SECO) { console.log('· --en-seco: hasta acá llego'); process.exit(0); }
+
+// ── qué corresponde: PR nuevo, o el que ya está abierto ───────────────
+// En el catálogo = ya hay una carpeta del paquete en winget-pkgs.
+const catalogo = await api('GET', `repos/${ARRIBA}/contents/${RUTA_PAQUETE}`);
+const enCatalogo = catalogo.ok;
+
+/** El PR abierto de este paquete desde el fork, de la versión que sea, o null. */
+async function prAbierto() {
+  // Se buscan las ramas del fork y no con la búsqueda de GitHub: el índice de
+  // búsqueda tarda minutos en enterarse de un PR cerrado, y acá eso sería
+  // empujarle una versión a un PR que ya no existe.
+  const ramas = [];
+  for (let pagina = 1; pagina <= 10; pagina++) {
+    const r = await api('GET', `repos/${FORK}/branches?per_page=100&page=${pagina}`);
+    if (!r.ok) morir(`no pude listar las ramas de ${FORK}`, r);
+    ramas.push(...r.datos.map((b) => b.name).filter((n) => n.startsWith(PREFIJO_RAMA)));
+    if (r.datos.length < 100) break;
+  }
+  // La más nueva primero: si por algo quedaran dos, se usa la de la última versión.
+  ramas.sort((a, b) => b.localeCompare(a, 'en', { numeric: true }));
+  for (const rama of ramas) {
+    const ps = await api('GET', `repos/${ARRIBA}/pulls?head=${ORG}:${rama}&state=open`);
+    if (ps.ok && ps.datos.length > 0) return ps.datos[0];
+  }
+  return null;
+}
+
+// Con el paquete en el catálogo cada versión va en su propio PR; mientras no,
+// se reusa el que esté abierto.
+const abierto = enCatalogo
+  ? (await api('GET', `repos/${ARRIBA}/pulls?head=${ORG}:${PREFIJO_RAMA}${V}&state=open`)).datos?.[0] ?? null
+  : await prAbierto();
+const RAMA = abierto?.head.ref ?? `${PREFIJO_RAMA}${V}`;
+const titulo = `${enCatalogo ? 'New version' : 'New package'}: ${PAQUETE} version ${V}`;
+
+console.log(`· ${PAQUETE} ${enCatalogo ? 'ya está' : 'todavía no está'} en el catálogo de ${ARRIBA}`);
+console.log(abierto
+  ? `· PR abierto: #${abierto.number} (${abierto.title}), rama ${RAMA}`
+  : '· no hay un PR abierto de este paquete');
+
+if (PLAN) {
+  console.log(abierto
+    ? `· --plan: se empujaría ${V} a ${ORG}:${RAMA} y #${abierto.number} pasaría a llamarse «${titulo}»`
+    : `· --plan: se abriría un PR nuevo «${titulo}» desde ${ORG}:${RAMA}`);
+  process.exit(0);
+}
+
+// ── la rama con los cuatro manifests ──────────────────────────────────
 // Ponerlo al día con Microsoft antes de ramificar. Sin esto el fork se queda
 // donde quedó la release anterior y el PR arrastra la diferencia.
 const aldia = await api('POST', `repos/${FORK}/merge-upstream`, { branch: base });
@@ -111,9 +177,6 @@ console.log(aldia.ok
   ? `· ${base} al día con ${ARRIBA}: ${aldia.datos.merge_type}`
   : `· no pude sincronizar ${base} (HTTP ${aldia.estado}); sigo igual`);
 
-if (SECO) { console.log('· --en-seco: hasta acá llego'); process.exit(0); }
-
-// ── la rama con los cuatro manifests ──────────────────────────────────
 const ref = await api('GET', `repos/${FORK}/git/ref/heads/${base}`);
 if (!ref.ok) morir(`no pude leer ${base} del fork`, ref);
 const shaBase = ref.datos.object.sha;
@@ -131,34 +194,29 @@ for (const f of archivos) {
   console.log(`  · ${f}`);
 }
 
+// El árbol sale de la base, no de la rama: si la rama era de otra versión, la
+// carpeta vieja desaparece y el PR queda tocando UN solo manifest, que es lo que
+// pide la checklist de winget-pkgs.
 const tree = await api('POST', `repos/${FORK}/git/trees`, { base_tree: shaBase, tree: arbol });
 if (!tree.ok) morir('no pude armar el árbol', tree);
 
 const commit = await api('POST', `repos/${FORK}/git/commits`, {
-  message: `New package: Legios.Quartermaster version ${V}`,
-  tree: tree.datos.sha, parents: [shaBase],
+  message: titulo, tree: tree.datos.sha, parents: [shaBase],
 });
 if (!commit.ok) morir('no pude armar el commit', commit);
 
-// force: un rerun del job tiene que poder repetirse sin dejar la rama a medias.
+// force: un rerun del job tiene que poder repetirse sin dejar la rama a medias,
+// y empujar una versión nueva a la rama de otra reemplaza su contenido.
 let rama = await api('PATCH', `repos/${FORK}/git/refs/heads/${RAMA}`, { sha: commit.datos.sha, force: true });
 if (!rama.ok) rama = await api('POST', `repos/${FORK}/git/refs`, { ref: `refs/heads/${RAMA}`, sha: commit.datos.sha });
 if (!rama.ok) morir(`no pude dejar la rama ${RAMA}`, rama);
 console.log(`· rama ${ORG}:${RAMA} en ${commit.datos.sha.slice(0, 10)}`);
 
 // ── el PR ─────────────────────────────────────────────────────────────
-// Si ya hay uno abierto con esta misma cabeza, el push de arriba ya lo
-// actualizó: abrir otro sería ruido en el repo de otro.
-const abiertos = await api('GET', `repos/${ARRIBA}/pulls?head=${ORG}:${RAMA}&state=open`);
-if (abiertos.ok && abiertos.datos.length > 0) {
-  console.log(`::notice::winget: el PR ya estaba abierto y se actualizó: ${abiertos.datos[0].html_url}`);
-  process.exit(0);
-}
-
 const cuerpo = [
   '## 📖 Description',
   '',
-  `New package: **Legios.Quartermaster** version ${V} — a CLI that reports how much`,
+  `${enCatalogo ? 'New version' : 'New package'}: **${PAQUETE}** version ${V} — a CLI that reports how much`,
   'quota is left across every Claude Code profile on the machine, plus Codex and',
   'opencode. MIT, source at https://github.com/legiosai/quartermaster',
   '',
@@ -170,9 +228,14 @@ const cuerpo = [
   '  inno`, `Scope: user`). The Node dependency\'s MSI does, so a machine without',
   '  Node will see one UAC prompt that is not ours.',
   '',
+  ...(enCatalogo ? [] : [
+    'While this package is waiting for its first review, new releases are pushed',
+    'to this same PR instead of opening another one.',
+    '',
+  ]),
   '## ✅ Checklist',
   '',
-  '- [ ] Signed the [Contributor License Agreement](https://cla.opensource.microsoft.com)',
+  '- [x] Signed the [Contributor License Agreement](https://cla.opensource.microsoft.com)',
   '',
   '## 📦 Manifest Checklist',
   '',
@@ -181,9 +244,31 @@ const cuerpo = [
   '- [ ] Tested manifest locally with `winget install --manifest <path>`',
 ].join('\n');
 
+if (abierto) {
+  const antes = abierto.title;
+  const cambio = await api('PATCH', `repos/${ARRIBA}/pulls/${abierto.number}`, { title: titulo, body: cuerpo });
+  if (!cambio.ok) morir(`empujé ${V} pero no pude renombrar #${abierto.number}`, cambio);
+  if (antes !== titulo) {
+    // Una línea para el moderador: el PR que estaba mirando cambió de versión.
+    await api('POST', `repos/${ARRIBA}/issues/${abierto.number}/comments`, {
+      body: `Updated to ${PAQUETE} ${V} (was: “${antes}”). Pushing new releases here instead of opening a new PR.`,
+    });
+  }
+  console.log(`::notice::winget: ${V} empujada al PR que ya estaba abierto — ${abierto.html_url}`);
+  process.exit(0);
+}
+
 const pr = await api('POST', `repos/${ARRIBA}/pulls`, {
-  title: `New package: Legios.Quartermaster version ${V}`,
-  head: `${ORG}:${RAMA}`, base, body: cuerpo, maintainer_can_modify: true,
+  title: titulo, head: `${ORG}:${RAMA}`, base, body: cuerpo, maintainer_can_modify: true,
 });
 if (!pr.ok) morir('no pude abrir el PR', pr);
 console.log(`::notice::winget: PR abierto — ${pr.datos.html_url}`);
+
+// El bot del CLA marca cada PR nuevo con Needs-CLA aunque la cuenta ya haya
+// firmado, y no la saca hasta que se le contesta en ESE PR. Pasó en los cinco
+// PRs después del primero. El token es de la cuenta que firmó, así que la
+// respuesta la puede dar el job.
+const cla = await api('POST', `repos/${ARRIBA}/issues/${pr.datos.number}/comments`, {
+  body: '@microsoft-github-policy-service agree company="Legios"',
+});
+console.log(cla.ok ? '· CLA: respondido en el PR' : `· CLA: no pude comentar (HTTP ${cla.estado}); hay que hacerlo a mano`);
