@@ -428,10 +428,21 @@ y había una línea diciendo que sí.
   2026-09-13** por la release de 0.1.6: `winget validate` corrió sobre los
   cuatro manifests generados y dijo `Manifest validation succeeded` (con un
   aviso de que no puede validar la dependencia `OpenJS.NodeJS.LTS`, que es
-  esperable: valida forma, no catálogo), y el PR salió: el #434160. Lo que
-  falta ver es del otro lado: qué dice el CI de `microsoft/winget-pkgs` y qué
-  pide el revisor. Está frenado en el CLA, que lo firma una persona. Eso no
-  depende de nosotros y no tiene fecha.
+  esperable: valida forma, no catálogo), y el PR salió: el #434160. Del CI de
+  `microsoft/winget-pkgs` ya contestaron seis checks en verde —Pull Request
+  Validation, Manifest Validation, URLs Validation, URL Domain Validation,
+  Manifest Policy Validation y Catalog Content Verification—; los otros cuatro
+  y el revisor esperan al CLA, que lo firma una persona. Eso no depende de
+  nosotros y no tiene fecha.
+- **`scripts/mandar-pr-winget.mjs` corriendo EN CI, con `TOKEN_WINGET`.** El
+  camino completo —forkear a la org, ramificar, abrir el PR— se ejecutó a mano
+  desde esta máquina y con otro token; lo que corrió con `TOKEN_WINGET` fue la
+  versión vieja, la de `wingetcreate`. En CI, del script nuevo, sólo está
+  probado que falle: `make gate-winget-rojo`. Lo que no se sabe es si un PAT
+  classic con `public_repo` alcanza para escribir en un repo de la
+  organización desde un runner — el script lo comprueba antes de tocar nada de
+  Microsoft y falla con el link a la pantalla de la org, pero eso también está
+  sin ejecutar. Se sabrá en el próximo tag.
 
 La diferencia entre esta sección y el resto del archivo es la de siempre:
 arriba están los números, acá están las preguntas, y ninguna de las dos se
