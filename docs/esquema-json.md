@@ -52,6 +52,38 @@ Each entry of `perfiles`:
 }
 ```
 
+### `presupuesto`
+
+```jsonc
+{
+  "estado": "ok",
+  "barra": "weekly_all",
+  "porDia": 11.6,          // puntos por día para llegar justo al reinicio
+  "gastadoHoy": 4.2,       // lo que subió la barra desde medianoche, o null
+  "restanteHoy": 7.4,      // porDia - gastadoHoy, piso 0; null si gastadoHoy es null
+  "quedaHoy": 5.8,         // el reparto a ritmo parejo de las horas que faltan HOY
+  "restante": 80, "horasHoy": 12, "horasRestantes": 167
+}
+```
+
+**`quedaHoy` no es «lo que te queda de hoy».** Es el reparto a ritmo parejo de
+las horas que faltan del día, y no le resta lo gastado. Con la cuota quieta baja
+sola con el reloj: medido el 2026-09-13, de 10,5 a 0,5 a lo largo de un día en
+el que no se gastó nada. La frase decía «hoy te queda X %», que promete una
+resta que no ocurre — se lee como budget y se calcula como reloj.
+
+Lo que sí contesta esa pregunta es **`restanteHoy`**, que sale de `gastadoHoy`:
+la suma de los saltos HACIA ARRIBA de la barra desde la medianoche. Sólo los de
+subida, porque una ventana se puede reiniciar en medio del día —una semanal real
+fue de 84 % a 6 %— y restar la última menos la primera daría −78 puntos.
+
+`gastadoHoy` es **`null`** cuando el historial no cubre el arranque del día (más
+de media hora entre la medianoche y la primera lectura, sin una de ayer que diga
+con cuánto se llegó). `null` es «no se pudo medir», no «no gastaste nada»: con
+la primera lectura a las 03:10 no se sabe qué pasó antes, y suponer que no pasó
+nada es inventar. En ese caso la frase cae al reparto por hora, dicho como lo
+que es: «de acá a medianoche te toca X %».
+
 ### `ultimoUso`
 
 A sibling of `local`, **not** a field inside it — and the difference matters.

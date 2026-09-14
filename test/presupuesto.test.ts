@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { presupuestoDiario } from '../src/core/presupuesto.ts';
+import { presupuestoDiario, frasePresupuesto, gastadoDesdeMedianoche } from '../src/core/presupuesto.ts';
 import type { VentanaCuota } from '../src/core/tipos.ts';
 
 const H = 3600_000;
@@ -113,4 +113,75 @@ test('el presupuesto de hoy nunca es más que lo que queda en la ventana', () =>
       assert.ok(r.quedaHoy >= 0);
     }
   }
+});
+
+// ─── «hoy te queda» prometía una resta que no ocurría ─────────────────────
+//
+// `quedaHoy` es el reparto a ritmo parejo de las horas que faltan del día. La
+// frase decía «hoy te queda X %», que se lee como «de la cuota de hoy queda X».
+// No son lo mismo: con la cuota QUIETA el número bajaba de 10,5 a 0,5 a lo
+// largo del día sin que nadie gastara nada. Multiplicar por horasHoy/24
+// descuenta el rato que ya pasó como si se hubiera gastado, encima de lo que ya
+// está reflejado en el porcentaje.
+
+const RESET = new Date('2026-09-20T12:00:00Z');
+const semanalDe = (pct: number) => [{
+  clave: 'weekly_all', porcentaje: pct, reinicia: RESET,
+  severidad: 'normal', activa: true, alcance: null, grupo: 'weekly',
+}];
+const HORA = (h: number) => new Date(`2026-09-13T${String(h).padStart(2, '0')}:00:00-03:00`).getTime();
+
+test('sin gastar nada, lo que queda hoy NO baja con el reloj', () => {
+  const quieto = [0, 3, 6, 9, 12].map((h) => ({ t: HORA(h), porcentaje: 20 }));
+  const manana = presupuestoDiario(semanalDe(20), HORA(6), quieto);
+  const noche = presupuestoDiario(semanalDe(20), HORA(12), quieto);
+  assert.equal(manana.estado, 'ok');
+  assert.equal(noche.estado, 'ok');
+  if (manana.estado !== 'ok' || noche.estado !== 'ok') return;
+  assert.equal(manana.gastadoHoy, 0);
+  assert.equal(noche.gastadoHoy, 0);
+  // Lo que queda sigue al presupuesto del día, no a la hora que es.
+  assert.equal(manana.restanteHoy, manana.porDia);
+  assert.equal(noche.restanteHoy, noche.porDia);
+  // Y el viejo `quedaHoy` sigue existiendo, pero se desploma: por eso no se
+  // muestra más con esa frase.
+  assert.ok(noche.quedaHoy < manana.quedaHoy);
+});
+
+test('un reinicio en medio del día no da consumo negativo', () => {
+  // El caso real del 2026-09-13: una semanal de 84 % a 6 % en pocas horas.
+  // Restar la última menos la primera daría -78 puntos.
+  const conReinicio = [
+    { t: HORA(0), porcentaje: 84 }, { t: HORA(2), porcentaje: 88 },
+    { t: HORA(4), porcentaje: 2 }, { t: HORA(8), porcentaje: 6 },
+  ];
+  assert.equal(gastadoDesdeMedianoche(conReinicio, HORA(9)), 8);
+});
+
+test('sin historial que cubra el arranque del día, gastadoHoy es null', () => {
+  // Primera lectura a las 03:10 y nada de ayer: entre la medianoche y esa hora
+  // no se sabe qué pasó, y suponer que no pasó nada es inventar.
+  const hueco = [{ t: HORA(3) + 600_000, porcentaje: 20 }, { t: HORA(8), porcentaje: 24 }];
+  assert.equal(gastadoDesdeMedianoche(hueco, HORA(9)), null);
+  const p = presupuestoDiario(semanalDe(24), HORA(9), hueco);
+  assert.equal(p.estado, 'ok');
+  if (p.estado !== 'ok') return;
+  assert.equal(p.gastadoHoy, null);
+  assert.equal(p.restanteHoy, null);
+  // Y la frase cae al modo honesto, sin prometer una resta.
+  assert.match(frasePresupuesto(p), /de acá a medianoche/);
+  assert.doesNotMatch(frasePresupuesto(p), /te queda/);
+});
+
+test('gastando de más, lo que queda es cero y no negativo', () => {
+  const gasta = [
+    { t: HORA(0), porcentaje: 10 }, { t: HORA(3), porcentaje: 15 },
+    { t: HORA(6), porcentaje: 22 }, { t: HORA(9), porcentaje: 30 },
+  ];
+  const p = presupuestoDiario(semanalDe(30), HORA(9), gasta);
+  assert.equal(p.estado, 'ok');
+  if (p.estado !== 'ok') return;
+  assert.equal(p.gastadoHoy, 20);
+  assert.equal(p.restanteHoy, 0);
+  assert.match(frasePresupuesto(p), /gastaste 20\.0 % hoy · te queda 0\.0 %/);
 });

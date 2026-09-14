@@ -33,8 +33,21 @@ export type Presupuesto =
       readonly ventana: VentanaCuota;
       /** Puntos de cuota por día, de ahora al reinicio, para llegar justo al 100 %. */
       readonly porDia: number;
-      /** Puntos que podés gastar en lo que queda de hoy sin salirte de ese ritmo. */
+      /**
+       * Puntos que le tocan a lo que queda de hoy a ritmo parejo.
+       *
+       * NO es «lo que te queda de la cuota de hoy»: no le resta lo que ya
+       * gastaste, porque este número no sabe cuánto gastaste. Baja con el reloj
+       * aunque no toques nada. Para lo otro está `gastadoHoy`.
+       */
       readonly quedaHoy: number;
+      /**
+       * Lo que subió la barra desde la medianoche, cuando el historial alcanza
+       * para saberlo. `null` es «no se pudo medir», no «no gastaste nada».
+       */
+      readonly gastadoHoy: number | null;
+      /** `porDia − gastadoHoy`, con piso en cero. `null` si no hay `gastadoHoy`. */
+      readonly restanteHoy: number | null;
       /** Lo que queda en la ventana, en puntos. */
       readonly restante: number;
       /** Horas hasta el reinicio. */
@@ -58,9 +71,61 @@ function finDelDia(ahora: number): number {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0).getTime();
 }
 
+/**
+ * Lo que subió esta barra desde la medianoche local.
+ *
+ * Se suman sólo los saltos HACIA ARRIBA. Una ventana se puede reiniciar en
+ * medio del día —pasó el 2026-09-13: una semanal fue de 84 % a 6 % a las pocas
+ * horas— y ahí el porcentaje no es monótono. Restar la primera lectura de la
+ * última daría −78 puntos, que además de absurdo es la clase de número que se
+ * muestra con confianza. Sumando deltas positivos, el reinicio aporta 0 y lo
+ * que se gastó después se cuenta igual.
+ *
+ * Devuelve null si el historial no cubre el arranque del día. Es la regla de
+ * siempre: lo que no se puede medir es null, no cero. Con una primera lectura a
+ * las 03:10 no se sabe qué pasó entre la medianoche y esa hora, y suponer que
+ * no pasó nada es inventar.
+ */
+export function gastadoDesdeMedianoche(
+  lecturas: readonly { readonly t: number; readonly porcentaje: number }[],
+  ahora: number = Date.now(),
+): number | null {
+  const d = new Date(ahora);
+  const medianoche = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const deHoy = lecturas.filter((l) => l.t >= medianoche && l.t <= ahora).sort((a, b) => a.t - b.t);
+  if (deHoy.length < 2) return null;
+
+  // El día tiene que estar cubierto desde el principio. Sin una lectura cerca
+  // de la medianoche —o una de ayer que diga con cuánto se llegó— el tramo
+  // inicial es un agujero.
+  const anterior = lecturas.filter((l) => l.t < medianoche).sort((a, b) => a.t - b.t).pop();
+  const arranque = anterior ?? deHoy[0]!;
+  const huecoMs = deHoy[0]!.t - arranque.t;
+  if (anterior === undefined || huecoMs > TOLERANCIA_ARRANQUE_MS) {
+    if (deHoy[0]!.t - medianoche > TOLERANCIA_ARRANQUE_MS) return null;
+  }
+
+  let subida = 0;
+  let previo = (anterior ?? deHoy[0]!).porcentaje;
+  for (const l of deHoy) {
+    if (l.porcentaje > previo) subida += l.porcentaje - previo;
+    previo = l.porcentaje;
+  }
+  return Math.round(subida * 10) / 10;
+}
+
+/**
+ * Cuánto puede faltar entre la medianoche y la primera lectura del día para
+ * seguir dando el total por bueno. Media hora: el sondeo corre cada 5 minutos
+ * como mucho, así que un hueco mayor es la máquina apagada o suspendida, y ahí
+ * no se sabe qué pasó.
+ */
+export const TOLERANCIA_ARRANQUE_MS = 30 * 60_000;
+
 export function presupuestoDiario(
   ventanas: readonly VentanaCuota[],
   ahora: number = Date.now(),
+  lecturas: readonly { readonly t: number; readonly porcentaje: number }[] = [],
 ): Presupuesto {
   const v = semanal(ventanas);
   if (v === null) {
@@ -83,19 +148,38 @@ export function presupuestoDiario(
   const porDia = restante / (horasRestantes / 24);
   // El día se corta donde corte primero: la medianoche o el reinicio.
   const horasHoy = Math.min(finDelDia(ahora) - ahora, msRestantes) / 3600_000;
+  const gastadoHoy = gastadoDesdeMedianoche(lecturas, ahora);
   return {
     estado: 'ok',
     ventana: v,
     porDia,
     quedaHoy: porDia * (horasHoy / 24),
+    gastadoHoy,
+    restanteHoy: gastadoHoy === null ? null : Math.max(0, porDia - gastadoHoy),
     restante,
     horasRestantes,
     horasHoy,
   };
 }
 
-/** «podés gastar 12.3 %/día · hoy te queda 4.1 %». La misma frase en todas las pantallas. */
+/**
+ * La misma frase en todas las pantallas, y dice lo que calcula.
+ *
+ * Antes decía «hoy te queda 4.1 %» para un número que NO le restaba lo gastado:
+ * era el reparto a ritmo parejo de las horas que faltaban del día. Con la
+ * cuota quieta bajaba de 10,5 a 0,5 a lo largo del día sin que nadie gastara
+ * nada — «te queda» prometía una resta que no ocurría, y siempre para abajo.
+ *
+ * Ahora hay dos frases porque hay dos cosas distintas:
+ *
+ *   - con historial que cubra el día: lo gastado y lo que queda DE VERDAD;
+ *   - sin él: el reparto por hora, dicho como lo que es.
+ */
 export function frasePresupuesto(p: Presupuesto): string {
   if (p.estado === 'sin-datos') return `presupuesto diario: ${p.motivo}`;
-  return `podés gastar ${p.porDia.toFixed(1)} %/día · hoy te queda ${p.quedaHoy.toFixed(1)} %`;
+  const dia = `podés gastar ${p.porDia.toFixed(1)} %/día`;
+  if (p.gastadoHoy !== null && p.restanteHoy !== null) {
+    return `${dia} · gastaste ${p.gastadoHoy.toFixed(1)} % hoy · te queda ${p.restanteHoy.toFixed(1)} %`;
+  }
+  return `${dia} · de acá a medianoche te toca ${p.quedaHoy.toFixed(1)} %`;
 }

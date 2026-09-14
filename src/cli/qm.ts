@@ -622,7 +622,7 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
     }
     // El ritmo dice hacia dónde vas; el presupuesto, a cuánto tenés que ir.
     if (f.cuota.estado === 'ok') {
-      const pre = presupuestoDiario(f.cuota.ventanas);
+      const pre = presupuestoDiario(f.cuota.ventanas, Date.now(), historialDe(f.cuota, f.perfil.nombre));
       console.log(
         `  ${relleno('', 18)} ${tenue('presupuesto: ')}` +
           (pre.estado === 'ok'
@@ -746,9 +746,21 @@ const ventanaJson0 = (v: VentanaCuota | null): Record<string, unknown> | null =>
  * repartió, cuánto por día y cuánto queda de hoy. Los que dibujan no dividen
  * nada — la cuenta, incluido CUÁL ventana se reparte, vive en el núcleo.
  */
-function presupuestoJson(cuota: ResultadoCuota): Record<string, unknown> {
+/**
+ * Las muestras históricas de la barra larga de esta cuenta, que es la que el
+ * presupuesto reparte. Sin esto `gastadoHoy` es siempre null y la frase cae al
+ * modo «reparto por hora».
+ */
+function historialDe(cuota: ResultadoCuota, perfil: string): { t: number; porcentaje: number }[] {
+  if (cuota.estado !== 'ok') return [];
+  const larga = semanal(cuota.ventanas);
+  if (larga === null) return [];
+  return muestras(perfil, claveBarra(larga.clave, larga.alcance));
+}
+
+function presupuestoJson(cuota: ResultadoCuota, perfil: string): Record<string, unknown> {
   if (cuota.estado !== 'ok') return { estado: 'sin-datos', motivo: 'esta cuenta no tiene número de cuota' };
-  const p: Presupuesto = presupuestoDiario(cuota.ventanas);
+  const p: Presupuesto = presupuestoDiario(cuota.ventanas, Date.now(), historialDe(cuota, perfil));
   if (p.estado !== 'ok') return { estado: 'sin-datos', motivo: p.motivo };
   const un = (n: number): number => Number(n.toFixed(1));
   return {
@@ -758,6 +770,10 @@ function presupuestoJson(cuota: ResultadoCuota): Record<string, unknown> {
     alcance: p.ventana.alcance,
     porDia: un(p.porDia),
     quedaHoy: un(p.quedaHoy),
+    // Lo que subió la barra desde la medianoche, y lo que queda del día
+    // descontándolo. `null` es «el historial no cubre el día», no «cero».
+    gastadoHoy: p.gastadoHoy === null ? null : un(p.gastadoHoy),
+    restanteHoy: p.restanteHoy === null ? null : un(p.restanteHoy),
     restante: un(p.restante),
     horasHoy: un(p.horasHoy),
     horasRestantes: un(p.horasRestantes),
@@ -837,7 +853,7 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
       // al reinicio, y cuánto de eso queda hoy. Va al lado de la proyección
       // porque contesta la otra mitad de la misma pregunta: el ritmo dice hacia
       // dónde vas, el presupuesto a cuánto tendrías que ir.
-      presupuesto: presupuestoJson(f.cuota),
+      presupuesto: presupuestoJson(f.cuota, f.perfil.nombre),
       // Cuándo se usó esta cuenta por última vez.
       //
       // Va AL LADO de `local` y no adentro, a propósito. `local` se anula
