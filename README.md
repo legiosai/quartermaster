@@ -49,10 +49,11 @@ brew install legiosai/tap/quartermaster        # macOS and Linux
 npm install -g @legios/quartermaster           # anywhere
 ```
 
-**The menu bar item, from brew:** `brew services start quartermaster` puts it
-in the menu bar right away and at every login. The install itself does not:
-brew can't start anything from a formula, and a tool that reads OAuth tokens
-shouldn't register login agents nobody asked for.
+**The menu bar item on macOS:** the first time you run `qm` in a terminal, it
+asks once whether to put it in the menu bar and start it at every login. The
+install itself can't: brew can't start anything from a formula, and a tool that
+reads OAuth tokens shouldn't register login agents nobody asked for. Without the
+question: `brew services start quartermaster`.
 
 **Windows:** the installer from the [latest
 release](https://github.com/legiosai/quartermaster/releases/latest). Per-user

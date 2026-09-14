@@ -14,6 +14,8 @@
 
 import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
+import { ofrecerBarra } from '../adapters/barra.ts';
 import { descubrirPerfiles } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
 import { consumoDesde, transcripciones, ultimaActividad } from '../adapters/transcripciones.ts';
@@ -1105,7 +1107,12 @@ const unaVuelta = async (): Promise<number> => {
 };
 
 if (opciones.watch === null) {
-  process.exit(await unaVuelta());
+  const codigo = await unaVuelta();
+  // Después de los números, nunca antes: la pregunta de la barra es para quien
+  // acaba de instalar y corre `qm` a secas. Ver src/adapters/barra.ts.
+  const modoNormal = !opciones.json && !opciones.breve && opciones.umbral === null;
+  await ofrecerBarra(fileURLToPath(new URL('../..', import.meta.url)), modoNormal);
+  process.exit(codigo);
 }
 
 // --watch: se redibuja hasta que lo maten. Se limpia la pantalla sólo si hay
