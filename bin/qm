@@ -33,6 +33,25 @@ else
   done
 fi
 
+# `src/adapters/opencode.ts` usa node:sqlite, que es experimental, así que Node
+# escribe DOS renglones en stderr en cada corrida de qm:
+#
+#   (node:56893) ExperimentalWarning: SQLite is an experimental feature…
+#   (Use `node --trace-warnings ...` to show where the warning was created)
+#
+# Eso no es un mensaje de qm y no es para quien lo corre, pero sale por el mismo
+# canal por el que qm explica las cosas: desde 0.1.8 `qm --calentar` dice por ahí
+# por qué una cuenta no se calentó, y la barra de macOS y el indicador de GNOME
+# anotan esos renglones en el log. Medido el 2026-09-14 con Node 22 en Debian:
+# el journal del indicador quedaba con dos renglones de warning por cada pid de
+# node, y el motivo de verdad enterrado entre ellos. Un monitor cuyo canal de
+# explicaciones viene con ruido de fábrica no se puede leer.
+#
+# Se apaga SÓLO esa clase de warning, no todas: una deprecación de verdad tiene
+# que seguir saliendo. La bandera existe desde Node 21.3 y el piso de este repo
+# es 22.6, así que siempre está.
+SIN_EXPERIMENTAL="--disable-warning=ExperimentalWarning"
+
 if [ -z "$NODO" ]; then
   echo "qm necesita Node >= 22.6 y no encontré ninguno." >&2
   echo "Lee TypeScript sin paso de build, y eso recién existe desde 22.6." >&2
@@ -77,7 +96,7 @@ if [ -f "$RAIZ/dist/cli/qm.js" ]; then
     echo "    Tus cambios en src/ NO se están viendo. Corré \`npm run construir\`," >&2
     echo "    o borrá dist/ para volver a leer el TypeScript directo." >&2
   fi
-  exec "$NODO" "$RAIZ/dist/cli/qm.js" "$@"
+  exec "$NODO" $SIN_EXPERIMENTAL "$RAIZ/dist/cli/qm.js" "$@"
 fi
 
-exec "$NODO" "$RAIZ/src/cli/qm.ts" "$@"
+exec "$NODO" $SIN_EXPERIMENTAL "$RAIZ/src/cli/qm.ts" "$@"
