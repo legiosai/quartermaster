@@ -18,7 +18,13 @@
 
 import { tokenDeAcceso, estadoCredencial } from './credenciales.ts';
 import { parsearUtilizacion } from './utilizacion.ts';
+import { anotarFreno, frenadoHasta } from './cache-endpoint.ts';
+import { frenoPor } from '../core/pedir.ts';
 import type { Perfil, ResultadoCuota } from '../core/tipos.ts';
+
+// 24 h a propósito: es-AR sin `hourCycle` da «03:21 p. m.».
+export const hora = (d: Date): string =>
+  d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
 
 export const ENDPOINT = 'https://api.anthropic.com/api/oauth/usage';
 
@@ -31,6 +37,13 @@ export async function consultarCuota(perfil: Perfil, ms = 10_000): Promise<Resul
   if (cred.error !== null) return { estado: 'error', detalle: cred.error };
   if (!cred.presente) return { estado: 'sin-credencial' };
   if (cred.vencida) return { estado: 'vencida' };
+
+  // Si el endpoint ya pidió esperar por esta cuenta, no se le pregunta: sería
+  // pedir otro 429. Vale también para `qm --refrescar`.
+  const freno = frenadoHasta(perfil.nombre);
+  if (freno !== null && freno.getTime() > Date.now()) {
+    return { estado: 'error', detalle: `el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ${hora(freno)}` };
+  }
 
   const token = tokenDeAcceso(perfil);
   if (token === null) return { estado: 'vencida' };
@@ -52,6 +65,13 @@ export async function consultarCuota(perfil: Perfil, ms = 10_000): Promise<Resul
   }
 
   if (respuesta.status === 401 || respuesta.status === 403) return { estado: 'vencida' };
+  if (respuesta.status === 429) {
+    // Se anota el freno ANTES de devolver: el próximo calentado lo tiene que
+    // encontrar, venga de la barra, de GNOME o de un `qm --refrescar` a mano.
+    const hasta = frenoPor(respuesta.headers.get('retry-after'), Date.now());
+    anotarFreno(perfil.nombre, hasta);
+    return { estado: 'error', detalle: `el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ${hora(hasta)}` };
+  }
   if (!respuesta.ok) return { estado: 'error', detalle: `HTTP ${respuesta.status}` };
 
   let cuerpo: unknown;

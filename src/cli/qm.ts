@@ -34,7 +34,8 @@ import {
   hayCodex,
   DIRECTORIO_CODEX,
 } from '../adapters/codex.ts';
-import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
+import { endpointEnCache, frenadoHasta, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
+import { decidirConsulta } from '../core/pedir.ts';
 import * as entorno from '../adapters/entorno.ts';
 import { cuentaPedida, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
 import {
@@ -1028,6 +1029,23 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
   if (!soloCodex) {
     for (const perfil of descubrirPerfiles()) {
       if (cuentas !== null && !cuentaPedida(cuentas, perfil.nombre)) continue;
+      // Una cuenta con lectura propia reciente no se vuelve a preguntar, y una
+      // frenada por un 429 tampoco (ver src/core/pedir.ts). Ninguna de las dos
+      // es una falla: la fresca ya tiene su número, la frenada lo tendrá.
+      const guardada = endpointEnCache(perfil.nombre);
+      const decision = decidirConsulta({
+        ultimaLectura: guardada?.estado === 'ok' ? guardada.medidoEn : null,
+        reinicios: guardada?.estado === 'ok' ? guardada.ventanas.map((v) => v.reinicia) : [],
+        frenadoHasta: frenadoHasta(perfil.nombre),
+      }, Date.now());
+      if (!decision.consultar) {
+        bien = true;
+        if (decision.porque === 'frenada') {
+          fallas.push(`${perfil.nombre}: el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ` +
+            decision.hasta.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
+        }
+        continue;
+      }
       const r = await consultarCuota(perfil);
       if (r.estado === 'ok') {
         guardarEndpoint(perfil.nombre, r);

@@ -594,7 +594,8 @@ final class VistaCuenta: NSView {
     private let frase: String?
     private let ritmo: String?
     private let ritmoRojo: Bool
-    private let presupuesto: String?
+    /// Los renglones del presupuesto: dos con número, uno con el motivo, ninguno sin cuota.
+    private let presupuesto: [String]
 
     private static let ANCHO: CGFloat = 340
     private static let MARGEN: CGFloat = 15
@@ -654,23 +655,26 @@ final class VistaCuenta: NSView {
                 // con el reloj sin gastar nada—. Lo que se resta de verdad es lo
                 // gastado, y si el historial no cubre la mañana se dice desde
                 // qué hora se lo midió en vez de llamarlo «hoy».
+                // En DOS renglones, como la bandeja y GNOME: en uno solo el menú
+                // cortaba la frase justo en «te queda X %», que es el número que
+                // se viene a buscar. Visto en una captura del menú de la barra.
                 let dia = String(format: "podés gastar %.1f %%/día", porDia)
                 if let g = gastado, cubreElDia {
-                    self.presupuesto = dia + String(format: " · gastaste %.1f %% hoy · te queda %.1f %%",
-                                                    g, max(0, porDia - g))
+                    self.presupuesto = [dia, String(format: "gastaste %.1f %% hoy · te queda %.1f %%",
+                                                    g, max(0, porDia - g))]
                 } else if let g = gastado, let d = desde {
                     let hhmm = DateFormatter()
                     hhmm.dateFormat = "HH:mm"
-                    self.presupuesto = dia + String(format: " · gastaste %.1f %% desde las %@ · te queda %.1f %%",
-                                                    g, hhmm.string(from: d), max(0, porDia - g))
+                    self.presupuesto = [dia, String(format: "gastaste %.1f %% desde las %@ · te queda %.1f %%",
+                                                    g, hhmm.string(from: d), max(0, porDia - g))]
                 } else {
-                    self.presupuesto = dia + String(format: " · de acá a medianoche te toca %.1f %%", quedaHoy)
+                    self.presupuesto = [dia, String(format: "de acá a medianoche te toca %.1f %%", quedaHoy)]
                 }
             case .no(let motivo):
-                self.presupuesto = "presupuesto: \(motivo)"
+                self.presupuesto = ["presupuesto: \(motivo)"]
             }
         } else {
-            self.presupuesto = nil
+            self.presupuesto = []
         }
 
         var alto = VistaCuenta.MARGEN + 16 + 15 + 6
@@ -678,7 +682,7 @@ final class VistaCuenta: NSView {
         if historia.count >= 3 { alto += VistaCuenta.ALTO_CURVA }
         if frase != nil { alto += 34 }
         if ritmo != nil { alto += 16 }
-        if presupuesto != nil { alto += 16 }
+        alto += CGFloat(presupuesto.count) * 16
         alto += 12
         super.init(frame: NSRect(x: 0, y: 0, width: VistaCuenta.ANCHO, height: alto))
     }
@@ -788,9 +792,9 @@ final class VistaCuenta: NSView {
                      ritmoRojo ? Nivel.critico.color : .tertiaryLabelColor)
         }
 
-        if let pre = presupuesto {
+        for renglon in presupuesto {
             y -= 16
-            escribir(pre, m, y, .systemFont(ofSize: 10.5), .secondaryLabelColor)
+            escribir(renglon, m, y, .systemFont(ofSize: 10.5), .secondaryLabelColor)
         }
     }
 }

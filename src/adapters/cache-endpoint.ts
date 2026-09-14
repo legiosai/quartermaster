@@ -61,6 +61,40 @@ export function endpointEnCache(perfil: string): ResultadoCuota | null {
   };
 }
 
+// ── el freno del endpoint ────────────────────────────────────────────────
+// Cuando el endpoint contesta 429 se anota hasta cuándo no preguntar por ESA
+// cuenta (ver src/core/pedir.ts). Va en un archivo aparte y no adentro de
+// endpoint.json: un freno no es una lectura, y mezclarlos haría que un 429
+// pareciera un número guardado.
+const FRENOS = join(dirname(CACHE), 'frenos.json');
+
+function leerFrenos(): Record<string, string> {
+  try {
+    return JSON.parse(readFileSync(FRENOS, 'utf8')) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+export function frenadoHasta(perfil: string): Date | null {
+  const t = leerFrenos()[perfil];
+  if (t === undefined) return null;
+  const d = new Date(t);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Si no se puede escribir, se pierde el freno: el próximo 429 lo vuelve a anotar. */
+export function anotarFreno(perfil: string, hasta: Date): void {
+  try {
+    const todo = leerFrenos();
+    todo[perfil] = hasta.toISOString();
+    mkdirSync(dirname(FRENOS), { recursive: true });
+    writeFileSync(FRENOS, JSON.stringify(todo));
+  } catch {
+    /* vacío a propósito */
+  }
+}
+
 /** La más nueva de las dos. Ninguna miente mientras se muestre su edad. */
 export function masNueva(a: ResultadoCuota, b: ResultadoCuota | null): ResultadoCuota {
   if (b === null || b.estado !== 'ok') return a;
