@@ -56,6 +56,16 @@ function estaEn(lista: readonly string[], nombre: string): boolean {
 }
 
 /**
+ * ¿Esta cuenta está entre las de `--cuentas=`? Con el nombre completo del
+ * perfil —lo que manda el indicador de GNOME— o con el corto —lo que manda la
+ * barra de macOS, que es el que muestra—. Antes sólo el completo: un calentado
+ * filtrado de la barra no le preguntaba a ninguna cuenta de Claude.
+ */
+export function cuentaPedida(cuentas: ReadonlySet<string>, nombre: string): boolean {
+  return estaEn([...cuentas], nombre);
+}
+
+/**
  * Aplica la selección. `mostrar` gana sobre `ocultar` cuando está.
  *
  * Si el filtro dejara TODO afuera se devuelve la lista entera: es casi seguro

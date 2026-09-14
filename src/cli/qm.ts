@@ -36,7 +36,7 @@ import {
 } from '../adapters/codex.ts';
 import { endpointEnCache, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import * as entorno from '../adapters/entorno.ts';
-import { leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
+import { cuentaPedida, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
 import {
   consumoOpencode,
   hayOpencode,
@@ -1020,7 +1020,7 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
   const fallas: string[] = [];
   if (!soloCodex) {
     for (const perfil of descubrirPerfiles()) {
-      if (cuentas !== null && !cuentas.has(perfil.nombre)) continue;
+      if (cuentas !== null && !cuentaPedida(cuentas, perfil.nombre)) continue;
       const r = await consultarCuota(perfil);
       if (r.estado === 'ok') {
         guardarEndpoint(perfil.nombre, r);

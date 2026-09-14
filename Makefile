@@ -197,7 +197,15 @@ gate-calentado-rojo:  ## los dos rojos de gate-calentado: el filtro y la regla
 	  echo "✗ gate-calentado NO falló sin la escucha de suspensión"; exit 1; \
 	fi
 	@mv .qm-indicator.gate bin/qm-indicator
-	@echo "✓ gate-calentado falla en rojo con el corte < 100, la regla ciega al reinicio, la ciega a la actividad, el lazo que se mata solo y sin escuchar la suspensión"
+	@cp bin/qm-barra.swift .qm-barra.gate
+	@# 6. que la barra de macOS vuelva a filtrar por nivel a secas
+	@python3 -c "import pathlib; p=pathlib.Path('bin/qm-barra.swift'); s=p.read_text(encoding='utf-8'); p.write_text(s.replace('self.ultimas.filter { valePreguntar(\$$0) }', 'self.ultimas.filter { max(\$$0.sesion ?? 0, \$$0.semanal ?? 0) >= 40 }'), encoding='utf-8')"
+	@if python3 scripts/gate-calentado.py >/dev/null 2>&1; then \
+	  mv .qm-barra.gate bin/qm-barra.swift; \
+	  echo "✗ gate-calentado NO falló con la barra filtrando por nivel a secas"; exit 1; \
+	fi
+	@mv .qm-barra.gate bin/qm-barra.swift
+	@echo "✓ gate-calentado falla en rojo con el corte < 100, la regla ciega al reinicio, la ciega a la actividad, el lazo que se mata solo, sin escuchar la suspensión y con la barra de macOS filtrando por nivel"
 
 .PHONY: gate-dibujo
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja

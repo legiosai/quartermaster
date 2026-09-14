@@ -159,6 +159,40 @@ if "PrepareForSleep" not in FUENTE or "vigilar_suspension()" not in FUENTE:
 else:
     print("  ✓ escucha PrepareForSleep y pregunta al volver")
 
+# ── la barra de macOS dice lo mismo ───────────────────────────────────────
+#
+# AppKit no existe en el runner, así que la regla de Swift no se puede CORRER
+# acá: se comprueba que esté escrita con las mismas tres piezas y que el
+# calentado la use. Pasó de verdad: GNOME se arregló el 2026-09-13 y la barra
+# siguió con `tope >= 40` a secas, mandando además nombres cortos que
+# `--cuentas` no reconocía.
+SWIFT = (RAIZ / "bin/qm-barra.swift").read_text(encoding="utf-8")
+m = re.search(r"func valePreguntar\(.*?\n}\n", SWIFT, re.S)
+if m is None:
+    print("✗ bin/qm-barra.swift no tiene `func valePreguntar(`", file=sys.stderr)
+    fallas += 1
+else:
+    regla = m.group(0)
+    for pieza_swift, que in (
+        ("reiniciaSesion", "la cuenta cuya ventana ya se reinició"),
+        ("ultimoUso", "la cuenta que se está usando ahora"),
+        ("< 100", "el corte de arriba mientras la ventana siga abierta"),
+    ):
+        if pieza_swift not in regla:
+            print(f"✗ valePreguntar() de la barra no mira {que} (`{pieza_swift}`)", file=sys.stderr)
+            fallas += 1
+    if not re.search(r"ACTIVA_SEGUNDOS: TimeInterval = 600\b", SWIFT):
+        print("✗ ACTIVA_SEGUNDOS de la barra no es 600, como en qm-indicator", file=sys.stderr)
+        fallas += 1
+    if not re.search(r"ultimas\.filter\s*(\(\s*)?\{?\s*valePreguntar", SWIFT):
+        print("✗ el calentado de la barra no filtra con valePreguntar()", file=sys.stderr)
+        fallas += 1
+    elif not re.search(r"valePreguntar[^\n]*\.map\(\\\.perfil\)", SWIFT):
+        print("✗ la barra no manda el nombre completo del perfil a --cuentas", file=sys.stderr)
+        fallas += 1
+    else:
+        print("  ✓ la barra de macOS usa la misma regla y manda nombres que --cuentas entiende")
+
 if fallas:
     print(f"\ngate de calentado: ROJO ({fallas})", file=sys.stderr)
     raise SystemExit(1)

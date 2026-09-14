@@ -280,6 +280,40 @@ struct Trozo {
     let semanal: Int?
     let semanalAlerta: Bool
     let viejo: Bool
+    /// Lo que hace falta para decidir si se le pregunta al endpoint: el nombre
+    /// completo del perfil —el que entiende `--cuentas`—, cuándo se reinicia
+    /// cada ventana y cuándo se usó por última vez.
+    let perfil: String
+    let reiniciaSesion: Date?
+    let reiniciaSemanal: Date?
+    let ultimoUso: Date?
+}
+
+/// Cuánto hace que se usó una cuenta para contarla como «la que estás usando».
+/// El mismo valor que `ACTIVA_SEGUNDOS` en bin/qm-indicator.
+let ACTIVA_SEGUNDOS: TimeInterval = 600
+
+/// A qué cuentas se les pregunta en el próximo calentado. Es la regla de
+/// `_vale_preguntar` en bin/qm-indicator, y scripts/gate-calentado.py comprueba
+/// que las dos sigan diciendo lo mismo.
+///
+/// La barra usaba sólo `tope >= 40`, y eso dejaba afuera los dos casos que más
+/// importan, los dos medidos en GNOME el 2026-09-13:
+///   · la cuenta cuya ventana YA se reinició: su número es de una ventana que
+///     cerró, y «te liberaste» es el aviso más útil que da el programa;
+///   · la cuenta que estás usando AHORA aunque vaya al 2 %: es la única cuyo
+///     número se está moviendo.
+/// Y le preguntaba cada minuto a una barra clavada en 100 %, que no puede subir.
+func valePreguntar(_ t: Trozo, ahora: Date = Date()) -> Bool {
+    for r in [t.reiniciaSesion, t.reiniciaSemanal] {
+        if let r, r <= ahora { return true }
+    }
+    if let uso = t.ultimoUso {
+        let hace = ahora.timeIntervalSince(uso)
+        if hace >= 0 && hace <= ACTIVA_SEGUNDOS { return true }
+    }
+    let tope = max(t.sesion ?? 0, t.semanal ?? 0)
+    return 40 <= tope && tope < 100
 }
 
 struct PerfilVista {
@@ -303,6 +337,8 @@ struct PerfilVista {
     let edadSegundos: Int?
     let proyeccion: Proyeccion?
     let presupuesto: Presupuesto?
+    /// Cuándo se usó por última vez, según qm. Existe también en --breve.
+    let ultimoUso: Date?
 }
 
 // Las reglas del núcleo no se reimplementan acá: `qm` manda `mostrar`, `frena`,
@@ -399,7 +435,8 @@ func leer() -> Lectura {
             frena: una("frena"), sesion: una("sesion"), semanal: una("semanal"),
             edadSegundos: cuota["edadSegundos"] as? Int,
             proyeccion: proy,
-            presupuesto: pre)
+            presupuesto: pre,
+            ultimoUso: fecha(p["ultimoUso"]))
     }
     return .ok(perfiles)
 }
@@ -839,9 +876,10 @@ final class Barra: NSObject, NSApplicationDelegate {
         DispatchQueue.global(qos: .utility).async {
             let p = Process()
             p.executableURL = URL(fileURLWithPath: rutaQm())
-            // Sólo las cuentas que se mueven. Refrescar una que va al 9 % es
-            // gastar un pedido para confirmar que no pasó nada.
-            let vale = self.ultimas.filter { max($0.sesion ?? 0, $0.semanal ?? 0) >= 40 }.map(\.nombre)
+            // Sólo las cuentas que tienen algo nuevo para contar (ver
+            // valePreguntar). Van con el nombre COMPLETO del perfil: mandaba el
+            // corto que muestra el item, y `--cuentas` no lo reconocía.
+            let vale = self.ultimas.filter { valePreguntar($0) }.map(\.perfil)
             p.arguments = vale.isEmpty || vale.count == self.ultimas.count
                 ? ["--calentar"]
                 : ["--calentar", "--cuentas=" + vale.joined(separator: ",")]
@@ -999,7 +1037,11 @@ final class Barra: NSObject, NSApplicationDelegate {
                         sesionAlerta: ses.map { $0.preocupa || esLaProyectada($0) } ?? false,
                         semanal: sem?.porcentaje,
                         semanalAlerta: sem.map { $0.preocupa || esLaProyectada($0) } ?? false,
-                        viejo: viejo))
+                        viejo: viejo,
+                        perfil: p.nombre,
+                        reiniciaSesion: ses?.reinicia,
+                        reiniciaSemanal: sem?.reinicia,
+                        ultimoUso: p.ultimoUso))
                     peorPct = max(peorPct, cual.porcentaje)
                     revisarAvisos(p, visibles)
                     revisarLiberadas(p, visibles)
