@@ -4,36 +4,36 @@ Hash: SHA512
 Architectures: all
 Codename: stable
 Components: main
-Date: Sun, 13 Sep 2026 19:14:31 +0000
+Date: Mon, 14 Sep 2026 13:06:01 +0000
 Description: quartermaster · Legios
 Label: quartermaster
 Origin: Legios
 Suite: stable
 MD5Sum:
- 4d72d6dab11d9177319563d08dbfca08             1073 main/binary-all/Packages
- 63d63d7dfcb3bc547e74016364be6673              735 main/binary-all/Packages.gz
+ cfea3aee39c692841ffa1aa723d0d2ed             1073 main/binary-all/Packages
+ cdc1167a37a875b8e9fdd4699d71d656              734 main/binary-all/Packages.gz
 SHA1:
- fa86e3c9eab85febacba5124db9decea19694032             1073 main/binary-all/Packages
- da96331ca2dd3f77b7b97eaddf57e62c55ef2a64              735 main/binary-all/Packages.gz
+ f6c14f0b60326f6a606c504fe38f344571643600             1073 main/binary-all/Packages
+ 9c9a3d1502257ce8b85dacd6d8c3727ce46f781f              734 main/binary-all/Packages.gz
 SHA256:
- 0e98d115aacba284ddc1a585a686917bceb8a06ddd3e55e0ba6ebef65410ffe1             1073 main/binary-all/Packages
- 7e4a2b3b08c1eed9fe20f5172ea0ff44d4996d4ef3032709bbaeff221b9cb1be              735 main/binary-all/Packages.gz
+ a6f33f018dd7d5a3e3619c627491d0db13e0256f460fa46ae95263e0a21c6d27             1073 main/binary-all/Packages
+ a248fcca47ed2f8c938f5f9f3e6333bff90ff5c16ab8c4d96119fab365b6aabe              734 main/binary-all/Packages.gz
 SHA512:
- cc5bd580a7e4b088f9e47152c35f4ec7189816102cacce5b8068127d821cc06ac2a5fe77eb1135109ed863168fdd9e48dea1c0b633e8402c931ddfcad34e1842             1073 main/binary-all/Packages
- c036a9d3c2e3a2212b674a0b8b462a10562a41e859b03f99433236f23060df03701583216fbcb5cd49e6a26d02333c485de39b6884f1a4144340f5b0d2b728c7              735 main/binary-all/Packages.gz
+ 13db6c3f057fc5668087be9f9eab1a90b68c2a74dff5ef3cf23aed1072d28860cfdc896f4bd40486db68c414df05e589fc3deade622b01910b9bd2e1fd3c5863             1073 main/binary-all/Packages
+ 108dbab06eebbd2721a2f30c3608cfd8f0009933707ba9ac8d646e4a1cd0f78585fc174965d3286b38701206ec273049445e4e1f4971c5f562dc0dd48bfbe742              734 main/binary-all/Packages.gz
 -----BEGIN PGP SIGNATURE-----
 
-iQIzBAEBCgAdFiEE9azTggwkynMUjYUAepEb0czr62YFAmqm9hcACgkQepEb0czr
-62ZmCA/+Ne710pmwjqK/7QKqoSD4pDaRcrdNCWrkvZ2sv5k3jZO92a5Z/5CNSEc7
-LSwPCS7fZETN7NZVSO7R3nZ1hmz6TJXCCq9rf01/hCpcfXCqASMoKx5yD3uXKjC9
-F5RrkxwBJP0hfZXVz54VGnakNATj7gJH2eA93v5z45TqOE15t64PisZZCSkbHZMe
-CqEhTEnwlUKweZ4+X0ChVtGpWX7oLRvggG8q2KeZzaIclc+o1iSz2a5M2aiE7Ry4
-SdxhqUgn6FyZenOSfCx4mxKLQ6bQ9eyYsnJR0y++LOr7ibj+mJkakSQ2wH3ia4ht
-zuv/devKzCIpkIfnUCwlTn3EcrfAXQ3Jbpv+brhGzdJ0+1dRrx+4OiM3488jDysi
-26ejazsOidplQ9Smw5s5E2ptgVXbkOnjNXwou+vxWgNdO+u9XSIgmgq/ArbwRk6k
-GZM4wb229+KIbkiCAKuFQZixoKMvCTktkAryrvn0cQkYHEABTSAIEfR8iVZ9yD8t
-bYk1McA8oXY5eLWYJGcnsLVifI9qx5f7pBGeA1DjfRhOE0XnyncMyoHe1HcHqrQc
-YUvVCJFm3X96NMYzmyIvnhYJnx8V63s0aEXPShTphKBa4pE7D/WilXdNADkGDQ3C
-GvUfQ+fRWEf8I7ypGjkRw+Y78Yjr4G1Ph5Xz8UtiFdDQdXvVp7A=
-=pAQJ
+iQIzBAEBCgAdFiEE9azTggwkynMUjYUAepEb0czr62YFAmqn8TkACgkQepEb0czr
+62aVFhAAl7mZKhddjLpC2YiFdCj7LPncW6muNcxlPGX/Cmj/ZzmaXQs28I/+72oG
+lAaavsRbkB+NH14m6+EkQsFae28Vu9uQxFKo6F2cP+EciPHaeudqllYbGd+OT8Xk
+6/z+Wsg5vwfcTnG/ZDelobdR0mj8HfrWgSaV4V+Zq6ImLn2t7Y9V19/siaoUyNe1
+UT+NI6x74ebJ5Bu5b+5USEPix4jCfWBmVtP94lyMADHQIunHBDt8sBvLmbGyXTJR
+2G4FN0Bv9IuwQIKNzRQ8eRt1r7TN6MLH+etDK9L5yuk05e0Rya1LIEVc+2gwP0Sm
+CgHZl4eFkcWG5XDT6iVNsCRwf6Ly31ki9GJUuEwU2dAo7qktLkbQaTuy7bfilBU0
+/2VsTzzOJI4sxe5DFVH6m5gvZlwqzXBKw1c9PZ70g7uMbj4P+alr/FOdHcJS/gbJ
+oiE9koi4JkCLwd1PZg8HWN2nCA+mfQJBVkooG+UPvkNAC0PncRlMUCdz1BMp2PcR
+22W2gJNZRRNinIk/7/C8LO5R2Djg5B0d5/sJF6sg3lELyN0xYbiZdj7s1Kx3pVxU
+mmIMDIm/THzLuTzA1XgdVSR9ypw+bPwAFDrMthJrk8KspMLPIfF9C5vwBBCbLLfh
+BNmqaCrBCpMBL6HgT5y1XAB7wR9uNRgMhpjV+KYd59edgfTlC98=
+=mMuF
 -----END PGP SIGNATURE-----
