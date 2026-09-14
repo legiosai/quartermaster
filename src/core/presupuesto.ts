@@ -48,6 +48,20 @@ export type Presupuesto =
       readonly gastadoHoy: number | null;
       /** `porDia − gastadoHoy`, con piso en cero. `null` si no hay `gastadoHoy`. */
       readonly restanteHoy: number | null;
+      /**
+       * Lo que subió la barra desde `medidoDesde`, que es la medianoche cuando
+       * el día está cubierto y la primera lectura de hoy cuando no.
+       *
+       * Es el número que dibuja el medidor diario de las tres bandejas: el día
+       * completo casi nunca está cubierto en una máquina que se apaga de noche,
+       * y un medidor que no dibuja nunca no es honesto, es inútil. `null` es
+       * «no hay dos lecturas de hoy»: ahí sí no se midió nada.
+       */
+      readonly gastadoMedido: number | null;
+      /** Desde qué instante vale `gastadoMedido`. `null` si no hay medición. */
+      readonly medidoDesde: number | null;
+      /** Si `gastadoMedido` arranca en la medianoche —o sea, si es el día entero—. */
+      readonly cubreElDia: boolean;
       /** Lo que queda en la ventana, en puntos. */
       readonly restante: number;
       /** Horas hasta el reinicio. */
@@ -72,7 +86,7 @@ function finDelDia(ahora: number): number {
 }
 
 /**
- * Lo que subió esta barra desde la medianoche local.
+ * Lo que subió esta barra, y DESDE CUÁNDO se lo puede afirmar.
  *
  * Se suman sólo los saltos HACIA ARRIBA. Una ventana se puede reiniciar en
  * medio del día —pasó el 2026-09-13: una semanal fue de 84 % a 6 % a las pocas
@@ -81,37 +95,62 @@ function finDelDia(ahora: number): number {
  * muestra con confianza. Sumando deltas positivos, el reinicio aporta 0 y lo
  * que se gastó después se cuenta igual.
  *
- * Devuelve null si el historial no cubre el arranque del día. Es la regla de
- * siempre: lo que no se puede medir es null, no cero. Con una primera lectura a
- * las 03:10 no se sabe qué pasó entre la medianoche y esa hora, y suponer que
- * no pasó nada es inventar.
+ * `cubreElDia` es lo que separa «gastaste 12 % hoy» de «gastaste 12 % desde las
+ * 11:54». La máquina apagada de noche es el caso normal, no la excepción: si la
+ * medición parcial no existiera, la cuenta de una portátil que se prende a la
+ * mañana sería null TODOS los días y el medidor diario no dibujaría nunca. Una
+ * medición que dice desde qué hora vale no es inventar —es exactamente lo que
+ * se midió—; lo que no se puede hacer es llamarla «hoy».
+ *
+ * La línea de base es la última lectura de ayer sólo si está pegada a la
+ * medianoche. Si es de hace tres días, el salto entre aquel número y el primero
+ * de hoy pasó en algún momento de esos tres días, y cargárselo a hoy es
+ * inventar al revés: de más.
  */
-export function gastadoDesdeMedianoche(
+export function subidaDeHoy(
   lecturas: readonly { readonly t: number; readonly porcentaje: number }[],
   ahora: number = Date.now(),
-): number | null {
+): { readonly puntos: number; readonly desde: number; readonly cubreElDia: boolean } | null {
   const d = new Date(ahora);
   const medianoche = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const deHoy = lecturas.filter((l) => l.t >= medianoche && l.t <= ahora).sort((a, b) => a.t - b.t);
   if (deHoy.length < 2) return null;
 
-  // El día tiene que estar cubierto desde el principio. Sin una lectura cerca
-  // de la medianoche —o una de ayer que diga con cuánto se llegó— el tramo
-  // inicial es un agujero.
   const anterior = lecturas.filter((l) => l.t < medianoche).sort((a, b) => a.t - b.t).pop();
-  const arranque = anterior ?? deHoy[0]!;
-  const huecoMs = deHoy[0]!.t - arranque.t;
-  if (anterior === undefined || huecoMs > TOLERANCIA_ARRANQUE_MS) {
-    if (deHoy[0]!.t - medianoche > TOLERANCIA_ARRANQUE_MS) return null;
-  }
+  // Sirve de línea de base sólo si viene pegada a la primera de hoy: el hueco
+  // entre las dos es tiempo del que no hay nada dicho.
+  const pegada = anterior !== undefined && deHoy[0]!.t - anterior.t <= TOLERANCIA_ARRANQUE_MS;
+  const base = pegada ? anterior! : deHoy[0]!;
+  const cubreElDia = pegada || deHoy[0]!.t - medianoche <= TOLERANCIA_ARRANQUE_MS;
 
   let subida = 0;
-  let previo = (anterior ?? deHoy[0]!).porcentaje;
+  let previo = base.porcentaje;
   for (const l of deHoy) {
     if (l.porcentaje > previo) subida += l.porcentaje - previo;
     previo = l.porcentaje;
   }
-  return Math.round(subida * 10) / 10;
+  return {
+    puntos: Math.round(subida * 10) / 10,
+    desde: cubreElDia ? medianoche : deHoy[0]!.t,
+    cubreElDia,
+  };
+}
+
+/**
+ * Lo que subió esta barra desde la medianoche local, o null si el historial no
+ * cubre el arranque del día. Es la regla de siempre: lo que no se puede medir
+ * es null, no cero. Con una primera lectura a las 03:10 no se sabe qué pasó
+ * entre la medianoche y esa hora, y suponer que no pasó nada es inventar.
+ *
+ * Para lo que sí se midió en ese caso está `subidaDeHoy`, que dice desde qué
+ * hora vale.
+ */
+export function gastadoDesdeMedianoche(
+  lecturas: readonly { readonly t: number; readonly porcentaje: number }[],
+  ahora: number = Date.now(),
+): number | null {
+  const s = subidaDeHoy(lecturas, ahora);
+  return s === null || !s.cubreElDia ? null : s.puntos;
 }
 
 /**
@@ -148,7 +187,8 @@ export function presupuestoDiario(
   const porDia = restante / (horasRestantes / 24);
   // El día se corta donde corte primero: la medianoche o el reinicio.
   const horasHoy = Math.min(finDelDia(ahora) - ahora, msRestantes) / 3600_000;
-  const gastadoHoy = gastadoDesdeMedianoche(lecturas, ahora);
+  const medido = subidaDeHoy(lecturas, ahora);
+  const gastadoHoy = medido !== null && medido.cubreElDia ? medido.puntos : null;
   return {
     estado: 'ok',
     ventana: v,
@@ -156,6 +196,9 @@ export function presupuestoDiario(
     quedaHoy: porDia * (horasHoy / 24),
     gastadoHoy,
     restanteHoy: gastadoHoy === null ? null : Math.max(0, porDia - gastadoHoy),
+    gastadoMedido: medido === null ? null : medido.puntos,
+    medidoDesde: medido === null ? null : medido.desde,
+    cubreElDia: medido !== null && medido.cubreElDia,
     restante,
     horasRestantes,
     horasHoy,
@@ -170,10 +213,13 @@ export function presupuestoDiario(
  * cuota quieta bajaba de 10,5 a 0,5 a lo largo del día sin que nadie gastara
  * nada — «te queda» prometía una resta que no ocurría, y siempre para abajo.
  *
- * Ahora hay dos frases porque hay dos cosas distintas:
+ * Ahora hay tres frases porque hay tres cosas distintas:
  *
  *   - con historial que cubra el día: lo gastado y lo que queda DE VERDAD;
- *   - sin él: el reparto por hora, dicho como lo que es.
+ *   - con historial que arranque más tarde: lo mismo, pero diciendo desde qué
+ *     hora se lo midió. Una portátil que se prende a las 11 no tiene la mañana
+ *     y eso se dice, no se esconde ni se redondea a «hoy»;
+ *   - sin ninguna de las dos: el reparto por hora, dicho como lo que es.
  */
 export function frasePresupuesto(p: Presupuesto): string {
   if (p.estado === 'sin-datos') return `presupuesto diario: ${p.motivo}`;
@@ -181,5 +227,16 @@ export function frasePresupuesto(p: Presupuesto): string {
   if (p.gastadoHoy !== null && p.restanteHoy !== null) {
     return `${dia} · gastaste ${p.gastadoHoy.toFixed(1)} % hoy · te queda ${p.restanteHoy.toFixed(1)} %`;
   }
+  if (p.gastadoMedido !== null && p.medidoDesde !== null) {
+    const queda = Math.max(0, p.porDia - p.gastadoMedido);
+    return `${dia} · gastaste ${p.gastadoMedido.toFixed(1)} % desde las ${horaCorta(p.medidoDesde)}`
+      + ` · te queda ${queda.toFixed(1)} %`;
+  }
   return `${dia} · de acá a medianoche te toca ${p.quedaHoy.toFixed(1)} %`;
+}
+
+/** La hora local en HH:MM, que es toda la precisión que esta frase necesita. */
+export function horaCorta(t: number): string {
+  const d = new Date(t);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }

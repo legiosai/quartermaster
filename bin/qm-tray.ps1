@@ -466,23 +466,70 @@ function FraseRitmo($p) {
 }
 
 # El presupuesto diario: cuánto se puede gastar por día para que la ventana
-# larga llegue entera al reinicio, y cuánto de eso queda hoy.
+# larga llegue entera al reinicio, y cuánto de eso ya gastaste hoy.
 #
 # Llega dividido del núcleo, incluido CUÁL ventana se reparte —la larga, nunca
 # la de 5 h, que se reinicia cuatro veces por día y ahí «por día» no quiere
 # decir nada—. Acá no se divide: se escribe.
-function FrasePresupuesto($pre) {
-  if (-not $pre) { return $null }
+#
+# Van DOS renglones: la frase entera no entra en los 340 px del panel y el
+# recorte se comía justo la hora —«desde las 1…»—, que es el dato que hace
+# honesto al número. Partir no es recortar.
+function RenglonesPresupuesto($pre) {
+  if (-not $pre) { return @() }
   # El JSON de una versión anterior de `qm` no trae el campo, y con StrictMode
   # leer una propiedad que no está es una excepción en el hilo de la interfaz.
-  if (-not $pre.PSObject.Properties['estado']) { return $null }
-  if ($pre.estado -ne 'ok') { return "presupuesto: $($pre.motivo)" }
+  if (-not $pre.PSObject.Properties['estado']) { return @() }
+  if ($pre.estado -ne 'ok') { return @("presupuesto: $($pre.motivo)") }
   # Invariante y no la cultura de la máquina, por lo mismo que el ritmo: el
   # separador decimal acá es parte del dibujo y tiene que coincidir entre
   # pantallas.
   $porDia = ([double]$pre.porDia).ToString('0.0', [cultureinfo]::InvariantCulture)
+  $un = { param($n) ([double]$n).ToString('0.0', [cultureinfo]::InvariantCulture) }
+
+  # Las mismas tres ramas que `frasePresupuesto` en el núcleo, y por el mismo
+  # motivo: «hoy te queda X %» se leía como una resta que no ocurría —era el
+  # reparto de las horas que faltaban del día, y bajaba solo con el reloj—.
+  # Lo que se resta de verdad es lo gastado, y cuando el historial no cubre la
+  # mañana se dice desde qué hora se lo midió en vez de llamarlo «hoy».
+  # Con el nombre de la barra pegado, como en el terminal y en el tablero: la
+  # tarjeta muestra tres ventanas y el número reparte UNA, y sin decir cuál
+  # queda un 24.1 que no cierra con ninguno de los tres porcentajes de arriba.
+  $dia = "podés gastar $porDia %/día"
+  if ($pre.PSObject.Properties['barra'] -and $pre.barra) { $dia += " · $($pre.barra)" }
+  if ($pre.PSObject.Properties['gastadoHoy'] -and $null -ne $pre.gastadoHoy -and
+      $pre.PSObject.Properties['restanteHoy'] -and $null -ne $pre.restanteHoy) {
+    return @($dia, "gastaste $(& $un $pre.gastadoHoy) % hoy · te queda $(& $un $pre.restanteHoy) %")
+  }
+  if ($pre.PSObject.Properties['gastadoMedido'] -and $null -ne $pre.gastadoMedido -and
+      $pre.PSObject.Properties['medidoDesde'] -and $null -ne $pre.medidoDesde) {
+    $desde = ([datetime]$pre.medidoDesde).ToLocalTime().ToString('HH:mm', [cultureinfo]::InvariantCulture)
+    $queda = [math]::Max(0, [double]$pre.porDia - [double]$pre.gastadoMedido)
+    return @($dia, "gastaste $(& $un $pre.gastadoMedido) % desde las $desde · te queda $(& $un $queda) %")
+  }
   $hoy = ([double]$pre.quedaHoy).ToString('0.0', [cultureinfo]::InvariantCulture)
-  return "podés gastar $porDia %/día · hoy te queda $hoy %"
+  return @($dia, "de acá a medianoche te toca $hoy %")
+}
+
+# Qué parte del presupuesto de HOY ya se gastó, en porcentaje de ese
+# presupuesto. Es lo que llena el medidor de cada ícono de cuenta.
+#
+# La semanal contesta «cuánto va del período», que en un medidor de 16 px se
+# mueve dos píxeles por día: a media semana estaba siempre por la mitad y no
+# decía nada de la sesión de trabajo de hoy. El presupuesto diario sí: llega al
+# tope cuando gastaste lo que te tocaba hoy, y eso pasa dentro del día.
+#
+# `$null` es «no se pudo medir» —no hay dos lecturas de hoy, o no hay ventana
+# larga que repartir— y deja la pista vacía: mejor un hueco honesto que un cero.
+function PctDiario($pre) {
+  if (-not $pre) { return $null }
+  if (-not $pre.PSObject.Properties['estado'] -or $pre.estado -ne 'ok') { return $null }
+  if (-not $pre.PSObject.Properties['gastadoMedido'] -or $null -eq $pre.gastadoMedido) { return $null }
+  $gastado = [double]$pre.gastadoMedido
+  $porDia = [double]$pre.porDia
+  # Sin presupuesto —la ventana ya está en 100 %— cualquier gasto es de más.
+  if ($porDia -le 0) { if ($gastado -gt 0) { return 100.0 } else { return 0.0 } }
+  return [math]::Max(0.0, [math]::Min(100.0, $gastado / $porDia * 100.0))
 }
 
 # ── avisos ──────────────────────────────────────────────────────────────
@@ -818,7 +865,7 @@ function AltoPerfil($p) {
   # La curva es de la barra que frena, así que suma una vez y no por barra.
   if ((@($cuota.historia)).Count -ge 3) { $alto += (Px $ALTO_CURVA) }
   if (FraseRitmo $p.proyeccion) { $alto += (Px $ALTO_RITMO) }
-  if (FrasePresupuesto (Presupuesto $p)) { $alto += (Px $ALTO_PRESUPUESTO) }
+  $alto += (Px $ALTO_PRESUPUESTO) * (@(RenglonesPresupuesto (Presupuesto $p))).Count
   if (FraseLecturas $cuota) { $alto += (Px $ALTO_LECTURAS) }
   return [int]($alto + (Px 10))
 }
@@ -910,9 +957,8 @@ function DibujarPerfil($p, [int]$indice) {
 
   # El ritmo dice hacia dónde vas; el presupuesto, a cuánto tendrías que ir para
   # que la cuota llegue al reinicio. Van pegados: son la misma pregunta.
-  $presupuesto = FrasePresupuesto (Presupuesto $p)
-  if ($presupuesto) {
-    Escribir $g $presupuesto $m $y $script:FPie $script:Tinta2 -1 ($der - $m)
+  foreach ($renglon in @(RenglonesPresupuesto (Presupuesto $p))) {
+    Escribir $g $renglon $m $y $script:FPie $script:Tinta2 -1 ($der - $m)
     $y += Px $ALTO_PRESUPUESTO
   }
 
@@ -1085,8 +1131,8 @@ function DibujarPieLectura([double]$falta) {
 # TIRA —glifo, medidor y número, una vez por cuenta— y eso es lo que se viene
 # a mirar. En un item de bandeja no cabe, porque no tiene etiqueta de texto y
 # es un cuadrado de 16x16. Así que la tira se reparte: un item por cuenta, con
-# el glifo de su producto y el medidor de su semanal, y el número de la sesión
-# en el tooltip. Y arriba de todos, el general, que dice lo de la máquina entera
+# el glifo de su producto y el medidor de su sesión, y el resto —la semanal y
+# lo que va del presupuesto de hoy— en el tooltip. Y arriba de todos, el general, que dice lo de la máquina entera
 # con la marca — incluso cuando qm no contesta y es el único que queda.
 #
 # La pista es gris al 41 % de alfa a propósito: la barra de tareas puede ser
@@ -1144,7 +1190,7 @@ function IconoGeneral([double]$pct, [string]$nivel) {
 }
 
 # Un trozo de la tira de macOS, hecho ícono: el glifo del producto y, al lado,
-# el medidor vertical de la semanal.
+# el medidor vertical de la sesión de 5 h.
 #
 # El glifo dice QUÉ suscripción es —la forma, el producto; el color, cuál de
 # ellas— y el medidor dice cómo va. La identidad va en el glifo y nunca en el
@@ -1153,7 +1199,7 @@ function IconoGeneral([double]$pct, [string]$nivel) {
 #
 # Se dibuja a 32 px, que es lo que pide la bandeja al 200 %, y Windows lo baja
 # a 16 cuando hace falta. Por eso el trazo del glifo va explícito y grueso.
-function IconoCuenta([string]$producto, $colorCuenta, $semanal, [string]$nivelSemanal) {
+function IconoCuenta([string]$producto, $colorCuenta, $sesion, [string]$nivelSesion) {
   $lado = 32
   $bmp = Lienzo $lado $lado
   $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -1162,8 +1208,11 @@ function IconoCuenta([string]$producto, $colorCuenta, $semanal, [string]$nivelSe
 
   GlifoProducto $g $producto $colorCuenta 0 6 20 2.4
 
-  # El medidor es SIEMPRE la semanal. Si la cuenta no informa ninguna queda la
-  # pista vacía: mejor un hueco honesto que dibujar ahí otra cosa.
+  # El medidor es la SESIÓN de 5 h: es la ventana que te frena AHORA y la única
+  # que se mueve dentro del rato que mirás la bandeja. Acá no hay número al lado
+  # —16 px no dan para uno legible— así que esta barra es TODO lo que se ve de
+  # un vistazo, y tiene que ser la que aprieta. Si la cuenta no informa sesión
+  # queda la pista vacía: mejor un hueco honesto que dibujar ahí otra cosa.
   # 22 de 32 es la misma proporción que altoBarra/alto en medidores() de Swift
   # (15 de 22). A 26 el medidor le ganaba al glifo y el ícono dejaba de decir
   # de qué cuenta era.
@@ -1172,10 +1221,10 @@ function IconoCuenta([string]$producto, $colorCuenta, $semanal, [string]$nivelSe
   $brPista = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(105, 128, 128, 128))
   RectRedondeado $g (New-Object System.Drawing.RectangleF($x, $y0, $ancho, $altoBarra)) $r $brPista
   $brPista.Dispose()
-  if ($null -ne $semanal) {
-    $frac = [math]::Max(0, [math]::Min(100, $semanal)) / 100
+  if ($null -ne $sesion) {
+    $frac = [math]::Max(0, [math]::Min(100, $sesion)) / 100
     $h = [math]::Max($ancho, $altoBarra * $frac)
-    $br = New-Object System.Drawing.SolidBrush($PALETA[$nivelSemanal])
+    $br = New-Object System.Drawing.SolidBrush($PALETA[$nivelSesion])
     # Se llena desde ABAJO, como el medidor vertical de la barra de macOS.
     RectRedondeado $g (New-Object System.Drawing.RectangleF($x, ($y0 + $altoBarra - $h), $ancho, $h)) $r $br
     $br.Dispose()
@@ -1193,9 +1242,44 @@ function IconoCuenta([string]$producto, $colorCuenta, $semanal, [string]$nivelSe
 
 # ── datos ───────────────────────────────────────────────────────────────
 
+# La zona horaria de ESTA máquina, con un nombre que entienda el Node de
+# adentro de WSL.
+#
+# Sin esto, una WSL recién instalada corre en UTC —no hereda la zona de
+# Windows— y qm calcula la medianoche allá adentro. En Buenos Aires eso hacía
+# que «hoy» terminara a las 21:00: el presupuesto diario se reiniciaba tres
+# horas antes de que cambiara el día en la pantalla, y lo gastado de noche se
+# contaba en el día siguiente. Los números eran correctos para un día que no
+# era el del usuario.
+#
+# Tiene que ser un nombre de IANA. El `TZ` de POSIX de toda la vida —`<-03>3`—
+# Node lo ignora y se queda en UTC SIN DECIR NADA, que es la peor forma de
+# fallar: la frase sale igual de prolija con el día corrido tres horas.
+function TzIana() {
+  # .NET 6+ —o sea PowerShell 7— sabe traducir el id de Windows al de IANA, que
+  # es la respuesta buena: se lleva el horario de verano puesto.
+  try {
+    $iana = $null
+    if ([System.TimeZoneInfo]::TryConvertWindowsIdToIanaId([System.TimeZoneInfo]::Local.Id, [ref]$iana)) {
+      return $iana
+    }
+  } catch {
+    # Windows PowerShell 5.1 no tiene el método: sigue por abajo.
+  }
+  # El corrimiento de AHORA, que se recalcula en cada llamada y por eso entra
+  # solo en el horario de verano. `Etc/GMT` tiene el signo al revés que todo el
+  # mundo: Etc/GMT+3 es UTC-3. Las zonas de media hora se redondean a la hora
+  # —quedan 30 minutos corridas— y eso es infinitamente menos que las cinco
+  # horas y media que se corre India si no se manda nada.
+  $off = [System.TimeZoneInfo]::Local.GetUtcOffset([datetime]::Now)
+  $h = [int][math]::Round($off.TotalHours)
+  if ($h -eq 0) { return 'UTC' }
+  return ('Etc/GMT{0}{1}' -f $(if ($h -gt 0) { '-' } else { '+' }), [math]::Abs($h))
+}
+
 function ArgsWsl([string]$cmd) {
   $prefijo = if ($Distro) { "-d $Distro " } else { '' }
-  return "$prefijo-e bash -lc `"$cmd`""
+  return "$prefijo-e bash -lc `"TZ='$(TzIana)' $cmd`""
 }
 
 # ── de dónde sale el número: Windows nativo o WSL ───────────────────────
@@ -1980,21 +2064,26 @@ function ModeloPaneles($datos, [bool]$avisar) {
     $chocas = [bool]($proy -and $proy.estado -eq 'sube' -and $proy.chocasAntesDelReinicio)
     $viejo = if ($cuota.edadSegundos -gt $VIEJO_SEGUNDOS) { '~' } else { '' }
 
-    # El medidor es SIEMPRE la semanal; el número de la sesión —que en macOS va
-    # al lado del medidor— acá no tiene dónde ir y se va al tooltip.
+    # El medidor es la SESIÓN, que es la que frena ahora. El resto —la semanal y
+    # cuánto va del presupuesto de hoy— se va al tooltip entero: en un cuadrado
+    # de 16 px no tiene dónde ir, y en el panel está completo.
     $ses = $cuota.sesion
     $sem = $cuota.semanal
-    $nivelSem = if ($null -ne $sem) {
-      NivelDe ([int]$sem.porcentaje) `
-        ([bool]($sem.preocupa -or ($chocas -and $null -ne $peor -and $sem.clave -eq $peor.clave)))
+    $diario = PctDiario $p.presupuesto
+    $nivelSes = if ($null -ne $ses) {
+      NivelDe ([int]$ses.porcentaje) `
+        ([bool]($ses.preocupa -or ($chocas -and $null -ne $peor -and $ses.clave -eq $peor.clave)))
     } else { 'ok' }
     $partes = @($nombre)
+    if ($null -ne $diario) {
+      $partes += ('hoy {0:d}% del día' -f [int][math]::Round($diario))
+    }
     if ($null -ne $ses) { $partes += ('sesión {0}{1:d}%' -f $viejo, [int][math]::Round($ses.porcentaje)) }
     if ($null -ne $sem) { $partes += ('{0} {1:d}%' -f (NombreVentana $sem), [int][math]::Round($sem.porcentaje)) }
     $tira += @{
       clave = $nombre
       icono = (IconoCuenta $p.producto $colorCuenta `
-          $(if ($null -ne $sem) { [int]$sem.porcentaje } else { $null }) $nivelSem)
+          $(if ($null -ne $ses) { [int]$ses.porcentaje } else { $null }) $nivelSes)
       texto = ($partes -join ' · ')
     }
 

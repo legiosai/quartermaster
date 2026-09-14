@@ -491,18 +491,43 @@ function presupuesto(pre) {
       <span class="motivo">${esc(pre.motivo)}</span>
     </div>`;
   }
+  // «te queda hoy» mostraba `quedaHoy`, que es el reparto de las horas que
+  // faltan del día: bajaba solo con el reloj, sin que nadie gastara nada, y
+  // «te queda» prometía una resta que no ocurría. Lo que se resta de verdad es
+  // lo gastado —`gastadoHoy` cuando el historial cubre el día, `gastadoMedido`
+  // con su hora cuando arranca más tarde—, y sin ninguno de los dos se dice el
+  // reparto por hora llamándolo por su nombre.
+  const medido = pre.cubreElDia ? pre.gastadoHoy : pre.gastadoMedido;
+  const desde = pre.medidoDesde
+    // hour12 explícito: con la hora en 12 el renglón dice «11:54 a. m.» y las
+    // otras cuatro pantallas dicen «11:54». La misma frase tiene que salir
+    // igual en todas o deja de ser la misma frase.
+    ? new Date(pre.medidoDesde).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : null;
+  const queda = medido === null || medido === undefined
+    ? null
+    : Math.max(0, pre.porDia - medido);
   const tip = esc(JSON.stringify({
     t: 'presupuesto diario · ' + pre.barra,
     l: [
       `queda ${unDecimal(pre.restante)} % de la ventana y faltan ${unDecimal(pre.horasRestantes / 24)} días para el reinicio`,
       `gastando ${unDecimal(pre.porDia)} % por día llegás justo al reinicio con la cuota consumida`,
-      `hoy le quedan ${unDecimal(pre.horasHoy)} h: de ahí sale el ${unDecimal(pre.quedaHoy)} % que te queda hoy`,
+      queda === null
+        ? `sin dos lecturas de hoy no se sabe cuánto gastaste: de acá a medianoche te toca ${unDecimal(pre.quedaHoy)} %`
+        : pre.cubreElDia
+          ? `gastaste ${unDecimal(medido)} % desde la medianoche: eso es lo que se resta`
+          : `gastaste ${unDecimal(medido)} % desde las ${desde}, que es la primera lectura de hoy: antes de esa hora no hay nada medido`,
       'se recalcula en cada lectura: si hoy gastaste de más, el ritmo baja solo',
     ],
   }));
+  const segundo = queda === null
+    ? `<span class="par"><span class="k">de acá a medianoche</span><span class="v">${unDecimal(pre.quedaHoy)} %</span></span>`
+    : `<span class="par"><span class="k">gastaste${pre.cubreElDia ? ' hoy' : ` desde las ${esc(desde)}`}</span>`
+      + `<span class="v">${unDecimal(medido)} %</span></span>`
+      + `<span class="par"><span class="k">te queda</span><span class="v">${unDecimal(queda)} %</span></span>`;
   return `<div class="presupuesto" data-tip='${tip}'>
     <span class="par"><span class="k">podés gastar</span><span class="v">${unDecimal(pre.porDia)} %/día</span></span>
-    <span class="par"><span class="k">te queda hoy</span><span class="v">${unDecimal(pre.quedaHoy)} %</span></span>
+    ${segundo}
     <span class="ventana">${esc(pre.barra)}</span>
   </div>`;
 }

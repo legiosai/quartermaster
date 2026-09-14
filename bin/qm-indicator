@@ -165,6 +165,70 @@ def al_minuto(iso: str | None) -> str:
         return iso
 
 
+def hora_local(iso: str | None) -> str | None:
+    """Un instante ISO en HH:MM local, que es la precisión que pide la frase."""
+    if not iso:
+        return None
+    try:
+        return datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone().strftime("%H:%M")
+    except ValueError:
+        return None
+
+
+def pct_diario(pre: dict | None) -> float | None:
+    """Qué parte del presupuesto de HOY ya se gastó, en porcentaje de ese
+    presupuesto. Es lo que llena el medidor de cada cuenta en el item.
+
+    La semanal contesta «cuánto va del período», que en un medidor de 15 px se
+    mueve dos píxeles por día: a media semana estaba siempre por la mitad y no
+    decía nada de la sesión de trabajo de hoy. El presupuesto diario sí: llega
+    al tope cuando gastaste lo que te tocaba hoy, y eso pasa dentro del día.
+
+    None es «no se pudo medir» —no hay dos lecturas de hoy, o no hay ventana
+    larga que repartir— y deja la pista vacía: un hueco honesto, nunca un cero.
+    """
+    if not isinstance(pre, dict) or pre.get("estado") != "ok":
+        return None
+    gastado = pre.get("gastadoMedido")
+    if gastado is None:
+        return None
+    por_dia = pre.get("porDia") or 0
+    # Sin presupuesto —la ventana ya está en 100 %— cualquier gasto es de más.
+    if por_dia <= 0:
+        return 100.0 if gastado > 0 else 0.0
+    return max(0.0, min(100.0, gastado / por_dia * 100.0))
+
+
+def renglones_presupuesto(pre: dict) -> list[str]:
+    """Las mismas tres ramas que `frasePresupuesto` en el núcleo, en dos
+    renglones: el del terminal entra en una línea de 100 y acá hay 308 px.
+
+    «hoy te queda X %» se leía como una resta que no ocurría: era el reparto de
+    las horas que faltaban del día y bajaba solo con el reloj, sin gastar nada.
+    Lo que se resta de verdad es lo gastado; y cuando el historial no cubre la
+    mañana se dice desde qué hora se midió, en vez de llamarlo «hoy».
+
+    Partirla es lo contrario de recortarla: con la frase entera en un renglón,
+    Pango cortaba justo la hora —«desde las 1…»— y el dato que hace honesto al
+    número se perdía en los puntos suspensivos.
+    """
+    if pre.get("estado") != "ok":
+        return [f"presupuesto: {pre['motivo']}"] if pre.get("motivo") else []
+    # Con el nombre de la barra pegado, como en el terminal y en el tablero: la
+    # tarjeta muestra tres ventanas y el número reparte UNA, y sin decir cuál
+    # queda un 24.1 que no cierra con ninguno de los tres porcentajes de arriba.
+    barra = pre.get("barra")
+    dia = f"podés gastar {pre.get('porDia', 0):.1f} %/día" + (f" · {barra}" if barra else "")
+    gastado, restante = pre.get("gastadoHoy"), pre.get("restanteHoy")
+    if gastado is not None and restante is not None:
+        return [dia, f"gastaste {gastado:.1f} % hoy · te queda {restante:.1f} %"]
+    medido, desde = pre.get("gastadoMedido"), hora_local(pre.get("medidoDesde"))
+    if medido is not None and desde is not None:
+        queda = max(0.0, (pre.get("porDia") or 0) - medido)
+        return [dia, f"gastaste {medido:.1f} % desde las {desde} · te queda {queda:.1f} %"]
+    return [dia, f"de acá a medianoche te toca {pre.get('quedaHoy', 0):.1f} %"]
+
+
 def nombre_ventana(v: dict) -> str:
     """El nombre ya viene resuelto; el fallback es por si el JSON es viejo."""
     return v.get("nombre") or (
@@ -600,14 +664,9 @@ class VistaCuenta:
         # El presupuesto diario: cuánto por día para que la ventana larga
         # llegue entera al reinicio, y cuánto de eso queda hoy. La cuenta
         # —incluido CUÁL ventana se reparte— viene hecha del núcleo.
-        self.presupuesto = None
+        self.presupuesto = []
         if self.hay_numero:
-            pre = p.get("presupuesto") or {}
-            if pre.get("estado") == "ok":
-                self.presupuesto = (f"podés gastar {pre.get('porDia', 0):.1f} %/día"
-                                    f" · hoy te queda {pre.get('quedaHoy', 0):.1f} %")
-            elif pre.get("motivo"):
-                self.presupuesto = f"presupuesto: {pre['motivo']}"
+            self.presupuesto = renglones_presupuesto(p.get("presupuesto") or {})
 
         # Cada cuánto se lee ESTA cuenta y cuándo fue la última: la pregunta
         # «¿este número de cuándo es?» no se contesta con un porcentaje.
@@ -636,7 +695,8 @@ class VistaCuenta:
         if self.ritmo:
             alto += 20
         if self.presupuesto:
-            alto += 20
+            # 16 por renglón, y 4 de aire arriba del bloque.
+            alto += 4 + 16 * len(self.presupuesto)
         if self.lecturas:
             alto += 17
         return alto + PAD_TARJETA - 4
@@ -754,9 +814,10 @@ class VistaCuenta:
         if self.presupuesto:
             if not self.ritmo:
                 y += 4
-            pluma.escribir(ix, y, self.presupuesto, 11, TEMA.secundario,
-                           ancho=ancho, elipsis=True)
-            y += 16
+            for renglon in self.presupuesto:
+                pluma.escribir(ix, y, renglon, 11, TEMA.secundario,
+                               ancho=ancho, elipsis=True)
+                y += 16
         if self.lecturas:
             if not self.ritmo and not self.presupuesto:
                 y += 4
@@ -895,10 +956,10 @@ class VistaResumen:
 
 
 # ── el item de la barra, dibujado ────────────────────────────────────────
-# Un medidor vertical por cuenta, en el orden del menú, lleno hasta la semanal
-# que la frena antes y pintado por severidad. Es el mismo dibujo que el item de
-# la barra de macOS (bin/qm-barra.swift, medidores()) y con las mismas medidas:
-# tres cuentas entran en el ancho de una palabra.
+# Un medidor vertical por cuenta, en el orden del menú, lleno hasta la SESIÓN de
+# 5 h y pintado por severidad. Es el mismo dibujo que el item de la barra de
+# macOS (bin/qm-barra.swift, medidores()) y con las mismas medidas: tres cuentas
+# entran en el ancho de una palabra.
 #
 # Entra en la barra de GNOME por una puerta que la extensión deja abierta sin
 # documentar: si el nombre del ícono empieza con «/» lo toma como un archivo, y
@@ -956,6 +1017,7 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             return bool(v.get("preocupa")) or (_chocas and v.get("clave") == _frena.get("clave"))
 
         ses, sem = cuota.get("sesion"), cuota.get("semanal")
+        diario = pct_diario(p.get("presupuesto"))
         nombre = corto(p["perfil"])
         piezas.append({
             "nombre": nombre,
@@ -966,6 +1028,9 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             "sesion_alerta": alerta(ses),
             "semanal": sem.get("porcentaje") if sem else None,
             "semanal_alerta": alerta(sem),
+            # Cuánto del presupuesto de HOY ya se gastó: es lo que llena el
+            # medidor. None deja la pista vacía.
+            "diario": diario,
             # Cuándo se reinicia cada una. Lo usa `calentar()` para saber si el
             # número que tiene es de una ventana que ya cerró.
             "reinicia_sesion": ses.get("reinicia") if ses else None,
@@ -1037,10 +1102,14 @@ def dibujar_item(piezas: list[dict], destino: str, escala: float = 1.0) -> tuple
         glifo_producto(cr, t["producto"], TEMA.color_cuenta(t["indice"]),
                        x, (ALTO_ITEM - LADO_GLIFO) / 2, LADO_GLIFO)
         xb = x + LADO_GLIFO + AIRE_GLIFO
-        # El medidor es SIEMPRE la semanal. Si la cuenta no informa ninguna,
-        # queda la pista vacía: mejor un hueco honesto que dibujar otra cosa.
-        medidor(xb, t["semanal"],
-                TEMA.nivel(nivel_de(t["semanal"], t["semanal_alerta"])) if t["semanal"] is not None else None)
+        # El medidor es la SESIÓN: es la ventana que te frena AHORA, la única
+        # que se mueve dentro del rato que estás mirando la barra. La semanal se
+        # mueve dos píxeles por día —a media semana está siempre por la mitad—
+        # y el presupuesto del día tiene su frase entera en el panel. Si la
+        # cuenta no informa sesión queda la pista vacía: mejor un hueco honesto
+        # que dibujar otra cosa.
+        medidor(xb, t["sesion"],
+                TEMA.nivel(nivel_de(t["sesion"], t["sesion_alerta"])) if t["sesion"] is not None else None)
         n = _numero_de(t)
         if n is not None:
             # El número es la sesión, así que lleva el estado DE LA SESIÓN. Se
@@ -1056,6 +1125,9 @@ def dibujar_item(piezas: list[dict], destino: str, escala: float = 1.0) -> tuple
     superficie.write_to_png(destino)
     return ancho_total, ALTO_ITEM, "; ".join(
         f"{t['nombre']}: "
+        + (f"hoy {t['diario']:.0f} por ciento del día" if t["diario"] is not None
+           else "el día todavía no se puede medir")
+        + ", "
         + (f"sesión {t['sesion']} por ciento" if t["sesion"] is not None else "sin sesión")
         + ", "
         + (f"semana {t['semanal']} por ciento" if t["semanal"] is not None else "sin semanal")

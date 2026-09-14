@@ -62,6 +62,9 @@ Each entry of `perfiles`:
   "gastadoHoy": 4.2,       // lo que subió la barra desde medianoche, o null
   "restanteHoy": 7.4,      // porDia - gastadoHoy, piso 0; null si gastadoHoy es null
   "quedaHoy": 5.8,         // el reparto a ritmo parejo de las horas que faltan HOY
+  "gastadoMedido": 4.2,    // lo que subió desde medidoDesde, cubra el día o no
+  "medidoDesde": "2026-09-13T03:00:00.000Z",  // desde cuándo vale, o null
+  "cubreElDia": true,      // si medidoDesde es la medianoche
   "restante": 80, "horasHoy": 12, "horasRestantes": 167
 }
 ```
@@ -81,8 +84,26 @@ fue de 84 % a 6 %— y restar la última menos la primera daría −78 puntos.
 de media hora entre la medianoche y la primera lectura, sin una de ayer que diga
 con cuánto se llegó). `null` es «no se pudo medir», no «no gastaste nada»: con
 la primera lectura a las 03:10 no se sabe qué pasó antes, y suponer que no pasó
-nada es inventar. En ese caso la frase cae al reparto por hora, dicho como lo
-que es: «de acá a medianoche te toca X %».
+nada es inventar.
+
+**`gastadoMedido`** es lo mismo sin exigir que el día esté cubierto, y
+**`medidoDesde`** dice desde qué instante vale: la medianoche cuando
+`cubreElDia` es `true`, y la primera lectura de hoy cuando no. Existe porque la
+máquina apagada de noche es el caso normal, no la excepción: en una portátil que
+se prende a las nueve, `gastadoHoy` es `null` TODOS los días, y los medidores
+diarios de las tres bandejas —que se llenan con `gastadoMedido / porDia`— no
+dibujarían nunca. Decir «gastaste 12 % desde las 09:14» no es inventar: es
+exactamente lo que se midió, con su alcance escrito al lado. Lo que no se puede
+hacer es llamarlo «hoy», y por eso son dos campos y no uno.
+
+Es `null` sólo cuando no hay dos lecturas del día: ahí no hay ninguna subida que
+mirar, y la frase cae al reparto por hora, dicho como lo que es: «de acá a
+medianoche te toca X %».
+
+**La medianoche es la del proceso que corre `qm`.** Si lo lanza la bandeja de
+Windows contra un `qm` de adentro de WSL, esa WSL puede estar en UTC aunque
+Windows no: la bandeja pasa `TZ` con el nombre IANA de la zona de la máquina
+justamente para que «hoy» sea el día del reloj que el usuario tiene delante.
 
 ### `ultimoUso`
 

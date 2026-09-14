@@ -251,6 +251,11 @@
                 "alcance": "Fable",
                 "porDia": 4.2,
                 "quedaHoy": 1.8,
+                "gastadoHoy": 2.6,
+                "restanteHoy": 1.6,
+                "gastadoMedido": 2.6,
+                "medidoDesde": "2026-09-13T03:00:00.000Z",
+                "cubreElDia": true,
                 "restante": 11,
                 "horasHoy": 10.3,
                 "horasRestantes": 62.3

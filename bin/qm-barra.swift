@@ -250,8 +250,30 @@ struct Proyeccion {
 /// tiene que producir una FRASE: un renglón en blanco es el bug que esta
 /// herramienta existe para no cometer.
 enum Presupuesto {
-    case reparte(porDia: Double, quedaHoy: Double)
+    /// `gastado` es lo que subió la barra desde `desde`, cuando se pudo medir;
+    /// `cubreElDia` dice si ese `desde` es la medianoche o la hora a la que se
+    /// prendió la máquina. La diferencia es la que separa «gastaste 12 % hoy»
+    /// de «gastaste 12 % desde las 11:54», y no se puede borrar: llamar «hoy» a
+    /// un tramo que empieza al mediodía es decir de menos con cara de exacto.
+    case reparte(porDia: Double, quedaHoy: Double,
+                 gastado: Double?, desde: Date?, cubreElDia: Bool)
     case no(String)
+
+    /// Qué parte del presupuesto de HOY ya se gastó, en porcentaje de ese
+    /// presupuesto: lo que llena el medidor de cada cuenta.
+    ///
+    /// La semanal contestaba «cuánto va del período», que en un medidor de
+    /// 15 pt se mueve dos píxeles por día: a media semana estaba siempre por la
+    /// mitad y no decía nada de la sesión de trabajo de hoy. El presupuesto
+    /// diario sí: llega al tope cuando gastaste lo que te tocaba hoy.
+    ///
+    /// `nil` es «no se pudo medir» y deja la pista vacía, nunca un cero.
+    var pctDiario: Int? {
+        guard case let .reparte(porDia, _, gastado, _, _) = self, let g = gastado else { return nil }
+        // Sin presupuesto —la ventana ya está en 100 %— cualquier gasto es de más.
+        guard porDia > 0 else { return g > 0 ? 100 : 0 }
+        return Int(max(0, min(100, (g / porDia * 100).rounded())))
+    }
 }
 
 /// Lo que hay que decir de una cuenta arriba: la sesión de 5 h, la barra que
@@ -262,8 +284,9 @@ enum Presupuesto {
 /// lado del número de la sesión: el aviso puede ser de la barra semanal, y un
 /// `23!` diría que lo alarmante es la sesión, que es falso. La alerta la lleva
 /// el color del medidor de la derecha, que es justamente el de esa barra.
-/// Dos números por cuenta, cada uno SIEMPRE con el mismo significado:
-/// el medidor es la semanal y el número es la sesión de 5 h.
+/// Dos canales por cuenta, cada uno SIEMPRE con el mismo significado: el
+/// medidor es la sesión de 5 h —la ventana que frena ahora— y el número es esa
+/// misma sesión escrita, para poder leerla sin medir el alto a ojo.
 ///
 /// Antes el medidor mostraba «la que frena antes», que a veces era la semanal y
 /// a veces la sesión — y cuando era la sesión, dibujaba lo mismo que ya decía
@@ -273,12 +296,17 @@ struct Trozo {
     let nombre: String
     let producto: String
     let indice: Int
-    /// La ventana corta: «¿puedo seguir ahora?». Va como número.
+    /// La ventana corta: «¿puedo seguir ahora?». Va como medidor y como número.
     let sesion: Int?
     let sesionAlerta: Bool
-    /// La peor de las semanales: «¿llego al final?». Va como medidor.
+    /// La peor de las semanales: «¿llego al final?». Ya no va como medidor —se
+    /// movía dos píxeles por día, así que a media semana estaba siempre por la
+    /// mitad— pero sigue contando para el aviso.
     let semanal: Int?
     let semanalAlerta: Bool
+    /// Cuánto del presupuesto de HOY ya se gastó. No se dibuja: va en la
+    /// descripción accesible, donde sí hay lugar para los tres números.
+    let diario: Int?
     let viejo: Bool
     /// Lo que hace falta para decidir si se le pregunta al endpoint: el nombre
     /// completo del perfil —el que entiende `--cuentas`—, cuándo se reinicia
@@ -416,8 +444,15 @@ func leer() -> Lectura {
         var pre: Presupuesto? = nil
         if let pp = p["presupuesto"] as? [String: Any] {
             if (pp["estado"] as? String) == "ok" {
+                // `gastadoHoy` es sólo el día entero; `gastadoMedido` es lo que
+                // se midió aunque arranque más tarde, y es lo que dibuja el
+                // medidor: una máquina que se apaga de noche no tiene nunca el
+                // día entero, y un medidor que no dibuja nunca no es honesto.
                 pre = .reparte(porDia: pp["porDia"] as? Double ?? 0,
-                               quedaHoy: pp["quedaHoy"] as? Double ?? 0)
+                               quedaHoy: pp["quedaHoy"] as? Double ?? 0,
+                               gastado: pp["gastadoMedido"] as? Double,
+                               desde: fecha(pp["medidoDesde"]),
+                               cubreElDia: pp["cubreElDia"] as? Bool ?? false)
             } else if let motivo = pp["motivo"] as? String {
                 pre = .no(motivo)
             }
@@ -612,9 +647,25 @@ final class VistaCuenta: NSView {
         // y vuelven antes de llegar hasta acá.
         if let pre = p.presupuesto, p.hayNumero {
             switch pre {
-            case .reparte(let porDia, let quedaHoy):
-                self.presupuesto = String(format: "podés gastar %.1f %%/día · hoy te queda %.1f %%",
-                                          porDia, quedaHoy)
+            case .reparte(let porDia, let quedaHoy, let gastado, let desde, let cubreElDia):
+                // Las mismas tres ramas que `frasePresupuesto` en el núcleo.
+                // «hoy te queda X %» se leía como una resta que no ocurría —era
+                // el reparto de las horas que faltaban del día, y bajaba solo
+                // con el reloj sin gastar nada—. Lo que se resta de verdad es lo
+                // gastado, y si el historial no cubre la mañana se dice desde
+                // qué hora se lo midió en vez de llamarlo «hoy».
+                let dia = String(format: "podés gastar %.1f %%/día", porDia)
+                if let g = gastado, cubreElDia {
+                    self.presupuesto = dia + String(format: " · gastaste %.1f %% hoy · te queda %.1f %%",
+                                                    g, max(0, porDia - g))
+                } else if let g = gastado, let d = desde {
+                    let hhmm = DateFormatter()
+                    hhmm.dateFormat = "HH:mm"
+                    self.presupuesto = dia + String(format: " · gastaste %.1f %% desde las %@ · te queda %.1f %%",
+                                                    g, hhmm.string(from: d), max(0, porDia - g))
+                } else {
+                    self.presupuesto = dia + String(format: " · de acá a medianoche te toca %.1f %%", quedaHoy)
+                }
             case .no(let motivo):
                 self.presupuesto = "presupuesto: \(motivo)"
             }
@@ -1037,6 +1088,7 @@ final class Barra: NSObject, NSApplicationDelegate {
                         sesionAlerta: ses.map { $0.preocupa || esLaProyectada($0) } ?? false,
                         semanal: sem?.porcentaje,
                         semanalAlerta: sem.map { $0.preocupa || esLaProyectada($0) } ?? false,
+                        diario: p.presupuesto?.pctDiario,
                         viejo: viejo,
                         perfil: p.nombre,
                         reiniciaSesion: ses?.reinicia,
@@ -1189,14 +1241,14 @@ final class Barra: NSObject, NSApplicationDelegate {
         // entraba (158 pt contra los ~137 que deja la muesca) y la escalera
         // terminaba tirando los números — justo lo que hay que mostrar. Y la
         // barra de sesión pasó a ser redundante: el número YA es la sesión.
-        // El medidor queda para la que frena antes, que es la que no tiene
-        // número y necesita alguna forma de verse.
+        // El medidor queda para la sesión, que es la que frena ahora: en la
+        // bandeja de Windows no hay número al lado y es lo único que se ve.
         let par = ancho
 
         let fuente = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
         // El número de cada cuenta es el de la SESIÓN de 5 h: es el que
-        // contesta «¿puedo seguir trabajando ahora?». La semanal se sigue
-        // viendo —es la barra de la derecha, con su color— sin gastar dígitos.
+        // contesta «¿puedo seguir trabajando ahora?». La semanal y el
+        // presupuesto del día se leen en el panel, que es donde hay lugar.
         func texto(_ t: Trozo) -> NSAttributedString? {
             guard numeros, let s = t.sesion else { return nil }
             // El número es la sesión, así que lleva el estado DE LA SESIÓN. Se
@@ -1240,12 +1292,15 @@ final class Barra: NSObject, NSApplicationDelegate {
                         .draw(in: NSRect(x: x, y: (alto - ladoGlifo) / 2, width: ladoGlifo, height: ladoGlifo))
                 }
                 let xb = x + ladoGlifo + aireGlifo
-                // El medidor es SIEMPRE la semanal. Si la cuenta no informa
-                // ninguna, queda la pista vacía: mejor un hueco honesto que
-                // dibujar ahí otra cosa.
-                barra(xb, t.semanal ?? 0,
-                      t.semanal == nil ? NSColor.labelColor.withAlphaComponent(0.16)
-                                       : nivelDe(t.semanal!, preocupa: t.semanalAlerta).color)
+                // El medidor es la SESIÓN: es la ventana que te frena AHORA, la
+                // única que se mueve dentro del rato que estás mirando la
+                // barra. La semanal se mueve dos píxeles por día y el
+                // presupuesto del día tiene su frase entera en el panel. Si la
+                // cuenta no informa sesión, queda la pista vacía: mejor un
+                // hueco honesto que dibujar ahí otra cosa.
+                barra(xb, t.sesion ?? 0,
+                      t.sesion == nil ? NSColor.labelColor.withAlphaComponent(0.16)
+                                      : nivelDe(t.sesion!, preocupa: t.sesionAlerta).color)
                 if let n = texto(t) {
                     n.draw(at: NSPoint(x: xb + par + aireNumero, y: (alto - n.size().height) / 2))
                 }
@@ -1256,9 +1311,10 @@ final class Barra: NSObject, NSApplicationDelegate {
         img.isTemplate = false
         img.accessibilityDescription = piezas
             .map { t in
+                let d = t.diario.map { "hoy \($0) por ciento del día" } ?? "el día todavía no se puede medir"
                 let a = t.sesion.map { "sesión \($0) por ciento" } ?? "sin sesión"
                 let b = t.semanal.map { "semana \($0) por ciento" } ?? "sin semanal"
-                return "\(t.nombre): \(a), \(b)\(t.sesionAlerta || t.semanalAlerta ? ", con aviso" : "")"
+                return "\(t.nombre): \(d), \(a), \(b)\(t.sesionAlerta || t.semanalAlerta ? ", con aviso" : "")"
             }
             .joined(separator: "; ")
         return img

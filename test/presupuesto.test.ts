@@ -172,9 +172,40 @@ test('sin historial que cubra el arranque del día, gastadoHoy es null', () => {
   if (p.estado !== 'ok') return;
   assert.equal(p.gastadoHoy, null);
   assert.equal(p.restanteHoy, null);
-  // Y la frase cae al modo honesto, sin prometer una resta.
+  // Pero lo que SÍ se midió se mide, con la hora desde la que vale pegada: es
+  // lo único que hace dibujable el medidor diario en una máquina que se apaga
+  // de noche, que es la máquina normal.
+  assert.equal(p.cubreElDia, false);
+  assert.equal(p.gastadoMedido, 4);
+  assert.equal(p.medidoDesde, HORA(3) + 600_000);
+  assert.match(frasePresupuesto(p), /gastaste 4\.0 % desde las 03:10/);
+  // Y nunca dice «hoy» de un tramo que no cubre el día.
+  assert.doesNotMatch(frasePresupuesto(p), /hoy/);
+});
+
+test('con una sola lectura del día no hay nada medido, y se nota', () => {
+  // Una lectura no es una subida: entre la medianoche y ella no hay diferencia
+  // que mirar. Ahí la frase cae al reparto por hora, dicho como lo que es.
+  const p = presupuestoDiario(semanalDe(24), HORA(9), [{ t: HORA(8), porcentaje: 24 }]);
+  assert.equal(p.estado, 'ok');
+  if (p.estado !== 'ok') return;
+  assert.equal(p.gastadoMedido, null);
+  assert.equal(p.medidoDesde, null);
   assert.match(frasePresupuesto(p), /de acá a medianoche/);
   assert.doesNotMatch(frasePresupuesto(p), /te queda/);
+});
+
+test('una lectura de hace tres días no es la línea de base de hoy', () => {
+  // La máquina estuvo apagada el fin de semana: la última lectura dice 9 % y la
+  // primera de hoy —00:10, o sea el día SÍ está cubierto— dice 12. Esos 3
+  // puntos se gastaron en algún momento de esos tres días, y cargárselos a hoy
+  // es inventar de más. Lo de hoy son los 4 que subió desde que se prendió.
+  const lecturas = [
+    { t: HORA(0) - 3 * 24 * H, porcentaje: 9 },
+    { t: HORA(0) + 600_000, porcentaje: 12 },
+    { t: HORA(8), porcentaje: 16 },
+  ];
+  assert.equal(gastadoDesdeMedianoche(lecturas, HORA(9)), 4);
 });
 
 test('gastando de más, lo que queda es cero y no negativo', () => {

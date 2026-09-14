@@ -578,7 +578,7 @@ me queda hoy.** Un 78 % con reinicio el sábado no dice si mañana hay que frena
 repartirlo sí, y en la misma unidad que todo lo demás:
 
 ```
-presupuesto: podés gastar 4.2 %/día · hoy te queda 1.8 % · weekly_scoped (Fable)
+presupuesto: podés gastar 4.2 %/día · gastaste 2.6 % hoy · te queda 1.6 %
 ```
 
 La cuenta es de dos renglones y está en `src/core/presupuesto.ts`:
@@ -588,11 +588,90 @@ porDia    = (100 − porcentaje) / días hasta el reinicio
 quedaHoy  = porDia × (horas que le quedan al día / 24)
 ```
 
-Mira **hacia adelante**, y eso es lo que la hace honesta sin historial: todo lo
-que ya gastaste hoy está adentro del porcentaje actual, así que no hay que
-restarlo ni ir a buscarlo a un JSONL que puede no cubrir la medianoche. Si te
-pasaste de rosca a la mañana, `porDia` baja solo en la lectura siguiente y
-`quedaHoy` con él; si no tocaste nada, sube. Nunca da negativo.
+Mira **hacia adelante**, y eso es lo que hace honesto a `porDia` sin historial:
+todo lo que ya gastaste hoy está adentro del porcentaje actual, así que no hay
+que restarlo. Si te pasaste de rosca a la mañana, `porDia` baja solo en la
+lectura siguiente; si no tocaste nada, sube. Nunca da negativo.
+
+**Y ese mismo argumento, aplicado al segundo número, era falso.** La frase decía
+«hoy te queda 1.8 %» mostrando `quedaHoy`, que no resta nada: es el reparto a
+ritmo parejo de las horas que FALTAN del día. Con la cuota quieta en 20 %, el
+mismo día, sin gastar un punto:
+
+```
+01:00  podés gastar 10.9 %/día · hoy te queda 10.5 %
+12:00  podés gastar 11.6 %/día · hoy te queda  5.8 %
+23:00  podés gastar 12.5 %/día · hoy te queda  0.5 %
+```
+
+No es un presupuesto, es un reloj. «Te queda» prometía una resta que no ocurría,
+y las dos mitades de la frase usaban modelos distintos: «X %/día» es una
+asignación diaria y «hoy te queda Y %» un reparto por hora, y juntas invitan a
+leer `Y = X − gastado`, que no era lo que corría.
+
+Lo que sí contesta esa pregunta sale del historial: `gastadoHoy` suma los saltos
+**hacia arriba** de la barra desde la medianoche. Sólo los de subida, porque una
+ventana se puede reiniciar en medio del día —el 2026-09-13 una semanal fue de
+84 % a 6 %— y la última menos la primera daría −78 puntos.
+
+### La máquina apagada de noche no es la excepción
+
+`gastadoHoy` es `null` cuando el historial no cubre el arranque del día, que es
+la regla de siempre: lo que no se puede medir es null, no cero. Sólo que en una
+portátil que se apaga a la noche y se prende a las nueve, **eso es null todos los
+días**: la primera lectura es de las 09:14 y la medianoche no la vio nadie.
+
+Un segundo par de campos arregla eso sin mentir. `gastadoMedido` es lo que subió
+la barra desde `medidoDesde`, y `medidoDesde` es la medianoche cuando el día está
+cubierto y la primera lectura de hoy cuando no:
+
+```
+podés gastar 24.1 %/día · gastaste 13.0 % desde las 08:54 · te queda 11.1 %
+```
+
+Decir «desde las 08:54» no es inventar: es exactamente lo que se midió, con su
+alcance escrito al lado. Lo que no se puede hacer es llamarlo «hoy» — y por eso
+son dos campos y no uno que a veces significa una cosa y a veces otra.
+
+De paso salió un error de más: la línea de base era la última lectura ANTERIOR a
+la medianoche aunque fuera de hace tres días. El salto entre aquel número y el
+primero de hoy pasó en algún momento de esos tres días, y cargárselo a hoy es
+inventar al revés, de más. Ahora sólo sirve de base si viene pegada a la
+medianoche.
+
+### El medidor de la bandeja: la semanal se movía dos píxeles por día
+
+El item de las tres bandejas dibujaba un medidor por cuenta lleno hasta **la
+semanal**. En 15 píxeles, una ventana de siete días se mueve dos píxeles por día:
+a mitad de semana estaba siempre por la mitad, dijeras lo que dijeras. Un
+indicador que se ve igual el martes que el jueves no es un indicador.
+
+El primer reemplazo fue el presupuesto de hoy —`gastadoMedido / porDia`—, y
+duró una prueba en la máquina de quien lo pidió: a 13 puntos de 24.1 el medidor
+estaba verde al 54 % **mientras la sesión iba 91 % y frenaba en 16 minutos**. El
+número era correcto y la pregunta era otra. En la bandeja de Windows el ícono no
+tiene número al lado —16 px no dan para uno legible, está medido— así que esa
+barra es TODO lo que se ve de un vistazo, y lo único que se mira de un vistazo
+es si podés seguir trabajando ahora.
+
+Así que el medidor es la **sesión de 5 h**: la ventana que frena ahora y la
+única que se mueve dentro del rato en que uno mira la barra. La semanal y el
+presupuesto del día están enteros en el panel y en el tooltip, que es donde hay
+lugar para leerlos en vez de estimarlos por el alto de tres píxeles.
+
+### La medianoche de quién
+
+La bandeja de Windows corriendo contra un `qm` de adentro de WSL tenía el día
+corrido tres horas: una WSL recién instalada arranca en UTC y no hereda la zona
+de Windows, así que «hoy» terminaba a las 21:00 de la hora del usuario. El
+presupuesto se reiniciaba antes de que cambiara el día en la pantalla y lo
+gastado de noche se contaba en el día siguiente. Números correctos para un día
+que no era el de nadie.
+
+La bandeja pasa ahora `TZ` con el nombre **IANA** de la zona de la máquina. Tiene
+que ser IANA: el `TZ` POSIX de toda la vida —`<-03>3`— Node lo ignora y se queda
+en UTC **sin decir nada**, que es la peor forma de fallar, porque la frase sale
+igual de prolija con el día corrido tres horas.
 
 Dos decisiones que no son obvias:
 

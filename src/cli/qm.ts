@@ -776,6 +776,13 @@ function presupuestoJson(cuota: ResultadoCuota, perfil: string): Record<string, 
     // descontándolo. `null` es «el historial no cubre el día», no «cero».
     gastadoHoy: p.gastadoHoy === null ? null : un(p.gastadoHoy),
     restanteHoy: p.restanteHoy === null ? null : un(p.restanteHoy),
+    // Lo mismo, pero sin exigir que el día esté cubierto: `medidoDesde` dice
+    // desde qué instante vale. Es lo que dibujan los medidores diarios de las
+    // bandejas, que en una máquina que se apaga de noche no tendrían nada que
+    // dibujar si el único número fuera el del día completo.
+    gastadoMedido: p.gastadoMedido === null ? null : un(p.gastadoMedido),
+    medidoDesde: p.medidoDesde === null ? null : new Date(p.medidoDesde).toISOString(),
+    cubreElDia: p.cubreElDia,
     restante: un(p.restante),
     horasHoy: un(p.horasHoy),
     horasRestantes: un(p.horasRestantes),

@@ -178,7 +178,7 @@ if ($bmp) {
 # scope de mentira con un qm.cmd de mentira. Es lo mismo que hace
 # scripts/gate-duraciones.py con la escalera, por la misma razón.
 $arbol = [System.Management.Automation.Language.Parser]::ParseFile($guion, [ref]$null, [ref]$null)
-$queridas = @('ArgsWsl', 'ResolverQm', 'PsiQm')
+$queridas = @('TzIana', 'ArgsWsl', 'ResolverQm', 'PsiQm')
 $fns = $arbol.FindAll({
     param($n)
     $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $queridas -contains $n.Name
@@ -233,7 +233,9 @@ Set-StrictMode -Version Latest
   $b = Resolver @{ Qm = ''; QmLinux = 'qm'; PidieronQmLinux = 'true'; MiBin = $binFalso }
   if ($b.R.Modo -ne 'wsl') { Fallar "con -QmLinux explícito el modo tiene que ser wsl y fue '$($b.R.Modo)'" }
   elseif ($b.Psi.FileName -ne 'wsl.exe') { Fallar "el modo wsl no arranca wsl.exe sino '$($b.Psi.FileName)'" }
-  elseif ($b.Psi.Arguments -ne '-e bash -lc "qm --json --breve"') {
+  # La zona va adelante del comando: sin ella WSL corre en UTC y el día del
+  # presupuesto no es el del reloj de la pantalla.
+  elseif ($b.Psi.Arguments -notmatch '^-e bash -lc "TZ=''([A-Za-z_]+/[A-Za-z0-9_+\-/]+|UTC)'' qm --json --breve"$') {
     Fallar "la línea de WSL cambió: $($b.Psi.Arguments)"
   }
 
