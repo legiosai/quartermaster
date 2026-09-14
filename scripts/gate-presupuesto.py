@@ -55,6 +55,16 @@ import sys
 import tempfile
 from datetime import datetime
 
+# La salida va en UTF-8 aunque la consola no lo sea. En el runner de Windows la
+# codepage es cp1252 y el `✓` la rompe con un UnicodeEncodeError: el gate se
+# moría al IMPRIMIR el verde, después de haber comparado bien. Un gate que
+# revienta contando lo que le salió bien es indistinguible de uno que falló.
+for _salida in (sys.stdout, sys.stderr):
+    try:
+        _salida.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):  # una salida que no es un archivo de texto
+        pass
+
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 TABLA = json.loads((RAIZ / "test/fixtures/presupuesto.json").read_text(encoding="utf-8"))
 CASOS = TABLA["casos"]
