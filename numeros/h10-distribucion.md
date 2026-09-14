@@ -428,12 +428,19 @@ y había una línea diciendo que sí.
   2026-09-13** por la release de 0.1.6: `winget validate` corrió sobre los
   cuatro manifests generados y dijo `Manifest validation succeeded` (con un
   aviso de que no puede validar la dependencia `OpenJS.NodeJS.LTS`, que es
-  esperable: valida forma, no catálogo), y el PR salió: el #434160. Del CI de
-  `microsoft/winget-pkgs` ya contestaron seis checks en verde —Pull Request
-  Validation, Manifest Validation, URLs Validation, URL Domain Validation,
-  Manifest Policy Validation y Catalog Content Verification—; los otros cuatro
-  y el revisor esperan al CLA, que lo firma una persona. Eso no depende de
-  nosotros y no tiene fecha.
+  esperable: valida forma, no catálogo), y el PR salió: el #434160. **Cerrada
+  del todo el 2026-09-13**: firmado el CLA, el CI de `microsoft/winget-pkgs`
+  corrió los diez checks y pasaron los diez, con `Azure-Pipeline-Passed` y
+  `Validation-Completed` puestas y el PR en `MERGEABLE`.
+
+  El que vale es el 08, **Installation Validation, 29 min 53 s**: eso es
+  winget instalando el paquete de verdad en una máquina de Microsoft. Es la
+  única casilla del checklist que no habíamos podido tildar —«Tested manifest
+  locally with `winget install --manifest`»— y la terminó contestando el otro
+  lado. El instalador por usuario, sin UAC, con la dependencia de Node
+  declarada, entra.
+
+  Queda el revisor humano, que no es un número.
 - **`scripts/mandar-pr-winget.mjs` corriendo EN CI, con `TOKEN_WINGET`.** El
   camino completo —forkear a la org, ramificar, abrir el PR— se ejecutó a mano
   desde esta máquina y con otro token; lo que corrió con `TOKEN_WINGET` fue la
