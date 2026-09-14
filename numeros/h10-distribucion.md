@@ -424,12 +424,11 @@ y había una línea diciendo que sí.
   y no con la VM: leyendo el binario que Claude Code instala, como el endpoint
   de H2. No usa DPAPI — es el mismo `.credentials.json`. Está en
   [`h4-windows.md`](h4-windows.md), con lo que la desmentiría.
-- ~~**`winget validate` y el PR a winget-pkgs.**~~ **Medio cerrada el
-  2026-09-13** por la release de 0.1.6: `winget validate` corrió sobre los
-  cuatro manifests generados y dijo `Manifest validation succeeded` (con un
-  aviso de que no puede validar la dependencia `OpenJS.NodeJS.LTS`, que es
-  esperable: valida forma, no catálogo), y el PR salió: el #434160. **Cerrada
-  del todo el 2026-09-13**: firmado el CLA, el CI de `microsoft/winget-pkgs`
+- ~~**`winget validate` y el PR a winget-pkgs.**~~ **Cerrada el 2026-09-13**
+  por la release de 0.1.6: `winget validate` corrió sobre los cuatro manifests
+  generados y dijo `Manifest validation succeeded` (con un aviso de que no
+  puede validar la dependencia `OpenJS.NodeJS.LTS`, que es esperable: valida
+  forma, no catálogo), y el PR salió: el #434160. Y del otro lado: firmado el CLA, el CI de `microsoft/winget-pkgs`
   corrió los diez checks y pasaron los diez, con `Azure-Pipeline-Passed` y
   `Validation-Completed` puestas y el PR en `MERGEABLE`.
 
