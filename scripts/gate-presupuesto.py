@@ -17,23 +17,25 @@ respaldo, la del `qm` anterior.
 Es la misma historia que `gate-duraciones`: una regla escrita en cinco
 comentarios y en ningún lado comprobada. Ahí convivieron dos convenciones
 durante meses; acá el número que se compara es el que dice cuánto podés gastar.
+Y en la primera corrida de verdad este gate encontró que la bandeja de Windows
+contestaba «te queda 0.0 %» donde las otras cuatro decían 0.3.
 
 El canon está congelado en test/fixtures/presupuesto.json, sacado corriendo el
 núcleo. Cada implementación se EJECUTA con el mismo JSON y se compara contra esa
 tabla. Las que no tienen intérprete en esta máquina se saltean diciéndolo —
-nunca se dan por buenas en silencio.
+nunca se dan por buenas en silencio—, y `QM_GATE_EXIGE` convierte el salteo en
+rojo en los jobs cuyo runner sí los trae.
 
-Dos cosas que este gate NO compara, y las dice en la salida en vez de
+Dos cosas que no se comparan letra por letra, y se dicen en la salida en vez de
 esconderlas:
 
   - **el separador decimal.** El tablero escribe «16,1» y las otras cuatro
     «16.1». Los números se comparan como números; que el tablero use coma es una
     diferencia de dibujo que hay que decidir, no un rojo que este gate invente.
-  - **la barra de macOS.** Su frase no está en una función: está adentro de un
-    `switch` en el inicializador de una vista, así que no se puede extraer y
-    correr como las otras cuatro, y no hay runner de macOS en el CI. De ella se
-    comprueba la REDACCIÓN de los tres `String(format:)` contra el canon, que es
-    lo que se puede medir desde acá. No es lo mismo que ejecutarla y se dice.
+  - **el respaldo de un `qm` anterior en la barra de macOS.** En las otras
+    pantallas el `?? porDia` está adentro de la función que escribe; en Swift
+    está en el parseo del JSON, una función más arriba. Ese caso se saltea ahí,
+    diciéndolo.
 
 La hora de `medidoDesde` la escribe cada pantalla con el reloj de la máquina, así
 que no se compara contra un string congelado: se exige que las pantallas digan
@@ -44,16 +46,21 @@ m.» mientras las otras cuatro decían «11:54».
 import importlib.machinery
 import importlib.util
 import json
+import os
 import pathlib
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+from datetime import datetime
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 TABLA = json.loads((RAIZ / "test/fixtures/presupuesto.json").read_text(encoding="utf-8"))
 CASOS = TABLA["casos"]
+
+# Lo que devuelve una pantalla para un caso que no le toca contestar.
+SALTEADO = "—"
 
 
 def bloque(ruta: pathlib.Path, arranque: str, abre: str = "{", cierra: str = "}") -> str:
@@ -76,11 +83,11 @@ def bloque(ruta: pathlib.Path, arranque: str, abre: str = "{", cierra: str = "}"
 # El núcleo escribe UN renglón; los que dibujan escriben DOS, y le pegan al
 # primero el nombre de la ventana («· weekly_all») porque la tarjeta muestra
 # tres barras y el número reparte una sola. Ninguna de las dos cosas es una
-# diferencia de lo que se dice: se normalizan y se compara la frase.
+# diferencia de lo que se DICE: se normalizan y se compara la frase.
 HORA = re.compile(r"\d{2}:\d{2}")
 
 
-def frase(renglones: list[str], barra: str | None) -> str:
+def frase(renglones, barra) -> str:
     texto = " · ".join(r for r in renglones if r)
     if barra:
         texto = texto.replace(f" · {barra}", "")
@@ -89,8 +96,7 @@ def frase(renglones: list[str], barra: str | None) -> str:
 
 def numeros(texto: str) -> list[float]:
     """Los números de la frase, en orden, con coma o con punto."""
-    sin_hora = HORA.sub("", texto)
-    return [float(n.replace(",", ".")) for n in re.findall(r"\d+[.,]\d", sin_hora)]
+    return [float(n.replace(",", ".")) for n in re.findall(r"\d+[.,]\d", HORA.sub("", texto))]
 
 
 def rama(texto: str) -> str:
@@ -103,28 +109,26 @@ def rama(texto: str) -> str:
     return "?"
 
 
+def sin_campos_nuevos(entrada: dict) -> bool:
+    """El JSON de un `qm` anterior a 0.1.11."""
+    return entrada.get("porDiaHoy") is None and entrada.get("restanteMedido") is None
+
+
 # ── las implementaciones ─────────────────────────────────────────────────
-def por_typescript(casos: list[dict]) -> list[str | None]:
+def por_typescript() -> list[str]:
     """El núcleo. `frasePresupuesto` come el Presupuesto de adentro, no el JSON,
     así que se le arma uno con los campos que la frase usa. Un caso sin
     `porDiaHoy` es un JSON que el núcleo NUNCA emite —es el de un qm anterior—,
     y ahí no se lo llama: contestar por él sería inventar."""
     entradas = []
-    for c in casos:
+    for c in CASOS:
         e = c["entrada"]
-        if e.get("porDiaHoy") is None:
-            entradas.append(None)
-            continue
-        entradas.append({
-            "estado": e["estado"],
-            "motivo": e.get("motivo"),
-            "porDiaHoy": e["porDiaHoy"],
-            "quedaHoy": e["quedaHoy"],
-            "gastadoHoy": e["gastadoHoy"],
-            "restanteHoy": e["restanteHoy"],
-            "gastadoMedido": e["gastadoMedido"],
-            "restanteMedido": e["restanteMedido"],
-            "medidoDesde": None if e["medidoDesde"] is None else e["medidoDesde"],
+        entradas.append(None if sin_campos_nuevos(e) else {
+            "estado": e["estado"], "motivo": e.get("motivo"),
+            "porDiaHoy": e["porDiaHoy"], "quedaHoy": e["quedaHoy"],
+            "gastadoHoy": e["gastadoHoy"], "restanteHoy": e["restanteHoy"],
+            "gastadoMedido": e["gastadoMedido"], "restanteMedido": e["restanteMedido"],
+            "medidoDesde": e["medidoDesde"],
         })
     guion = (
         "import {frasePresupuesto} from './src/core/presupuesto.ts';"
@@ -136,64 +140,63 @@ def por_typescript(casos: list[dict]) -> list[str | None]:
                        cwd=RAIZ, capture_output=True, text=True, timeout=60)
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "node falló")
-    return json.loads(r.stdout)
+    return [SALTEADO if s is None else s for s in json.loads(r.stdout)]
 
 
-def por_python(casos: list[dict]) -> list[str | None]:
+def por_python() -> list[str]:
     """El indicador de GNOME."""
     spec = importlib.util.spec_from_loader(
         "qmi", importlib.machinery.SourceFileLoader("qmi", str(RAIZ / "bin/qm-indicator")))
     m = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(m)
-    return [frase(m.renglones_presupuesto(c["entrada"]), c["entrada"].get("barra")) for c in casos]
+    return [frase(m.renglones_presupuesto(c["entrada"]), c["entrada"].get("barra")) for c in CASOS]
 
 
-def por_powershell(casos: list[dict]) -> list[str | None]:
+def por_powershell() -> list[str]:
     """La bandeja de Windows. Con StrictMode, como corre de verdad: leer una
     propiedad que no está es una excepción, y es justo lo que pasa con el JSON
     de un qm anterior."""
     fn = bloque(RAIZ / "bin/qm-tray.ps1", "function RenglonesPresupuesto($pre) {")
-    entradas = json.dumps([c["entrada"] for c in casos])
     with tempfile.TemporaryDirectory() as d:
-        p = pathlib.Path(d) / "p.ps1"
-        datos = pathlib.Path(d) / "casos.json"
-        datos.write_text(entradas, encoding="utf-8")
-        salida = pathlib.Path(d) / "dicho.json"
-        # La frase va a un archivo en UTF-8 y no por stdout: el Windows
-        # PowerShell escribe la consola en la codepage de la máquina, y el `·`
-        # y los acentos vuelven rotos o no vuelven. Un gate que compara frases
-        # no puede depender de qué codepage tiene el runner.
-        p.write_text(
+        guion, datos, dicho = (pathlib.Path(d) / n for n in ("p.ps1", "casos.json", "dicho.txt"))
+        datos.write_text(json.dumps([c["entrada"] for c in CASOS]), encoding="utf-8")
+        # Un renglón por caso, a un archivo en UTF-8. Ni JSON ni stdout, y las
+        # dos cosas medidas en el CI y no supuestas: el ConvertTo-Json del
+        # PowerShell 5.1 envuelve cada arreglo en {value, Count}, y la consola de
+        # Windows escribe en la codepage de la máquina, así que el `·` y los
+        # acentos volvían rotos.
+        guion.write_text(
             "Set-StrictMode -Version Latest\n"
             "$ErrorActionPreference = 'Stop'\n"
             f"{fn}\n"
             f"$casos = Get-Content -Raw -Encoding UTF8 '{datos}' | ConvertFrom-Json\n"
-            "$dicho = foreach ($c in $casos) { ,@(RenglonesPresupuesto $c) }\n"
-            "$json = $dicho | ConvertTo-Json -Depth 4\n"
-            f"[System.IO.File]::WriteAllText('{salida}', $json, "
+            "$dicho = foreach ($c in $casos) { (RenglonesPresupuesto $c) -join ' · ' }\n"
+            f"[System.IO.File]::WriteAllLines('{dicho}', [string[]]$dicho, "
             "(New-Object System.Text.UTF8Encoding $false))\n",
             encoding="utf-8")
-        # `-ExecutionPolicy Bypass` sólo existe en Windows: en el pwsh de Linux
-        # es un parámetro que no está y el proceso ni arranca.
         orden = [EXE_PS, "-NoProfile"]
         if sys.platform == "win32":
+            # Sólo existe en Windows: en el pwsh de Linux el proceso ni arranca.
             orden += ["-ExecutionPolicy", "Bypass"]
-        r = subprocess.run(orden + ["-File", str(p)],
+        r = subprocess.run(orden + ["-File", str(guion)],
                            capture_output=True, text=True, timeout=120)
         if r.returncode != 0:
             raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "powershell falló")
-        dicho = json.loads(salida.read_text(encoding="utf-8"))
-    return [frase(list(d), c["entrada"].get("barra")) for d, c in zip(dicho, casos)]
+        lineas = dicho.read_text(encoding="utf-8").splitlines()
+    if len(lineas) != len(CASOS):
+        raise RuntimeError(f"contestó {len(lineas)} renglones y esperaba {len(CASOS)}")
+    return [frase([l], c["entrada"].get("barra")) for l, c in zip(lineas, CASOS)]
 
 
-def por_tablero(casos: list[dict]) -> list[str | None]:
-    """El tablero web. Dibuja pares clave/valor en HTML, no una frase: se le
-    sacan los números y la rama, que es lo que tiene que coincidir."""
+def por_tablero() -> list[str]:
+    """El tablero web. Dibuja pares clave/valor en HTML, no una frase: de él se
+    comparan los números y la rama, que es lo que tiene que coincidir."""
     fn = bloque(RAIZ / "src/render/tablero.html", "function presupuesto(pre) {")
-    un = "const unDecimal = (n) => Number(n).toFixed(1).replace('.', ',');"
     guion = (
-        "const esc = (s) => String(s);\n" + un + "\n" + fn + "\n"
-        f"const cs={json.dumps([c['entrada'] for c in casos])};\n"
+        "const esc = (s) => String(s);\n"
+        "const unDecimal = (n) => Number(n).toFixed(1).replace('.', ',');\n"
+        f"{fn}\n"
+        f"const cs={json.dumps([c['entrada'] for c in CASOS])};\n"
         "console.log(JSON.stringify(cs.map(c=>presupuesto(c))));"
     )
     with tempfile.TemporaryDirectory() as d:
@@ -205,77 +208,158 @@ def por_tablero(casos: list[dict]) -> list[str | None]:
     salidas = []
     for html in json.loads(r.stdout):
         # El globo lleva el JSON adentro de un atributo, con sus propios números.
-        limpio = re.sub(r"data-tip='[^']*'", "", html)
-        limpio = re.sub(r"<[^>]+>", " ", limpio)
+        limpio = re.sub(r"<[^>]+>", " ", re.sub(r"data-tip='[^']*'", "", html))
         salidas.append(" ".join(limpio.split()))
     return salidas
 
 
-# ── la barra de macOS: la redacción, no la ejecución ──────────────────────
-def redaccion_swift() -> list[str]:
-    """Los tres `String(format:)` de la rama `.reparte`, con los huecos puestos
-    donde el canon tiene un número o la hora. No se ejecuta —la frase no está en
-    una función y no hay macOS en el CI— pero que se le cambie una palabra a una
-    de las tres sí se ve desde acá."""
+def por_swift() -> list[str]:
+    """La barra de macOS. Su frase no está en una función sino adentro de un
+    `switch`, así que se le saca el cuerpo del `case` y se lo envuelve en una:
+    `self.presupuesto = …` pasa a ser la salida y los valores del patrón pasan a
+    ser parámetros. Es el mismo código con el `switch` de alrededor sacado.
+
+    El caso del `qm` anterior no entra: en la barra el `?? porDia` está en el
+    parseo del JSON, no acá."""
     texto = (RAIZ / "bin/qm-barra.swift").read_text(encoding="utf-8")
     i = texto.index("case .reparte(_, let porDiaHoy")
-    j = texto.index("case .no(let motivo)", i)
-    return re.findall(r'String\(format: "([^"]+)"', texto[i:j])
+    cuerpo = texto[texto.index(":", i) + 1:texto.index("case .no(let motivo)", i)]
+    cuerpo = cuerpo.replace("self.presupuesto", "salida")
+    entradas = []
+    for c in CASOS:
+        e = c["entrada"]
+        if sin_campos_nuevos(e):
+            entradas.append(None)
+            continue
+        entradas.append({
+            "porDiaHoy": e["porDiaHoy"], "quedaHoy": e["quedaHoy"],
+            "gastado": e["gastadoHoy"] if e["cubreElDia"] else e["gastadoMedido"],
+            "restante": e["restanteMedido"], "cubreElDia": e["cubreElDia"],
+            # El mismo instante que el ISO: la hora que dibuja tiene que ser la
+            # misma que dicen las otras pantallas.
+            "desde": None if e["medidoDesde"] is None else datetime.fromisoformat(
+                e["medidoDesde"].replace("Z", "+00:00")).timestamp(),
+        })
+    with tempfile.TemporaryDirectory() as d:
+        p, datos = pathlib.Path(d) / "b.swift", pathlib.Path(d) / "casos.json"
+        datos.write_text(json.dumps([e for e in entradas if e is not None]), encoding="utf-8")
+        p.write_text(
+            "import Foundation\n"
+            "func renglones(_ porDiaHoy: Double, _ quedaHoy: Double, _ gastado: Double?,\n"
+            "               _ restante: Double?, _ desde: Date?, _ cubreElDia: Bool) -> [String] {\n"
+            "  var salida: [String] = []\n"
+            f"{cuerpo}\n"
+            "  return salida\n"
+            "}\n"
+            "struct Caso: Decodable { let porDiaHoy: Double; let quedaHoy: Double\n"
+            "  let gastado: Double?; let restante: Double?; let desde: Double?\n"
+            "  let cubreElDia: Bool }\n"
+            f'let d = try! Data(contentsOf: URL(fileURLWithPath: "{datos}"))\n'
+            "for c in try! JSONDecoder().decode([Caso].self, from: d) {\n"
+            "  print(renglones(c.porDiaHoy, c.quedaHoy, c.gastado, c.restante,\n"
+            "                  c.desde.map { Date(timeIntervalSince1970: $0) }, c.cubreElDia)\n"
+            '        .joined(separator: " · "))\n'
+            "}\n", encoding="utf-8")
+        r = subprocess.run(["swift", str(p)], capture_output=True, text=True, timeout=300)
+    if r.returncode != 0:
+        raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "swift falló")
+    dichas = iter(r.stdout.strip().split("\n"))
+    return [SALTEADO if e is None else next(dichas) for e in entradas]
+
+
+def redaccion_swift() -> list[str]:
+    """Sin swiftc no se puede ejecutar, pero la REDACCIÓN se lee igual: los
+    `String(format:)` de la rama `.reparte` tienen que ser los del canon."""
+    texto = (RAIZ / "bin/qm-barra.swift").read_text(encoding="utf-8")
+    i = texto.index("case .reparte(_, let porDiaHoy")
+    return re.findall(r'String\(format: "([^"]+)"', texto[i:texto.index("case .no(let motivo)", i)])
 
 
 def canon_a_formato(esperado: str) -> list[str]:
-    """El canon partido en los tres pedazos que la barra escribe por separado, en
+    """El canon partido en los dos pedazos que la barra escribe por separado, en
     el dialecto de `String(format:)`."""
     partes = esperado.split(" · ")
     fmt = []
-    for p in [partes[0], " · ".join(partes[1:])]:
+    for p in (partes[0], " · ".join(partes[1:])):
         # El orden importa: primero se escapan los `%` que son literales, y
         # recién después se ponen los huecos, que traen `%` propios.
-        f = p.replace("%", "%%")
-        f = re.sub(r"\d+\.\d", "%.1f", f)
+        f = re.sub(r"\d+\.\d", "%.1f", p.replace("%", "%%"))
         fmt.append(f.replace("{desde}", "%@"))
     return fmt
 
 
 # ── el gate ──────────────────────────────────────────────────────────────
 # En Windows, `powershell` PRIMERO: la bandeja corre con el Windows PowerShell
-# 5.1, que es lo que hay en una máquina sin instalar nada. Comprobarla contra el
-# pwsh 7 —que el runner también tiene— sería comprobar un intérprete que la
-# bandeja no usa, que es el mismo motivo por el que gate-bandeja.ps1 va con
-# `powershell`. Fuera de Windows el único que hay es pwsh.
+# 5.1, que es lo que hay en una máquina sin instalar nada, y es el mismo motivo
+# por el que gate-bandeja.ps1 no va con pwsh. Fuera de Windows el único que hay
+# es pwsh.
 EXE_PS = shutil.which("powershell") or shutil.which("pwsh") or ""
 
-PANTALLAS = [
-    ("el núcleo (src/core/presupuesto.ts)", por_typescript, shutil.which("node"), "no hay node"),
-    ("el indicador de GNOME (bin/qm-indicator)", por_python, True, ""),
-    ("la bandeja de Windows (bin/qm-tray.ps1)", por_powershell, EXE_PS, "no hay pwsh ni powershell"),
-    ("el tablero web (src/render/tablero.html)", por_tablero, shutil.which("node"), "no hay node"),
+def hay(requisito: str | None) -> bool:
+    """Si en esta máquina se puede correr esa pantalla.
+
+    `cairo` no es un binario en el PATH: el indicador de GNOME importa gi y
+    cairo al cargarse, así que en el runner de Windows —donde la bandeja SÍ se
+    puede correr— importarlo revienta. Eso es una pantalla que no se puede
+    comprobar acá, no un gate roto."""
+    if requisito is None:
+        return True
+    if requisito == "cairo":
+        try:
+            import gi  # noqa: F401
+            import cairo  # noqa: F401
+        except Exception:  # noqa: BLE001 — sin gi/cairo no hay indicador que correr
+            return False
+        return True
+    return shutil.which(requisito) is not None
+
+
+IMPLEMENTACIONES = [
+    ("TypeScript · el núcleo", por_typescript, "node"),
+    ("Python · el indicador de GNOME", por_python, "cairo"),
+    ("Swift · la barra de macOS", por_swift, "swift"),
+    ("PowerShell · la bandeja", por_powershell, "powershell" if sys.platform == "win32" else "pwsh"),
+    ("JavaScript · el tablero", por_tablero, "node"),
 ]
 
 
 def main() -> int:
+    # QM_GATE_EXIGE lista los intérpretes que TIENEN que estar, igual que en
+    # gate-duraciones: en una laptop saltear swift y pwsh es lo razonable; en un
+    # runner que los trae, saltear en silencio convierte al gate en un adorno.
+    exigidos = {x for x in os.environ.get("QM_GATE_EXIGE", "").split(",") if x}
     fallas: list[str] = []
-    corridas: dict[str, list[str | None]] = {}
+    salteadas: list[str] = []
+    corridas: dict[str, list[str]] = {}
 
-    for nombre, fn, hay, porque in PANTALLAS:
-        if not hay:
-            print(f"  · salteada: {nombre} ({porque})")
+    for nombre, correr, binario in IMPLEMENTACIONES:
+        if not hay(binario):
+            if binario in exigidos:
+                fallas.append(f"falta {binario}, y este job lo exige "
+                              f"(QM_GATE_EXIGE={','.join(sorted(exigidos))})")
+                continue
+            falta = "python3-gi y cairo" if binario == "cairo" else binario
+            salteadas.append(f"{nombre} (no hay {falta} en esta máquina)")
             continue
         try:
-            corridas[nombre] = fn(CASOS)
+            salida = correr()
         except Exception as e:  # noqa: BLE001 — un adaptador roto es un rojo, no un salteo
-            fallas.append(f"{nombre} no se pudo correr: {e}")
+            fallas.append(f"no pude correr {nombre}: {e}")
+            continue
+        if len(salida) != len(CASOS):
+            fallas.append(f"{nombre} devolvió {len(salida)} frases y esperaba {len(CASOS)}")
+            continue
+        corridas[nombre] = salida
 
-    if not corridas:
-        print("GATE ROJO: no se pudo correr NINGUNA pantalla", file=sys.stderr)
-        return 1
+    if not corridas and not fallas:
+        fallas.append("no se pudo correr NINGUNA pantalla")
 
     for i, caso in enumerate(CASOS):
         esperado = caso["esperado"]
         horas: dict[str, str] = {}
         for nombre, salidas in corridas.items():
             dicho = salidas[i]
-            if dicho is None:
+            if dicho == SALTEADO:
                 continue
             hora = HORA.search(dicho)
             if hora:
@@ -284,30 +368,24 @@ def main() -> int:
             # y la rama. De los que escriben una frase, la frase entera.
             if "tablero" in nombre:
                 if numeros(dicho) != numeros(esperado) or rama(dicho) != rama(esperado):
-                    fallas.append(
-                        f"caso {i + 1} «{caso['nombre']}»\n"
-                        f"    {nombre}\n"
-                        f"      esperaba  {rama(esperado)} {numeros(esperado)}\n"
-                        f"      dijo      {rama(dicho)} {numeros(dicho)}")
+                    fallas.append(f"caso {i + 1} «{caso['nombre']}»\n    {nombre}\n"
+                                  f"      esperaba  {rama(esperado)} {numeros(esperado)}\n"
+                                  f"      dijo      {rama(dicho)} {numeros(dicho)}")
                 continue
             comparable = HORA.sub("{desde}", dicho)
             if comparable != esperado:
-                fallas.append(
-                    f"caso {i + 1} «{caso['nombre']}»\n"
-                    f"    {nombre}\n"
-                    f"      esperaba  {esperado}\n"
-                    f"      dijo      {comparable}")
+                fallas.append(f"caso {i + 1} «{caso['nombre']}»\n    {nombre}\n"
+                              f"      esperaba  {esperado}\n      dijo      {comparable}")
         if len(set(horas.values())) > 1:
             fallas.append(f"caso {i + 1}: la hora de medidoDesde no coincide entre pantallas: "
-                          + ", ".join(f"{n.split(' (')[0]} dice {h}" for n, h in horas.items()))
+                          + ", ".join(f"{n} dice {h}" for n, h in horas.items()))
 
-    # La barra de macOS: la redacción de sus tres formatos contra el canon.
-    dichos = redaccion_swift()
-    quiere = {f for c in CASOS for f in canon_a_formato(c["esperado"])}
-    faltan = quiere - set(dichos)
-    if faltan:
-        for f in sorted(faltan):
-            fallas.append("la barra de macOS (bin/qm-barra.swift) no escribe esta frase del canon:\n"
+    # Sin swiftc la barra no se ejecuta, pero su redacción se lee igual.
+    corrio_swift = any("Swift" in n for n in corridas)
+    if not corrio_swift:
+        dichos = redaccion_swift()
+        for f in sorted({f for c in CASOS for f in canon_a_formato(c["esperado"])} - set(dichos)):
+            fallas.append("la barra de macOS no escribe esta frase del canon:\n"
                           f"      {f}\n      escribe: " + " | ".join(dichos))
 
     if fallas:
@@ -315,14 +393,21 @@ def main() -> int:
             print(f"GATE ROJO: {f}", file=sys.stderr)
         return 1
 
-    cubiertas = ", ".join(n.split(" (")[0] for n in corridas)
-    print(f"presupuesto: {len(CASOS)} casos, las mismas cuentas en {cubiertas}")
-    if EXE_PS:
-        print(f"  · la bandeja se corrió con {pathlib.Path(EXE_PS).stem}")
-    print("  · de la barra de macOS se comprobó la redacción, no la ejecución")
+    for nombre, salidas in corridas.items():
+        salteados = sum(1 for s in salidas if s == SALTEADO)
+        cola = f" · {salteados} salteado: el qm anterior no pasa por esta función" if salteados else ""
+        print(f"  ✓ {nombre}: {len(CASOS) - salteados}/{len(CASOS)}{cola}")
+    for s in salteadas:
+        print(f"  · salteada: {s}")
+    if salteadas:
+        print(f"presupuesto: {len(CASOS)} casos, coinciden las pantallas que se pudieron correr acá")
+    else:
+        print(f"presupuesto: {len(CASOS)} casos, las cinco pantallas dicen lo mismo")
+    if not corrio_swift:
+        print("  · de la barra de macOS se comprobó la redacción, no la ejecución")
     print("  · el tablero escribe los números con coma; se comparan como números")
     return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    raise SystemExit(main())

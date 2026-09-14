@@ -32,16 +32,6 @@ jobs:
       # nada —sin token, sin versión, con un token muerto— salgan en rojo.
       - run: make gate-winget-rojo
 
-      # La frase del presupuesto está escrita cinco veces, una por pantalla, y
-      # 0.1.11 tuvo que arreglar el mismo error en las cinco. Que sigan diciendo
-      # lo mismo no lo comprobaba nada: medido el 2026-09-14, volver a poner el
-      # doble descuento en bin/qm-indicator dejaba gate-dibujo, gate-tarjetas y
-      # los 148 tests en verde. Acá corren el núcleo, GNOME y el tablero; la
-      # bandeja la corre el job de Windows.
-      - run: make gate-presupuesto
-      - name: y ese gate falla en rojo con el doble descuento de vuelta
-        run: make gate-presupuesto-rojo
-
       - name: el paquete de npm se instala y corre
         run: ./scripts/el-paquete-de-npm-corre.sh
       - name: y ese gate falla en rojo sin dist/
@@ -74,6 +64,21 @@ jobs:
       # fallaba porque ahí no está el cairo que necesita el panel de GNOME.
       - run: python3 scripts/gate-duraciones.py
 
+      # Y la otra regla escrita cinco veces: la frase del presupuesto. 0.1.11
+      # tuvo que arreglar el mismo doble descuento en las cinco pantallas y nada
+      # comprobaba que siguieran leyendo la resta hecha — volver a ponerlo en
+      # bin/qm-indicator dejaba gate-dibujo, gate-tarjetas y los 148 tests en
+      # verde. Va en este job y no en `check` porque acá está todo junto: el
+      # cairo que el indicador necesita para importarse, el Swift de la barra y
+      # el PowerShell de la bandeja.
+      - run: make gate-presupuesto
+        env:
+          QM_GATE_EXIGE: swift,pwsh,cairo
+      - name: y ese gate falla en rojo con el doble descuento de vuelta
+        run: make gate-presupuesto-rojo
+        env:
+          QM_GATE_EXIGE: swift,pwsh,cairo
+
       # A quién se le pregunta en el próximo calentado. La cuenta frenada
       # quedaba fuera de todos los calentados por un `< 100`, así que la única
       # que no podía enterarse de que se liberó era justo la que esperaba
@@ -82,7 +87,7 @@ jobs:
       - name: y ese gate falla en rojo
         run: make gate-calentado-rojo
         env:
-          QM_GATE_EXIGE: swift,pwsh
+          QM_GATE_EXIGE: swift,pwsh,cairo
 
       # Que el zip de la extensión salga con la forma que pide
       # extensions.gnome.org: los tres archivos en la RAÍZ, el uuid igual al

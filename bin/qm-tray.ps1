@@ -509,7 +509,12 @@ function RenglonesPresupuesto($pre) {
   if ($pre.PSObject.Properties['gastadoMedido'] -and $null -ne $pre.gastadoMedido -and
       $pre.PSObject.Properties['medidoDesde'] -and $null -ne $pre.medidoDesde) {
     $desde = ([datetime]$pre.medidoDesde).ToLocalTime().ToString('HH:mm', [cultureinfo]::InvariantCulture)
-    $queda = if ($pre.PSObject.Properties['restanteMedido'] -and $null -ne $pre.restanteMedido) { [double]$pre.restanteMedido } else { [math]::Max(0, $porDiaHoy - [double]$pre.gastadoMedido) }
+    # `0.0` y no `0`: con un entero de primer argumento PowerShell elige la
+    # sobrecarga [math]::Max(int, int) y le redondea el saldo al entero de
+    # abajo. Medido en el CI el 2026-09-14 con el JSON de un qm anterior:
+    # 14.3 - 14.0 daba «te queda 0.0 %» donde las otras cuatro pantallas
+    # decían 0.3. Se corta un presupuesto entero de menos de 1 %.
+    $queda = if ($pre.PSObject.Properties['restanteMedido'] -and $null -ne $pre.restanteMedido) { [double]$pre.restanteMedido } else { [math]::Max(0.0, $porDiaHoy - [double]$pre.gastadoMedido) }
     return @($dia, "gastaste $(& $un $pre.gastadoMedido) % desde las $desde · te queda $(& $un $queda) %")
   }
   $hoy = ([double]$pre.quedaHoy).ToString('0.0', [cultureinfo]::InvariantCulture)
