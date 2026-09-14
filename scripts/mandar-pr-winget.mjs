@@ -28,7 +28,10 @@ const ARRIBA = process.env.UPSTREAM ?? 'microsoft/winget-pkgs';
 const FORK   = process.env.FORK ?? 'legiosai/winget-pkgs';
 const SECO   = process.argv.includes('--en-seco');
 
-for (const [k, v] of Object.entries({ GITHUB_TOKEN: TOKEN, V, DIR })) {
+// DIR sólo hace falta cuando de verdad se va a mandar algo: --en-seco existe
+// para poder preguntar «¿este token llega a la organización?» sin haber armado
+// los manifests, que es lo que hay que poder contestar ANTES de tirar un tag.
+for (const [k, v] of Object.entries({ GITHUB_TOKEN: TOKEN, V, ...(SECO ? {} : { DIR }) })) {
   if (!v) { console.error(`falta ${k}`); process.exit(2); }
 }
 
@@ -57,7 +60,7 @@ async function api(metodo, ruta, cuerpo) {
 function morir(que, r) {
   console.error(`::error::winget: ${que} — HTTP ${r.estado}`);
   console.error(`::error::${(r.datos?.message ?? r.texto ?? '').slice(0, 300)}`);
-  console.error(`::error::Los manifests quedaron en ${DIR} y se pueden mandar a mano.`);
+  if (DIR) console.error(`::error::Los manifests quedaron en ${DIR} y se pueden mandar a mano.`);
   process.exit(1);
 }
 

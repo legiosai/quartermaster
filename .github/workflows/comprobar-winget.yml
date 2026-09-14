@@ -1,0 +1,41 @@
+# ¿TOKEN_WINGET todavía sirve, y llega a la organización?
+#
+# Existe porque esa pregunta sólo se contestaba tirando un tag, que es el peor
+# momento para enterarse: en la 0.1.6 el token estaba vencido y el canal se
+# descubrió roto con la release ya publicada en los otros cinco.
+#
+# Son dos preguntas distintas y las dos se contestan acá:
+#
+#   1. ¿El token vale? (vence, se revoca, se rota)
+#   2. ¿Llega a un repo de la ORGANIZACIÓN? Un PAT classic entra a los repos de
+#      una org sólo si la org no los restringe, y eso no se ve por API hasta
+#      que se intenta escribir.
+#
+# `--en-seco` comprueba las dos y para ANTES de tocar nada de Microsoft: no
+# crea ramas, no abre PR. Se puede correr cuantas veces haga falta.
+name: comprobar winget
+on:
+  workflow_dispatch:
+  # El primer día de cada mes: un token con vencimiento avisa acá y no el día
+  # de la release.
+  schedule:
+    - cron: '0 9 1 * *'
+
+jobs:
+  token:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: ¿el token llega a la organización?
+        env:
+          GITHUB_TOKEN: ${{ secrets.TOKEN_WINGET }}
+          V: comprobacion
+        run: |
+          if [ -z "$GITHUB_TOKEN" ]; then
+            echo "::warning::TOKEN_WINGET no está configurado: el canal de winget se saltea en la release."
+            exit 0
+          fi
+          node scripts/mandar-pr-winget.mjs --en-seco
