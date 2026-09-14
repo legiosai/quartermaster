@@ -441,15 +441,35 @@ y había una línea diciendo que sí.
   declarada, entra.
 
   Queda el revisor humano, que no es un número.
-- **`scripts/mandar-pr-winget.mjs` corriendo EN CI, con `TOKEN_WINGET`.** El
-  camino completo —forkear a la org, ramificar, abrir el PR— se ejecutó a mano
-  desde esta máquina y con otro token; lo que corrió con `TOKEN_WINGET` fue la
-  versión vieja, la de `wingetcreate`. En CI, del script nuevo, sólo está
-  probado que falle: `make gate-winget-rojo`. Lo que no se sabe es si un PAT
-  classic con `public_repo` alcanza para escribir en un repo de la
-  organización desde un runner — el script lo comprueba antes de tocar nada de
-  Microsoft y falla con el link a la pantalla de la org, pero eso también está
-  sin ejecutar. Se sabrá en el próximo tag.
+- ~~**`scripts/mandar-pr-winget.mjs` corriendo EN CI, con `TOKEN_WINGET`.**~~
+  **Cerrada el 2026-09-13**, y sin tirar un tag. La duda era si un PAT classic
+  con `public_repo` alcanza para escribir en un repo de la ORGANIZACIÓN desde
+  un runner: un classic entra a los repos de una org sólo si la org no los
+  restringe, y eso no se ve por API hasta que se intenta.
+
+  Sí alcanza. El workflow `comprobar winget` corrió el `--en-seco` del script
+  en `ubuntu-latest` con el secreto de verdad (run 34796150323, `success`):
+
+  ```
+  · token de ValentinTorassa
+  · fork: legiosai/winget-pkgs (rama base master)
+  · master al día con microsoft/winget-pkgs: none
+  · --en-seco: hasta acá llego
+  ```
+
+  La segunda línea es la respuesta: el script sale en rojo ANTES de imprimirla
+  si `permissions.push` viene en falso, así que haberla impreso es la prueba de
+  que el token escribe en el repo de la org. Y la tercera es un `POST` a
+  `merge-upstream`, que es una escritura de verdad y no una lectura.
+
+  Lo que sigue sin ejecutarse desde CI es el tramo de después —crear la rama y
+  abrir el PR—, y eso a propósito: correrlo sería abrirle un PR a Microsoft
+  para probar el runner. Se ejecutó a mano, con otro token, y el resultado es
+  el #434160.
+
+  El workflow quedó con `workflow_dispatch` y un cron mensual, que es lo que
+  hace que un token vencido avise antes y no el día de la release — que es
+  exactamente como se descubrió roto en la 0.1.6.
 
 La diferencia entre esta sección y el resto del archivo es la de siempre:
 arriba están los números, acá están las preguntas, y ninguna de las dos se
