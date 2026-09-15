@@ -768,6 +768,61 @@ function BordeRedondeado($g, $rect, [float]$r, $lapiz) {
   $p.Dispose()
 }
 
+# Cuánto hay que correr el dibujo a la derecha para que quede CENTRADO.
+#
+# Un ToolStripDropDownMenu no reparte parejo el lugar que le sobra: con
+# `ShowImageMargin` y `ShowCheckMargin` en false igual reserva una franja fija a
+# cada lado, y NO son iguales. Medido en esta máquina, con una fila de imagen de
+# 340 px el menú sale de 376: 8 px de hueco a la izquierda y 28 a la derecha.
+# La diferencia no depende del ancho de la imagen —con 400 px el menú sale de
+# 436 y los huecos siguen siendo 8 y 28—, así que es una constante del control.
+#
+# Por eso el panel se veía corrido a la izquierda: el dibujo estaba centrado
+# adentro de SU mapa de bits, y el mapa de bits no estaba centrado adentro del
+# menú.
+#
+# Se arregla dibujando en un lienzo (hueco derecho − hueco izquierdo) más ancho
+# y corriendo todo el dibujo esa misma cantidad. Sale la cuenta: con el dibujo
+# de ancho A en un lienzo de A+D, la tarjeta queda en pantalla con
+# 8 + (borde + D) de aire a la izquierda y (A + D + 28) − (borde + D + ancho de
+# la tarjeta) a la derecha, y las dos dan lo mismo cuando D = 28 − 8.
+#
+# Se MIDE en vez de escribir 20: son constantes de WinForms y escalan con el
+# DPI. `PerformLayout()` sola alcanza —comprobado: da los mismos números que
+# `Show()`— así que no hace falta mostrar nada y no parpadea nada.
+$script:Desplazo = $null
+function Desplazo {
+  if ($null -ne $script:Desplazo) { return $script:Desplazo }
+  $script:Desplazo = 0
+  try {
+    $mn = New-Object System.Windows.Forms.ContextMenuStrip
+    $mn.ShowImageMargin = $false
+    $mn.ShowCheckMargin = $false
+    $sonda = Lienzo 340 10
+    $pb = New-Object System.Windows.Forms.PictureBox
+    $pb.Image = $sonda
+    $pb.Size = $sonda.Size
+    $pb.Margin = New-Object System.Windows.Forms.Padding(0)
+    $fila = New-Object System.Windows.Forms.ToolStripControlHost($pb)
+    $fila.AutoSize = $false
+    $fila.Size = $sonda.Size
+    $fila.Margin = New-Object System.Windows.Forms.Padding(0)
+    $fila.Padding = New-Object System.Windows.Forms.Padding(0)
+    $mn.Items.Add($fila) | Out-Null
+    $mn.PerformLayout()
+    $izq = $fila.Bounds.X
+    $der = $mn.ClientSize.Width - $izq - 340
+    # Si el control dejara de comportarse así, un 0 deja el dibujo como estaba:
+    # corrido, pero nunca roto ni fuera del lienzo.
+    if ($der -gt $izq) { $script:Desplazo = [int]($der - $izq) }
+    $mn.Dispose(); $pb.Dispose(); $sonda.Dispose()
+  } catch { $script:Desplazo = 0 }
+  return $script:Desplazo
+}
+
+# El ancho del LIENZO de una pieza del panel: el del dibujo más el desplazo.
+function AnchoLienzo([int]$anchoDibujo) { return [int]($anchoDibujo + (Desplazo)) }
+
 # El alto del mapa de bits de una tarjeta: la tarjeta más el aire de abajo.
 function AltoConAire([int]$altoTarjeta) { return [int]($altoTarjeta + (Px $ENTRE_TARJETAS)) }
 
@@ -958,10 +1013,14 @@ function DibujarPerfil($p, [int]$indice) {
   $ancho = [int](Px $ANCHO_VISTA)
   $altoTarjeta = AltoPerfil $p
   $alto = AltoConAire $altoTarjeta
-  $bmp = Lienzo $ancho $alto
+  $bmp = Lienzo (AnchoLienzo $ancho) $alto
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+  # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
+  # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
+  # entero—, así que el aire de los costados sigue siendo fondo del menú.
+  $g.TranslateTransform((Desplazo), 0)
   FondoTarjeta $g $ancho $altoTarjeta
 
   $m = Px $MARGEN
@@ -1083,10 +1142,14 @@ function DibujarResumen($perfiles) {
   $ancho = [int](Px $ANCHO_VISTA)
   $altoTarjeta = [int](Px $ALTO_RESUMEN)
   $alto = AltoConAire $altoTarjeta
-  $bmp = Lienzo $ancho $alto
+  $bmp = Lienzo (AnchoLienzo $ancho) $alto
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+  # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
+  # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
+  # entero—, así que el aire de los costados sigue siendo fondo del menú.
+  $g.TranslateTransform((Desplazo), 0)
   FondoTarjeta $g $ancho $altoTarjeta
 
   # El anillo, igual que el del tablero: pista tenue del mismo color y arco
@@ -1160,10 +1223,14 @@ function DibujarSinCuota($calladas) {
 
   $altoTarjeta = [int]((Px $MARGEN) + (Px 15) + ($altos | Measure-Object -Sum).Sum + (Px ($cal.Count * 5)) + (Px 10))
   $alto = AltoConAire $altoTarjeta
-  $bmp = Lienzo $ancho $alto
+  $bmp = Lienzo (AnchoLienzo $ancho) $alto
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+  # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
+  # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
+  # entero—, así que el aire de los costados sigue siendo fondo del menú.
+  $g.TranslateTransform((Desplazo), 0)
   FondoTarjeta $g $ancho $altoTarjeta
 
   $y = Px $MARGEN
@@ -1193,11 +1260,14 @@ function DibujarSinCuota($calladas) {
 function DibujarPieLectura([double]$falta) {
   $ancho = [int](Px $ANCHO_VISTA)
   $alto = [int](Px $ALTO_PIE)
-  $bmp = Lienzo $ancho $alto
+  # El pie también, o el menú lo alinearía a la izquierda contra tarjetas que
+  # ya están corridas y se vería el escalón.
+  $bmp = Lienzo (AnchoLienzo $ancho) $alto
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
   $g.Clear($script:Fondo)
+  $g.TranslateTransform((Desplazo), 0)
   Escribir $g "próxima lectura en $(CuentaRegresiva $falta)" (Px $MARGEN) (Px 4) `
     $script:FPie $script:Tinta3
   $g.Dispose()
@@ -1915,8 +1985,10 @@ function MenuDe([string]$clave) {
   # y el dibujo queda corrido y con un escalón que no es parte del diseño.
   $mn.ShowImageMargin = $false
   $mn.ShowCheckMargin = $false
-  $mn.Add_ItemClicked($script:AlClickear)
-  $mn.Add_Closing($script:AlCerrar)
+  # Sin Add_ItemClicked/Add_Closing acá: el único item que necesitaba mantener
+  # el panel abierto era «Actualizar ahora», y ahora vive en el desplegable del
+  # «⋯» con su propio par de handlers. Un handler que ya no puede dispararse es
+  # peor que ninguno — parece que algo está cubierto cuando no lo está.
   $mn.Add_Opened($script:AlAbrir)
   $mn.Add_Closed($script:AlCerrado)
   VestirMenu $mn ([bool]$script:MenuOscuro)
@@ -1964,6 +2036,24 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
     $mn.Items.Add($filaPie) | Out-Null
   }
 
+  # Las acciones, todas adentro de un «⋯».
+  #
+  # Eran cuatro renglones de texto plano abajo de las tarjetas, y con las
+  # tarjetas puestas desentonaban: el panel pasó a ser una pila de cajas y
+  # abajo quedaban cuatro líneas sueltas del ancho del menú. Un solo renglón de
+  # tres puntos es el gesto que ya significa «acá hay más» y no compite con los
+  # números, que es lo que uno viene a mirar.
+  #
+  # El precio es un click más para «Actualizar ahora». Se acepta porque el panel
+  # se refresca solo cada 30 s: apretarlo es la excepción, no el camino normal.
+  $itMas = New-Object System.Windows.Forms.ToolStripMenuItem([string][char]0x22EF)
+  $itMas.ForeColor = $script:Tinta
+  # OJO: el rótulo va como STRING. `ToolStripMenuItem([char]…)` resuelve a la
+  # sobrecarga que toma una Image y revienta con «Invalid cast from
+  # 'System.Char' to 'System.Drawing.Image'».
+  $itMas.DropDown.Add_ItemClicked($script:AlClickearMas)
+  $itMas.DropDown.Add_Closing($script:AlCerrarMas)
+
   # El elegí-tus-íconos, en TODOS los paneles: se llega desde cualquier ícono,
   # que es lo que hace falta cuando el que sobra es justo el que estás mirando.
   # Un tilde por cuenta, más el general; clickear uno lo esconde o lo trae, se
@@ -1983,7 +2073,7 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
     }
     $sub.DropDown.Add_Closing($script:AlCerrarSub)
     VestirMenu $sub.DropDown ([bool]$script:MenuOscuro)
-    $mn.Items.Add($sub) | Out-Null
+    $itMas.DropDownItems.Add($sub) | Out-Null
     # Se guarda para reabrirlo al final. NO se abre acá: ver el comentario del
     # ShowDropDown, abajo de PerformLayout.
     $subIconos = $sub
@@ -1999,8 +2089,10 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
     $it = New-Object System.Windows.Forms.ToolStripMenuItem($par.t)
     $it.ForeColor = $script:Tinta
     $it.Add_Click($par.a)
-    $mn.Items.Add($it) | Out-Null
+    $itMas.DropDownItems.Add($it) | Out-Null
   }
+  VestirMenu $itMas.DropDown ([bool]$script:MenuOscuro)
+  $mn.Items.Add($itMas) | Out-Null
 
   if ($abierto) {
     $mn.ResumeLayout($true)
@@ -2017,7 +2109,13 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
     # PerformLayout() el item mide {X=0,Y=24,W=163,H=22} y el submenú sale
     # pegado al panel. Medido con el panel abierto en {X=600,Y=400}: antes
     # {0,0}, después {763,424}.
-    if ($null -ne $subIconos -and $script:SubIconosAbierto) { $subIconos.ShowDropDown() }
+    if ($script:MasAbierto) {
+      $itMas.ShowDropDown()
+      # El de adentro DESPUÉS del de afuera y no al revés: ShowDropDown ubica el
+      # desplegable con la posición de su item, y el item de «Íconos» no tiene
+      # ninguna hasta que su propio menú —el del «⋯»— está mostrado.
+      if ($null -ne $subIconos -and $script:SubIconosAbierto) { $subIconos.ShowDropDown() }
+    }
   }
 }
 
@@ -2408,19 +2506,30 @@ $script:PedidosAplicados = $false
 #
 # Hacen falta los dos handlers y no uno: ItemClicked corre antes que Closing y
 # es el único que sabe QUÉ se clickeó; Closing es el único que puede cancelar.
+# Estos dos van en el desplegable del «⋯», que es donde viven las acciones
+# desde que dejaron de ser cuatro renglones sueltos abajo del panel. Antes
+# estaban en el ContextMenuStrip, porque «Actualizar ahora» era hijo suyo.
+#
+# «Actualizar ahora» tiene que dejar el panel ABIERTO: refresca lo que estás
+# mirando, y cerrarlo obligaría a reabrirlo para ver el resultado. «Abrir
+# tablero» y «Salir» tienen que cerrarlo, y clickear afuera o Escape también.
+# Hacen falta los dos handlers y no uno: ItemClicked corre antes que Closing y
+# es el único que sabe QUÉ se clickeó; Closing es el único que puede cancelar.
 $script:MantenerAbierto = $false
-# Sólo PRENDE la bandera, nunca la apaga: apagarla acá era un peligro de orden.
-# Un tilde del submenú la prende desde AlternarIcono, y si después llegara este
-# handler —por el item padre, o por la cascada de cierres— con un `=` la
-# apagaría justo antes de que AlCerrar la mire, y el panel se cerraría igual.
-# La apaga AlCerrar, que es el único que sabe que el cierre ya se resolvió.
-$script:AlClickear = {
+$script:MasAbierto = $false
+$script:AlClickearMas = {
   if ($_.ClickedItem.Text -eq $ETIQUETA_ACTUALIZAR) { $script:MantenerAbierto = $true }
 }
-$script:AlCerrar = {
+$script:AlCerrarMas = {
   if ($script:MantenerAbierto -and
       $_.CloseReason -eq [System.Windows.Forms.ToolStripDropDownCloseReason]::ItemClicked) {
     $_.Cancel = $true
+    $script:MasAbierto = $true
+  } else {
+    # Se cierra de verdad: los dos niveles quedan marcados como cerrados para
+    # que el próximo rearmado no los reabra solo.
+    $script:MasAbierto = $false
+    $script:SubIconosAbierto = $false
   }
   $script:MantenerAbierto = $false
 }
@@ -2455,8 +2564,11 @@ $script:AlCerrarSub = {
     $_.Cancel = $true
     # Refrescar rehace los items, y el submenú rearmado nace cerrado. Esto es lo
     # que ArmarMenu mira para volver a abrirlo, que es la diferencia entre
-    # «tildé uno» y «puedo tildar varios seguidos».
+    # «tildé uno» y «puedo tildar varios seguidos». Se marcan los DOS niveles:
+    # el «⋯» no recibe ningún Closing cuando éste cancela —medido— así que si
+    # no se marcara acá, nadie lo reabriría.
     $script:SubIconosAbierto = $true
+    $script:MasAbierto = $true
   } else {
     $script:SubIconosAbierto = $false
   }

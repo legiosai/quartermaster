@@ -78,11 +78,41 @@ Add-Type -AssemblyName System.Drawing
 
 # ── 2 · que dibuje ──────────────────────────────────────────────────────
 # El ancho es el del diseño y no una casualidad: si cambia, lo cambió alguien.
+# El ancho del DIBUJO. El lienzo sale más ancho que esto: el panel se corre a la
+# derecha para compensar que un ToolStripDropDownMenu reserva 8 px de hueco a la
+# izquierda y 28 a la derecha, y el desplazo se mide en tiempo de ejecución (ver
+# `Desplazo` en bin/qm-tray.ps1). Así que acá NO se compara contra un número
+# fijo: se mide el mismo hueco y se comprueba la invariante que importa, que es
+# que la tarjeta quede centrada EN PANTALLA.
 $ANCHO = 340
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+function HuecosDelMenu {
+  $mn = New-Object System.Windows.Forms.ContextMenuStrip
+  $mn.ShowImageMargin = $false
+  $mn.ShowCheckMargin = $false
+  $sonda = New-Object System.Drawing.Bitmap($ANCHO, 10)
+  $pb = New-Object System.Windows.Forms.PictureBox
+  $pb.Image = $sonda; $pb.Size = $sonda.Size
+  $pb.Margin = New-Object System.Windows.Forms.Padding(0)
+  $fila = New-Object System.Windows.Forms.ToolStripControlHost($pb)
+  $fila.AutoSize = $false; $fila.Size = $sonda.Size
+  $fila.Margin = New-Object System.Windows.Forms.Padding(0)
+  $fila.Padding = New-Object System.Windows.Forms.Padding(0)
+  $mn.Items.Add($fila) | Out-Null
+  $mn.PerformLayout()
+  $izq = $fila.Bounds.X
+  $der = $mn.ClientSize.Width - $izq - $ANCHO
+  $mn.Dispose(); $pb.Dispose(); $sonda.Dispose()
+  return @{ izq = $izq; der = $der }
+}
+$HUECO = HuecosDelMenu
+$ANCHO_LIENZO = $ANCHO + [math]::Max(0, $HUECO.der - $HUECO.izq)
 
 $bmp = Capturar $fixture '' 'Oscuro' (Join-Path $salida 'general.png')
 if ($bmp) {
-  if ($bmp.Width -ne $ANCHO) { Fallar "el panel general salió de $($bmp.Width) px de ancho y tiene que ser $ANCHO" }
+  if ($bmp.Width -ne $ANCHO_LIENZO) { Fallar "el panel general salió de $($bmp.Width) px de ancho y tiene que ser $ANCHO_LIENZO" }
   if ($bmp.Height -lt 300 -or $bmp.Height -gt 2400) {
     Fallar "el panel general salió de $($bmp.Height) px de alto, fuera de lo razonable"
   }
@@ -143,14 +173,46 @@ if ($bmp) {
   #     son de color, así que un tope de fondo+30 y exigir que el píxel sea
   #     NEUTRO alcanzan para distinguirlos.
   #
-  #     A la derecha la franja empieza en 329 y no en 326 por el punto con que
-  #     termina la curva: está centrado en el último dato, que cae en el margen
-  #     del contenido (325), y su radio lo lleva hasta 328. Sobresale del margen
-  #     y NO de la tarjeta —le quedan 5 px hasta el borde—, así que es dibujo
-  #     bueno y la franja empieza después.
+  #     Los bordes de la tarjeta se BUSCAN en la imagen en vez de escribirlos
+  #     acá: el dibujo se corre a la derecha una cantidad que se mide en
+  #     tiempo de ejecución (ver `Desplazo` en bin/qm-tray.ps1), así que unos
+  #     números fijos dejarían de apuntar al padding sin que nada avise.
+  #
+  #     A la derecha la franja termina 9 px antes del borde y no 2 por el punto
+  #     con que termina la curva: está centrado en el último dato, que cae justo
+  #     en el margen del contenido, y su radio lo lleva 3 px más allá. Sobresale
+  #     del margen y NO de la tarjeta —le quedan 5 px hasta el borde—, así que
+  #     es dibujo bueno.
+  $medio = [int]($bmp.Height / 2)
+  $bIzq = 0
+  while ($bIzq -lt $bmp.Width - 1) {
+    $c = $bmp.GetPixel($bIzq, $medio)
+    if ($c.R -ne $fondo.R -or $c.G -ne $fondo.G -or $c.B -ne $fondo.B) { break }
+    $bIzq++
+  }
+  $bDer = $bmp.Width - 1
+  while ($bDer -gt 0) {
+    $c = $bmp.GetPixel($bDer, $medio)
+    if ($c.R -ne $fondo.R -or $c.G -ne $fondo.G -or $c.B -ne $fondo.B) { break }
+    $bDer--
+  }
+  if ($bDer - $bIzq -lt 200) {
+    Fallar "no encontré la tarjeta en la captura (bordes en $bIzq y $bDer): ¿se dejó de dibujar?"
+  }
+  # El CENTRADO, que es lo que se reportó: la tarjeta estaba corrida a la
+  # izquierda porque el dibujo estaba centrado en su lienzo y el lienzo no
+  # estaba centrado en el menú. Con los huecos medidos, los dos aires en
+  # pantalla tienen que dar lo mismo.
+  $aireIzq = $HUECO.izq + $bIzq
+  $aireDer = $HUECO.der + ($bmp.Width - 1 - $bDer)
+  if ([math]::Abs($aireIzq - $aireDer) -gt 1) {
+    Fallar ("la tarjeta queda descentrada en el menú: $aireIzq px de aire a la izquierda " +
+            "y $aireDer a la derecha")
+  }
+
   $padding = @()
   foreach ($y in 0..($bmp.Height - 1)) {
-    foreach ($x in @(8..12) + @(($bmp.Width - 11)..($bmp.Width - 9))) {
+    foreach ($x in @(($bIzq + 2)..($bIzq + 7)) + @(($bDer - 4)..($bDer - 1))) {
       $c = $bmp.GetPixel($x, $y)
       $max = [math]::Max($c.R, [math]::Max($c.G, $c.B))
       $min = [math]::Min($c.R, [math]::Min($c.G, $c.B))
@@ -186,7 +248,7 @@ if ($i -ge 0 -and $j -gt $i -and $cuerpoArmar.Substring($i, $j - $i) -match 'Dib
 # pidió el usuario son cuatro veces la misma pantalla.
 $bmp = Capturar $fixture 'teams' 'Oscuro' (Join-Path $salida 'teams.png')
 if ($bmp) {
-  if ($bmp.Width -ne $ANCHO) { Fallar "el panel de una cuenta salió de $($bmp.Width) px de ancho" }
+  if ($bmp.Width -ne $ANCHO_LIENZO) { Fallar "el panel de una cuenta salió de $($bmp.Width) px de ancho" }
   if ($altoGeneral -gt 0 -and $bmp.Height -ge $altoGeneral) {
     Fallar ("el panel de 'teams' mide $($bmp.Height) px y el general ${altoGeneral}: " +
             "el ícono de una cuenta está mostrando todas")
@@ -298,50 +360,72 @@ Set-StrictMode -Version Latest
 # el padre ni siquiera ve ItemClicked. Un arreglo que no se puede comprobar es
 # cómo se llega a arreglar lo mismo dos veces, así que acá está el gate.
 #
-# Se saca $script:AlCerrarSub por AST y se lo corre contra un menú de verdad con
-# la misma FORMA que el real —ContextMenuStrip con un submenú adentro—, porque
-# cargar el archivo entero levanta una bandeja.
-$asig = $arbol.FindAll({
-    param($n)
-    $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-    $n.Left.Extent.Text -eq '$script:AlCerrarSub'
-  }, $true)
-if ($asig.Count -ne 1) {
-  Fallar "esperaba un `$script:AlCerrarSub en bin/qm-tray.ps1 y encontré $($asig.Count): sin él, tildar un ícono cierra el panel"
+# Se sacan los tres handlers por AST y se los corre contra un menú de verdad con
+# la FORMA real —ContextMenuStrip · «⋯» · «Íconos» · los tildes—, porque cargar
+# el archivo entero levanta una bandeja. Tres niveles no es un detalle: es la
+# razón por la que el primer arreglo no podía andar.
+$queridos = @('$script:AlCerrarSub', '$script:AlCerrarMas', '$script:AlClickearMas')
+$hs = @{}
+foreach ($n in $queridos) {
+  $a = $arbol.FindAll({
+      param($x)
+      $x -is [System.Management.Automation.Language.AssignmentStatementAst] -and $x.Left.Extent.Text -eq $n
+    }.GetNewClosure(), $true)
+  if ($a.Count -eq 1) { $hs[$n] = $a[0].Right.Extent.Text }
+}
+if ($hs.Count -ne $queridos.Count) {
+  $faltan = @($queridos | Where-Object { -not $hs.ContainsKey($_) }) -join ', '
+  Fallar "faltan handlers en bin/qm-tray.ps1 ($faltan): sin ellos, tocar el menú lo cierra"
 } else {
   Add-Type -AssemblyName System.Windows.Forms
-  $handler = & ([scriptblock]::Create("$($asig[0].Right.Extent.Text)"))
+  $ETIQUETA_ACTUALIZAR = 'Actualizar ahora'
+  $script:MantenerAbierto = $false
+  $script:MasAbierto = $false
+  $script:SubIconosAbierto = $false
+  $hSub = & ([scriptblock]::Create($hs['$script:AlCerrarSub']))
+  $hCerrarMas = & ([scriptblock]::Create($hs['$script:AlCerrarMas']))
+  $hClickMas = & ([scriptblock]::Create($hs['$script:AlClickearMas']))
 
   $f = New-Object System.Windows.Forms.Form
   $f.Show(); $f.Visible = $false
   $mn = New-Object System.Windows.Forms.ContextMenuStrip
-  $sub = New-Object System.Windows.Forms.ToolStripMenuItem('Íconos en la bandeja')
-  $sub.DropDown.Add_Closing($handler)
+  $mas = New-Object System.Windows.Forms.ToolStripMenuItem([string][char]0x22EF)
+  $mas.DropDown.Add_ItemClicked($hClickMas)
+  $mas.DropDown.Add_Closing($hCerrarMas)
+  $ico = New-Object System.Windows.Forms.ToolStripMenuItem('Íconos en la bandeja')
+  $ico.DropDown.Add_Closing($hSub)
   foreach ($k in @('general', 'main', 'glm')) {
-    $it = New-Object System.Windows.Forms.ToolStripMenuItem($k)
-    $it.Tag = $k
-    $sub.DropDownItems.Add($it) | Out-Null
+    $ico.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripMenuItem($k))) | Out-Null
   }
-  $mn.Items.Add($sub) | Out-Null
-  $salir = New-Object System.Windows.Forms.ToolStripMenuItem('Salir')
-  $mn.Items.Add($salir) | Out-Null
+  $mas.DropDownItems.Add($ico) | Out-Null
+  foreach ($t in @($ETIQUETA_ACTUALIZAR, 'Abrir tablero', 'Salir')) {
+    $mas.DropDownItems.Add((New-Object System.Windows.Forms.ToolStripMenuItem($t))) | Out-Null
+  }
+  $mn.Items.Add($mas) | Out-Null
 
   $mn.Show(100, 100)
-  $sub.ShowDropDown()
+  $mas.ShowDropDown(); $ico.ShowDropDown()
   # Tres tildes seguidos, que es la tarea: elegir qué íconos querés no es tocar
   # uno, es tocar varios mirando cómo queda la bandeja.
   foreach ($i in 0..2) {
-    $sub.DropDownItems[$i].PerformClick()
+    $ico.DropDownItems[$i].PerformClick()
     [System.Windows.Forms.Application]::DoEvents()
     if (-not $mn.Visible) { Fallar "el panel se cerró al tildar el ícono #$($i + 1): es el bug reportado dos veces" ; break }
-    if (-not $sub.DropDown.Visible) { Fallar "el submenú de íconos se cerró al tildar el #$($i + 1): hay que volver a entrar una vez por tilde" ; break }
+    if (-not $ico.DropDown.Visible) { Fallar "el submenú de íconos se cerró al tildar el #$($i + 1): hay que volver a entrar una vez por tilde" ; break }
   }
-  # Y lo que TIENE que seguir cerrando, que es la otra mitad: cancelar de más
-  # deja un panel que no se va nunca.
+  # «Actualizar ahora» refresca lo que estás mirando: cerrarlo obligaría a
+  # reabrir el panel para ver el resultado.
   if ($mn.Visible) {
-    $salir.PerformClick()
+    $mas.DropDownItems[1].PerformClick()
     [System.Windows.Forms.Application]::DoEvents()
-    if ($mn.Visible) { Fallar 'un item de primer nivel («Salir») ya no cierra el panel: se cancela de más' }
+    if (-not $mn.Visible) { Fallar '«Actualizar ahora» cerró el panel: el número nuevo queda sin verse' }
+  }
+  # Y lo que TIENE que cerrar, que es la otra mitad: cancelar de más deja un
+  # panel que no se va nunca.
+  if ($mn.Visible) {
+    $mas.DropDownItems[3].PerformClick()
+    [System.Windows.Forms.Application]::DoEvents()
+    if ($mn.Visible) { Fallar '«Salir» ya no cierra el panel: se cancela de más' }
   }
   $mn.Dispose(); $f.Dispose()
 }
@@ -379,5 +463,5 @@ if ($fallas.Count) {
   foreach ($f in $fallas) { [Console]::Error.WriteLine("GATE ROJO: $f") }
   exit 1
 }
-Write-Host "gate de la bandeja: verde — parsea, dibuja $ANCHO px en los dos temas, nada se sale del margen, el panel de una cuenta no es el de todas, resuelve qm nativo / WSL / frase, y tildar íconos no cierra el panel"
+Write-Host "gate de la bandeja: verde — parsea, dibuja $ANCHO px centrados en los dos temas, nada se sale del margen, el panel de una cuenta no es el de todas, resuelve qm nativo / WSL / frase, y tildar íconos no cierra el panel"
 exit 0

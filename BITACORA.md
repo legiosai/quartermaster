@@ -1664,6 +1664,81 @@ leyendo el código; se ve mirando una captura, que es para lo que existe el modo
   variable, y `$PALETA` empezó llamándose `$NIVEL` y la tapaba la local
   `$nivel`. Las dos aparecieron corriendo el código, no leyéndolo.
 
+### El panel estaba corrido, y no era el dibujo
+
+Con las tarjetas puestas se vio lo que antes se disimulaba: el panel no estaba
+centrado en el menú. El dibujo SÍ estaba centrado en su mapa de bits; lo que no
+estaba centrado era el mapa de bits adentro del menú.
+
+Un `ToolStripDropDownMenu` no reparte parejo el lugar que le sobra. Con
+`ShowImageMargin` y `ShowCheckMargin` en false igual reserva una franja fija de
+cada lado, y no son iguales: medido, con una fila de imagen de 340 px el menú
+sale de 376, con **8 px de hueco a la izquierda y 28 a la derecha**. La
+diferencia no depende del ancho —con 400 px el menú sale de 436 y los huecos
+siguen siendo 8 y 28— así que es una constante del control, y tampoco la
+cambian `Padding` ni los items de texto: se probaron los cinco casos y los tres
+números no se movieron.
+
+Se arregla dibujando en un lienzo (28 − 8) más ancho y corriendo todo el dibujo
+esa misma cantidad. Sale la cuenta, y da exacto: con el dibujo de ancho A
+corrido D en un lienzo de A+D, los dos aires en pantalla son iguales cuando
+D = 28 − 8.
+
+Dos detalles que costaron una pasada cada uno:
+
+- **El `TranslateTransform` va ANTES de pintar la tarjeta.** Puesto después,
+  la caja quedaba donde estaba y sólo se corría el texto. `Clear()` no mira la
+  transformación —pinta el lienzo entero— así que el aire de los costados
+  sigue siendo fondo del menú, que es lo que se quiere.
+- **El pie también se corre.** Si no, el menú lo alinea a la izquierda contra
+  tarjetas que ya están corridas y se ve el escalón.
+
+Los 20 px se **miden** en vez de escribirse: son constantes de WinForms y
+escalan con el DPI. `PerformLayout()` sola alcanza —da los mismos números que
+`Show()`, comprobado— así que no hace falta mostrar nada y no parpadea nada.
+
+Y el gate dejó de comparar contra un 340 fijo, que era un número que el arreglo
+volvía mentira. Mide el mismo hueco, busca los bordes de la tarjeta en la
+captura y comprueba la invariante que de verdad importa: que los dos aires en
+pantalla den lo mismo. Probado en rojo apagando el desplazo, e informa los
+números del reporte: «14 px de aire a la izquierda y 33 a la derecha».
+
+### Las cuatro opciones de abajo pasaron a un «⋯»
+
+Mismo reporte: con las tarjetas puestas, los cuatro renglones de texto plano
+abajo del panel desentonaban. El panel es una pila de cajas y abajo quedaban
+cuatro líneas sueltas del ancho del menú, compitiendo con los números.
+
+Ahora hay un solo renglón con tres puntos, que es el gesto que ya significa
+«acá hay más». Adentro van las cuatro de siempre: «Íconos en la bandeja»,
+«Actualizar ahora», «Abrir tablero» y «Salir».
+
+**El precio es un click más para «Actualizar ahora»**, y se acepta porque el
+panel se refresca solo cada 30 s: apretarlo es la excepción y no el camino
+normal.
+
+Lo que sí hubo que rehacer es quién mantiene el panel abierto. «Actualizar
+ahora» era hijo DIRECTO del `ContextMenuStrip`, y por eso el par
+ItemClicked/Closing del padre alcanzaba. Ahora es hijo del desplegable del
+«⋯», así que el par se mudó ahí (`AlClickearMas` / `AlCerrarMas`) y el del
+padre se sacó: un handler que ya no puede dispararse es peor que ninguno,
+porque parece que algo está cubierto cuando no lo está.
+
+Con eso el menú tiene TRES niveles —panel, «⋯», «Íconos»— y los tildes son
+bisnietos. Medido, cancelar el cierre en el desplegable más interno frena toda
+la cascada: cuando se tilda un ícono, el «⋯» no recibe ningún `Closing`. Por eso
+`AlCerrarSub` marca los dos niveles para reabrir; si sólo marcara el suyo, nadie
+reabriría el «⋯». Y al reabrir, **el de afuera antes que el de adentro**: es el
+mismo asunto del submenú en la esquina, `ShowDropDown()` ubica el desplegable
+con la posición de su item, y el item de «Íconos» no tiene ninguna hasta que su
+propio menú está mostrado.
+
+El gate arma la forma real de tres niveles con los handlers sacados por AST y
+comprueba las tres cosas: tres tildes seguidos dejan todo abierto, «Actualizar
+ahora» deja el panel abierto —cerrarlo obligaría a reabrirlo para ver el número
+nuevo— y «Salir» lo cierra. El último está probado en rojo con un handler que
+cancela siempre.
+
 ### Las cuentas pasaron a ir en tarjetas, como en GNOME y en macOS
 
 Pedido mirando las tres pantallas al lado: la bandeja de Windows se veía
