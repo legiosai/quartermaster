@@ -76,6 +76,15 @@ const lugares = [
     obligatorio: true,
   },
   {
+    // La copia para GNOME 43 y 44. Lleva la MISMA versión que la de 45+ porque
+    // es la misma extensión con otro envoltorio; dos números distintos dirían
+    // que son dos cosas. Está acá para que no se quede atrás en un release: es
+    // un archivo que nadie mira hasta que alguien lo instala en Debian.
+    ruta: 'extension/gnome43/quartermaster@legios/metadata.json',
+    buscar: new RegExp(`("version-name":\\s*")${actual}(")`),
+    obligatorio: true,
+  },
+  {
     ruta: 'docs/index.html',
     buscar: new RegExp(`(quartermaster-)${actual}(-setup\\.exe)`, 'g'),
     obligatorio: true,

@@ -7,7 +7,8 @@
 # interactivos— el shebang de siempre falla con un error de sintaxis que no le
 # dice nada a nadie. Así que acá se busca un Node que sirva antes de arrancar.
 #
-# Orden: $QM_NODE, el del PATH, y después las versiones de nvm de mayor a menor.
+# Orden: $QM_NODE, el del PATH, y después lo que hayan guardado los manejadores
+# de versiones —nvm, fnm y volta— de mayor a menor.
 
 set -e
 
@@ -18,19 +19,47 @@ sirve() {
 }
 
 NODO=""
+
+# Cada manejador de versiones guarda los Node con una forma distinta:
+#
+#   nvm     $NVM_DIR/versions/node/v22.22.2/bin/node
+#   fnm     $FNM_DIR/node-versions/v22.22.2/installation/bin/node
+#   volta   $VOLTA_HOME/tools/image/node/22.22.2/bin/node
+#
+# Se recorren de mayor a menor VERSIÓN y no alfabéticamente, para que v9 no le
+# gane a v22. La `v` del nombre se saca antes de ordenar porque volta no la
+# pone, y después se prueban las dos formas del nombre.
+#
+# Acá faltaban fnm y volta, y el README decía que estaban. Se notó de la peor
+# manera posible: el indicador de GNOME arranca desde el autostart, que NO tiene
+# el PATH de un shell interactivo —ahí es donde fnm se carga—, así que no
+# encontraba Node, se quedaba mostrando los números de la sesión anterior, y lo
+# único que lo decía era un renglón en el journal.
+buscar_en() {
+  raiz=$1
+  medio=$2
+  [ -d "$raiz" ] || return 1
+  for d in $(ls -1 "$raiz" 2>/dev/null | sed 's/^v//' | sort -t. -k1,1n -k2,2n -k3,3n -r); do
+    for nombre in "v$d" "$d"; do
+      if sirve "$raiz/$nombre$medio"; then
+        NODO="$raiz/$nombre$medio"
+        return 0
+      fi
+    done
+  done
+  return 1
+}
+
 if [ -n "$QM_NODE" ] && sirve "$QM_NODE"; then
   NODO="$QM_NODE"
 elif sirve "$(command -v node 2>/dev/null)"; then
   NODO="$(command -v node)"
 else
-  # nvm guarda cada versión en su propio directorio. Se ordena por número de
-  # versión, no alfabéticamente, para que v9 no le gane a v22.
-  for d in $(ls -1 "${NVM_DIR:-$HOME/.nvm}/versions/node" 2>/dev/null | sort -t. -k1.2,1n -k2,2n -k3,3n -r); do
-    if sirve "${NVM_DIR:-$HOME/.nvm}/versions/node/$d/bin/node"; then
-      NODO="${NVM_DIR:-$HOME/.nvm}/versions/node/$d/bin/node"
-      break
-    fi
-  done
+  buscar_en "${NVM_DIR:-$HOME/.nvm}/versions/node" "/bin/node" \
+    || buscar_en "${FNM_DIR:-$HOME/.local/share/fnm}/node-versions" "/installation/bin/node" \
+    || buscar_en "$HOME/Library/Application Support/fnm/node-versions" "/installation/bin/node" \
+    || buscar_en "${VOLTA_HOME:-$HOME/.volta}/tools/image/node" "/bin/node" \
+    || true
 fi
 
 # `src/adapters/opencode.ts` usa node:sqlite, que es experimental, así que Node
@@ -56,7 +85,7 @@ if [ -z "$NODO" ]; then
   echo "qm necesita Node >= 22.6 y no encontré ninguno." >&2
   echo "Lee TypeScript sin paso de build, y eso recién existe desde 22.6." >&2
   echo "" >&2
-  echo "  nvm install 22        # o instalá Node 22 como prefieras" >&2
+  echo "  nvm install 22        # o fnm install 22, o como prefieras" >&2
   echo "  QM_NODE=/ruta/a/node qm   # o decile cuál usar" >&2
   exit 1
 fi

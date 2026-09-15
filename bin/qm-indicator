@@ -2293,8 +2293,12 @@ class Indicador:
             # El nombre alterna igual que el del item: el shell cachea la
             # textura por ruta y si no, muestra el panel de hace un rato.
             destino = self.iconos / f"panel-{self.turno}.png"
-            alto = capturar(self.datos, str(destino), self.falta_para_lectura())
-            panel = {"panel": str(destino), "panelAncho": ANCHO_PANEL, "panelAlto": alto}
+            # Un nombre propio, y no `alto` otra vez: pisar el parámetro dejaba
+            # escrito que el ICONO de la barra medía lo que mide el PANEL —
+            # 576 px de alto para un dibujo de 22. La extensión le cree al
+            # archivo y arma el item de ese tamaño.
+            alto_panel = capturar(self.datos, str(destino), self.falta_para_lectura())
+            panel = {"panel": str(destino), "panelAncho": ANCHO_PANEL, "panelAlto": alto_panel}
         except (OSError, MemoryError):
             pass  # sin panel dibujado la extensión sigue mostrando el item
         try:
@@ -2479,7 +2483,44 @@ EXTENSION_UUID = "quartermaster@legios"
 EXTENSIONES = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) \
     / "gnome-shell" / "extensions"
 #: De dónde sale la extensión: al lado del paquete, sea un clone, el .deb o npm.
-EXTENSION_FUENTE = YO.parent.parent / "extension" / EXTENSION_UUID
+EXTENSION_RAIZ = YO.parent.parent / "extension"
+
+
+def fuente_extension() -> Path:
+    """Cuál de las dos copias de la extensión corresponde a este GNOME.
+
+    GNOME 45 cambió la forma de cargar extensiones —módulos ESM y una clase que
+    extiende Extension— y la 43 y la 44 usan `imports.gi` con una función
+    `init()` suelta. No son dos sintaxis que convivan en un archivo, así que el
+    mismo item vive dos veces y acá se elige.
+
+    Importa en Debian 12, que trae la 43 y va a seguir soportada años. Instalar
+    ahí la de 45 deja la extensión en ERROR, el item cae al camino de
+    AppIndicator, y entonces pasan las dos cosas que esta extensión existe para
+    evitar: el medidor entra en una casilla cuadrada de 16 px y se ve minúsculo,
+    y el click se lo queda el menú del shell, que le rompe el agarre al menú de
+    GTK — el panel aparece y desaparece en el mismo instante.
+
+    Se pregunta acá y no en el Makefile porque quien instaló por npm o por apt
+    no tiene un Makefile, que es la misma razón por la que la instalación entera
+    se mudó a este archivo. Sin poder saber la versión se elige la nueva, que es
+    la que corresponde a todo lo que no sea Debian estable.
+    """
+    vieja = EXTENSION_RAIZ / "gnome43" / EXTENSION_UUID
+    if _shell_es_vieja() and vieja.is_dir():
+        return vieja
+    return EXTENSION_RAIZ / EXTENSION_UUID
+
+
+def _shell_es_vieja() -> bool:
+    """GNOME 44 o anterior. False si no se puede saber."""
+    try:
+        dicho = subprocess.run(["gnome-shell", "--version"], capture_output=True,
+                               text=True, timeout=5, check=True).stdout
+    except (OSError, subprocess.SubprocessError):
+        return False
+    numeros = "".join(c if c.isdigit() else " " for c in dicho).split()
+    return bool(numeros) and int(numeros[0]) <= 44
 
 
 def _habilitadas() -> list[str] | None:
@@ -2511,15 +2552,16 @@ def instalar_extension() -> int:
     esconder: decir «listo» de algo que no se ve hasta cerrar sesión es
     exactamente la mentira que este programa no comete.
     """
-    if not EXTENSION_FUENTE.is_dir():
-        print(f"no encuentro la extensión en {EXTENSION_FUENTE}", file=sys.stderr)
+    fuente = fuente_extension()
+    if not fuente.is_dir():
+        print(f"no encuentro la extensión en {fuente}", file=sys.stderr)
         return 1
     destino = EXTENSIONES / EXTENSION_UUID
     try:
         EXTENSIONES.mkdir(parents=True, exist_ok=True)
         if destino.exists():
             shutil.rmtree(destino)
-        shutil.copytree(EXTENSION_FUENTE, destino)
+        shutil.copytree(fuente, destino)
     except OSError as e:
         print(f"no pude copiarla a {destino}: {e}", file=sys.stderr)
         return 1
