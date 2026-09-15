@@ -300,10 +300,11 @@ td.num { text-align: right; font-variant-numeric: tabular-nums; }
   <p class="pie-pagina" id="pie">
     Todo sale del disco de esta máquina: el <code>.claude.json</code> de cada perfil, los rollouts de
     Codex y la base de sesiones de opencode. Lo único que sale a la red es el refresco de cuota, y
-    sólo cuando se pide: al mismo lugar al que Claude Code y Codex ya hablan. Las cuentas de opencode
-    son planes por API key — su porcentaje vive en el endpoint del proveedor, así que acá se muestra
-    el consumo y se dice por qué no hay barra. <b>Ninguna credencial de opencode se lee.</b>
-    El tablero escucha sólo en 127.0.0.1.
+    sólo cuando se pide: al mismo lugar al que Claude Code, Codex y opencode ya hablan. Las cuentas
+    de opencode son planes por API key y su porcentaje vive en el endpoint del proveedor: el de z.ai
+    se consulta con <code>--refrescar</code> y queda cacheado, y del resto se muestra el consumo y se
+    dice por qué no hay barra. <b>La única credencial de opencode que se lee es la clave de z.ai, y
+    sólo para ese pedido.</b> El tablero escucha sólo en 127.0.0.1.
   </p>
 </div>
 

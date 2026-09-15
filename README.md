@@ -219,18 +219,27 @@ quota response it got in each profile's `.claude.json`, so quartermaster reads
 it from disk — which means it still works on a profile whose token expired,
 the exact state the motivating monitor died in.
 
-The only thing that ever leaves is one request, and only when you ask for it
-(`--refrescar`, or `--calentar`, which is what the panels run):
+The only thing that ever leaves is one request per vendor, and only when you ask
+for it (`--refrescar`, or `--calentar`, which is what the panels run):
 
 ```
 GET https://api.anthropic.com/api/oauth/usage
+GET https://api.z.ai/api/monitor/usage/quota/limit     # only if you use z.ai
 ```
 
-Same host Claude Code already talks to, same credential it already stored, with
-a 60-second floor. No account, no cloud, no telemetry, and zero runtime
-dependencies. **It never refreshes a token** — a locked non-goal, with a test.
+Each one is the same host that vendor's own tool already talks to, with the
+credential it already stored, asking about your own account, with a 60-second
+floor. No account, no cloud, no telemetry, and zero runtime dependencies. **It
+never refreshes a token** — a locked non-goal, with a test.
 
-The full table, and the straight paragraph about that endpoint being
+The z.ai one is the exception to "no credential", and it is worth knowing which
+direction it runs: opencode stores GLM, MiniMax and Kimi plans as API keys, and
+those plans leave no percentage anywhere on disk. The opencode rows therefore
+show what disk can prove — tokens spent, and the reset time a `429` already told
+you — and the percentage only after you ask for it once. It is cached like every
+other number, so the panels get a bar without ever touching the key themselves.
+
+The full table, and the straight paragraph about both endpoints being
 undocumented, are in [`SECURITY.md`](SECURITY.md).
 
 ## Package managers
@@ -273,7 +282,8 @@ What each channel needs configured is in
 src/core/         profiles, types. Knows nothing about keychains or HTTP.
 src/adapters/     credentials (keychain / file), transcripts (JSONL), quota
                   from the cache (.claude.json) and from the endpoint (HTTP),
-                  Codex (JSON-RPC) and opencode (SQLite).
+                  Codex (JSON-RPC), opencode (SQLite) and z.ai (HTTP — the
+                  only file that opens opencode's auth.json).
 src/cli/          qm, and one demo per milestone.
 src/render/       bars and formatting for the terminal, and the dashboard.
 bin/              the launchers — qm (POSIX), qm.cmd + buscar-node.cmd

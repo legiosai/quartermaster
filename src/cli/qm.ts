@@ -45,6 +45,7 @@ import {
   ultimoUsoOpencode,
   type LimiteOpencode,
 } from '../adapters/opencode.ts';
+import { consultarCuotaZai, PROVEEDORES_ZAI } from '../adapters/zai.ts';
 import {
   esPreocupante,
   frase,
@@ -126,7 +127,8 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
   qm --version        la versión, y nada más
-  qm --calentar       refresca el endpoint de cada perfil y el de Codex, guarda
+  qm --calentar       refresca el endpoint de cada perfil, el de Codex y el de
+                      z.ai (si hay una cuenta en opencode), guarda
                       lo que vuelve y no imprime nada. Es lo que corre la barra
   qm --cuentas=a,b    con --calentar: sólo esas cuentas. Cada una que se saltea
                       es un pedido menos a un endpoint que no es nuestro
@@ -306,14 +308,42 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
 }
 
 /**
+ * Las dos formas del mismo proveedor. opencode no usa un `providerID` estable
+ * entre instalaciones: en la máquina donde se escribió esto la base guarda
+ * `zai` a secas, y el mapa original sólo tenía `zai-coding-plan` — así que la
+ * fila se llamaba `zai` y el nombre lindo no se aplicaba nunca. Verificado
+ * contra la base: los providerID reales son zai, openai, amazon-bedrock,
+ * anthropic y opencode-go.
+ *
+ * Vive acá afuera y no adentro de `filasOpencode()` porque `--calentar` filtra
+ * con `--cuentas=` por el nombre que ve el usuario —`glm`, no `zai`—, y dos
+ * copias del mapa serían dos respuestas distintas a «¿esta cuenta la pediste?».
+ */
+const NOMBRE_OPENCODE: Readonly<Record<string, string>> = {
+  zai: 'glm',
+  'zai-coding-plan': 'glm',
+  minimax: 'minimax',
+  'minimax-coding-plan': 'minimax',
+  kimi: 'kimi',
+  'kimi-for-coding': 'kimi',
+  xai: 'grok',
+  'opencode-go': 'opencode-go',
+};
+
+function nombreOpencode(prov: string): string {
+  return NOMBRE_OPENCODE[prov] ?? prov;
+}
+
+/**
  * Los planes que viven adentro de opencode: GLM (zai), MiniMax, Kimi…
  *
- * Traen consumo real y NO traen cuota: son planes por API key y el porcentaje
- * sólo existe del otro lado. La fila igual se muestra, con la frase que dice
- * por qué no hay barra — una cuenta que gastó 2,7 M de tokens y no aparece es
- * el bug original de este repo, con otro vendor.
+ * Traen consumo real siempre, y cuota cuando se la puede conseguir: para z.ai
+ * hay un endpoint y se consulta con `--refrescar`; para el resto el porcentaje
+ * sólo existe del otro lado y la fila lleva la frase que dice por qué no hay
+ * barra. Lo que no pasa nunca es que la fila no esté — una cuenta que gastó
+ * 2,7 M de tokens y no aparece es el bug original de este repo, con otro vendor.
  */
-function filasOpencode(o: Opciones): FilaPerfil[] {
+async function filasOpencode(o: Opciones): Promise<FilaPerfil[]> {
   // Antes esto salía en --breve, y con eso la fila desaparecía de TODAS las
   // pantallas: todas piden --breve. Una cuenta con una key de z.ai que se usó
   // ayer y no aparece es, literalmente, el bug que da nombre a la primera
@@ -321,22 +351,6 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
   // se arregló la consulta en vez de esconder la fila: opencode entero son
   // ~25 ms, que sí entran en el contrato de --breve.
   if (!hayOpencode()) return [];
-  // Las dos formas del mismo proveedor. opencode no usa un `providerID` estable
-  // entre instalaciones: en la máquina donde se escribió esto la base guarda
-  // `zai` a secas, y el mapa original sólo tenía `zai-coding-plan` — así que la
-  // fila se llamaba `zai` y el nombre lindo no se aplicaba nunca. Verificado
-  // contra la base: los providerID reales son zai, openai, amazon-bedrock,
-  // anthropic y opencode-go.
-  const bonito: Record<string, string> = {
-    zai: 'glm',
-    'zai-coding-plan': 'glm',
-    minimax: 'minimax',
-    'minimax-coding-plan': 'minimax',
-    kimi: 'kimi',
-    'kimi-for-coding': 'kimi',
-    xai: 'grok',
-    'opencode-go': 'opencode-go',
-  };
   const desde = new Date(Date.now() - o.dias * 24 * 3600_000);
   const ventana = new Date(Date.now() - o.ventanaH * 3600_000);
   const enVentana = new Map(consumoOpencode(ventana).map((c) => [c.proveedor, c.tokens]));
@@ -350,14 +364,14 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
     .filter(([, d]) => d.getTime() >= corte)
     .sort((a, b) => (enDias.get(b[0])?.tokens ?? 0) - (enDias.get(a[0])?.tokens ?? 0));
 
-  return proveedores.map(([prov, cuando]): FilaPerfil => {
+  return await Promise.all(proveedores.map(async ([prov, cuando]): Promise<FilaPerfil> => {
     const c = enDias.get(prov) ?? { proveedor: prov, modelo: null, tokens: 0, sesiones: 0, costo: 0 };
     return ({
     producto: 'opencode',
     localMedido: true,
     perfil: {
       directorio: 'opencode',
-      nombre: bonito[prov] ?? prov,
+      nombre: nombreOpencode(prov),
       porDefecto: false,
       // El plan es el proveedor, no el modelo. Acá iba `c.modelo` —el id del
       // modelo más usado— y eso ponía `glm-5.3` donde las otras filas ponen
@@ -367,7 +381,7 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
       cuenta: { email: null, organizacion: 'opencode', plan: prov },
     },
     veredicto: `vía opencode · último uso hace ${duracion(Date.now() - cuando.getTime())}`,
-    cuota: cuotaDeLimite(prov, limites.get(prov)),
+    cuota: await cuotaDeOpencode(prov, limites.get(prov), o),
     notaRefresco: null,
     proyeccion: null,
     archivos: c.sesiones,
@@ -380,17 +394,57 @@ function filasOpencode(o: Opciones): FilaPerfil[] {
     ultimoUso: null,
     porModelo: c.modelo === null ? [] : [[c.modelo, c.tokens]],
   });
-  });
+  }));
 }
 
 /**
- * Lo que se puede afirmar de un plan por API key.
+ * La cuota de una fila de opencode, de las tres fuentes que puede tener.
  *
- * No hay porcentaje —se probó: ni `/models` ni una llamada real devuelven
- * cabeceras de límite en zai ni en minimax—. Pero cuando el proveedor te frena
- * contesta un 429 con la fecha de reinicio, y opencode guarda esa respuesta.
- * Con eso alcanza para lo único que se hace con el número: saber si estás
- * frenado y cuándo te liberás.
+ * Por orden de lo que cuesta, que es el orden de SOUL —primero el número que no
+ * pide permiso—:
+ *
+ *   1. El **429 guardado** en la base. Gratis, sin credencial, y lo único que
+ *      hay para los proveedores sin endpoint conocido. Dice «te frenaron» y
+ *      cuándo te liberás, que es lo que se hace con el número.
+ *   2. El **cache** de la última consulta al endpoint de z.ai. También gratis y
+ *      sin credencial: lo escribió `--refrescar` o `--calentar` en su momento.
+ *   3. El **endpoint** de z.ai, sólo con `--refrescar`. Es el único que abre
+ *      `auth.json`.
+ *
+ * Entre las tres gana la más nueva, y eso no es una preferencia de estilo: un
+ * 429 de hace dos horas describe mejor el presente que una barra al 40 % de
+ * hace dos días, y una barra de recién describe mejor el presente que un 429
+ * de anteayer. `masNueva()` ya era la regla para Claude y es la misma acá.
+ */
+async function cuotaDeOpencode(
+  prov: string,
+  lim: LimiteOpencode | undefined,
+  o: Opciones,
+): Promise<ResultadoCuota> {
+  let cuota = masNueva(cuotaDeLimite(prov, lim), endpointEnCache(`opencode:${prov}`));
+  if (o.refrescar && PROVEEDORES_ZAI.has(prov)) {
+    const fresca = await consultarCuotaZai(prov);
+    if (fresca.estado === 'ok') {
+      guardarEndpoint(`opencode:${prov}`, fresca);
+      cuota = fresca;
+    }
+    // Si no sirvió no se pisa nada: el cache y el 429 siguen siendo mejores
+    // que una frase de error donde había un número.
+  }
+  return cuota;
+}
+
+/**
+ * Lo que se puede afirmar de un plan por API key **sin salir a la red**.
+ *
+ * En el disco no hay porcentaje —se probó: ni `/models` ni una llamada real
+ * devuelven cabeceras de límite en zai ni en minimax, y opencode no guarda
+ * ninguna—. Pero cuando el proveedor te frena contesta un 429 con la fecha de
+ * reinicio, y opencode guarda esa respuesta. Con eso alcanza para lo único que
+ * se hace con el número: saber si estás frenado y cuándo te liberás.
+ *
+ * Para z.ai hay además una barra de verdad, pero cuesta la clave y por eso vive
+ * en `zai.ts` detrás de `--refrescar`. Ésta es la que hay siempre.
  *
  * Si el reinicio ya pasó, no se afirma nada: se dice que no hay barra y cuándo
  * fue la última vez que te frenaron. Un límite de la semana pasada no dice nada
@@ -530,7 +584,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
   );
 
   const codex = o.codex ? await filaCodex(o) : null;
-  const todas = [...claude, ...(codex === null ? [] : [codex]), ...filasOpencode(o)];
+  const todas = [...claude, ...(codex === null ? [] : [codex]), ...(await filasOpencode(o))];
   // Descubrir todo y mostrar todo no son lo mismo: lo primero es la misión,
   // lo segundo es una preferencia.
   const { filas, nota } = seleccionar(todas, configEfectiva());
@@ -555,11 +609,25 @@ function configEfectiva(): Config {
 
 const colorPct = (p: number): ((t: string) => string) => (p >= 90 ? rojo : p >= 70 ? amarillo : verde);
 
-/** «cache · hace 25m». Que la edad viaje pegada al número es la mitad del punto. */
+/**
+ * «cache · hace 25m». Que la edad viaje pegada al número es la mitad del punto.
+ *
+ * La edad sale de `medidoEn` y de nada más. Acá decía `endpoint · ahora` fijo
+ * para todo lo que tuviera `origen: 'endpoint'`, y eso era falso desde que
+ * existe `endpointEnCache()`: una lectura del endpoint **guardada** conserva su
+ * origen y se muestra con su `medidoEn` viejo, así que un número de hace tres
+ * días se anunciaba como de recién. Se veía poco mientras las filas de Claude
+ * tenían además el cache de `.claude.json` para ganarle; las de opencode no
+ * tienen otra fuente, y ahí quedó a la vista.
+ *
+ * Un número viejo presentado como actual es la misma mentira que el silencio,
+ * que es la frase con la que arranca `cache-cuota.ts`.
+ */
 function sello(r: Extract<ResultadoCuota, { estado: 'ok' }>): string {
   const edadMs = Date.now() - r.medidoEn.getTime();
-  if (r.origen === 'endpoint') return tenue('endpoint · ahora');
-  const texto = `cache · hace ${duracion(edadMs)}`;
+  // Menos de un minuto es «ahora» y no «hace 3s»: el segundero no le sirve a
+  // nadie y hace que la pantalla parezca cambiar cuando no cambió nada.
+  const texto = edadMs < 60_000 ? `${r.origen} · ahora` : `${r.origen} · hace ${duracion(edadMs)}`;
   // Seis horas es más que cualquier ventana de 5 h: a esa altura el número
   // puede describir una ventana que ya se reinició.
   return edadMs > 6 * 3600_000 ? amarillo(`${texto} — viejo`) : tenue(texto);
@@ -1058,6 +1126,23 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
       } else fallas.push(`${perfil.nombre}: ${frase(r, perfil.directorio)}`);
     }
   }
+  // z.ai entra por el mismo lado que los perfiles de Claude: es la otra cuota
+  // que sólo existe del otro lado del cable, y sin calentarla las pantallas
+  // —que todas corren --breve— nunca verían su barra.
+  for (const prov of soloCodex ? [] : ultimoUsoOpencode().keys()) {
+    if (!PROVEEDORES_ZAI.has(prov)) continue;
+    if (cuentas !== null && !cuentaPedida(cuentas, nombreOpencode(prov))) continue;
+    const r = await consultarCuotaZai(prov);
+    if (r.estado === 'ok') {
+      guardarEndpoint(`opencode:${prov}`, r);
+      bien = true;
+    } else if (r.estado !== 'sin-credencial' && r.estado !== 'sin-suscripcion') {
+      // Sin clave guardada no es una falla: es una cuenta de opencode que no
+      // es de z.ai, o una que nunca se autenticó.
+      fallas.push(`${nombreOpencode(prov)}: ${frase(r, prov)}`);
+    }
+  }
+
   const c = cuentas !== null && !cuentas.has('codex')
     ? { cuota: { estado: 'no-consultada' as const } }
     : await consultarCodex();

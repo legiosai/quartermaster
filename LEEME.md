@@ -156,16 +156,26 @@ respuesta de cuota en el `.claude.json` de cada perfil, así que se lee del
 disco. Por eso anda aunque el token esté vencido, que es el estado exacto en el
 que murió el monitor que motivó todo esto.
 
-Lo único que sale es un pedido, y sólo cuando lo pedís (`--refrescar`, o
-`--calentar`, que es lo que corren los paneles):
+Lo único que sale es un pedido por vendor, y sólo cuando lo pedís
+(`--refrescar`, o `--calentar`, que es lo que corren los paneles):
 
 ```
 GET https://api.anthropic.com/api/oauth/usage
+GET https://api.z.ai/api/monitor/usage/quota/limit     # sólo si usás z.ai
 ```
 
-El mismo host con el que Claude Code ya habla, con la credencial que ya tenés, y
-con piso de 60 s. Sin cuenta, sin nube, sin telemetría, y con cero dependencias
-de runtime. **Nunca refresca un token** — non-goal cerrado, y con test.
+Cada uno al mismo host con el que esa herramienta ya habla, con la credencial
+que ya tenés y preguntando por tu propia cuenta, con piso de 60 s. Sin cuenta,
+sin nube, sin telemetría, y con cero dependencias de runtime. **Nunca refresca
+un token** — non-goal cerrado, y con test.
+
+El de z.ai es la excepción al «sin credencial», y conviene saber para qué lado
+corre: opencode guarda los planes de GLM, MiniMax y Kimi como API keys, y esos
+planes no dejan ningún porcentaje en el disco. Por eso las filas de opencode
+muestran lo que el disco puede probar —tokens gastados, y la fecha de reinicio
+que ya te dijo un `429`— y el porcentaje recién cuando lo pedís una vez. Queda
+cacheado como cualquier otro número, así que los paneles muestran la barra sin
+tocar la clave nunca.
 
 La tabla completa está en [`SECURITY.md`](SECURITY.md#seguridad).
 

@@ -12,22 +12,29 @@
 //   · **El piso, sí.** `session` guarda tokens y costo por sesión, con el
 //     proveedor adentro de `model`. Es consumo local, sin red y sin credencial,
 //     exactamente como las transcripciones de Claude y los rollouts de Codex.
-//   · **La cuota, no.** Estos son planes con API key: no dejan ningún
-//     porcentaje en el disco, y el único lugar donde vive es el endpoint de
-//     cada proveedor, que hay que llamar con la clave. Así que la fila trae
-//     consumo y una frase que dice por qué no hay barra — nunca un 0 % que
-//     parezca un dato.
+//   · **La cuota, acá tampoco.** Estos planes no dejan ningún porcentaje en el
+//     disco: el único lugar donde vive es el endpoint de cada proveedor, y hay
+//     que llamarlo con la clave. Para z.ai ese endpoint existe y se consulta
+//     —con `--refrescar`, desde `zai.ts`, que es el único archivo que abre
+//     `auth.json`—; para el resto la fila trae consumo y una frase que dice por
+//     qué no hay barra, nunca un 0 % que parezca un dato.
 
 import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-const BASE = join(
+/**
+ * El directorio de datos de opencode. Se exporta porque `zai.ts` necesita el
+ * mismo para llegar a `auth.json`, y dos copias de esta expresión son dos
+ * lugares donde arreglar el día que opencode mueva su carpeta.
+ */
+export const DIR_OPENCODE = join(
   process.env['XDG_DATA_HOME'] ?? join(homedir(), '.local', 'share'),
   'opencode',
-  'opencode.db',
 );
+
+const BASE = join(DIR_OPENCODE, 'opencode.db');
 
 /**
  * Cuándo se usó por última vez cada proveedor, sin ventana.
@@ -140,14 +147,28 @@ export function limitesOpencode(): Map<string, LimiteOpencode> {
 /**
  * «… will reset at 2026-09-11 18:35:24» -> Date.
  *
- * Los proveedores mandan la fecha adentro de una oración en inglés, sin zona
- * horaria. Se interpreta como hora local, que es lo que se ve en la práctica:
- * el reinicio que informó zai coincidía con el reloj de la máquina.
+ * Los proveedores mandan la fecha adentro de una oración en inglés y **sin
+ * zona horaria**, que es la parte cara. Acá decía que se interpretaba como
+ * hora local «porque el reinicio que informó zai coincidía con el reloj de la
+ * máquina». Eso era una coincidencia del huso en el que se midió, y estaba mal
+ * en cualquier otro.
+ *
+ * Lo que lo cerró fue tener las dos puntas del mismo dato. El 429 guardado
+ * decía `reset at 2026-09-11 18:35:24`; el `nextResetTime` que devuelve el
+ * endpoint de cuota —epoch en ms, sin ambigüedad— para la misma ventana
+ * semanal es `2026-09-18T10:35:24Z`. Leído como local en UTC eso da 6 días y
+ * 16 horas de diferencia, que no es ninguna ventana; leído como UTC+8 da
+ * 7 días exactos, al segundo. La hora del texto es de Beijing, que es donde
+ * está el vendor.
+ *
+ * El costo de haberlo tenido mal era 8 horas de error en el «libre en» de
+ * cualquier máquina que no estuviera en UTC+8 — y siempre para el lado de
+ * creerte libre antes de tiempo.
  */
 export function fechaDeReinicio(mensaje: string): Date | null {
   const m = /reset at\s+(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(:\d{2})?)/i.exec(mensaje);
   if (m === null) return null;
-  const d = new Date(`${m[1]}T${m[2]!.length === 5 ? `${m[2]}:00` : m[2]}`);
+  const d = new Date(`${m[1]}T${m[2]!.length === 5 ? `${m[2]}:00` : m[2]}+08:00`);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 

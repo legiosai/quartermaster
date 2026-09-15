@@ -491,6 +491,100 @@ con su reinicio y su «libre en». Una que no lo está no afirma nada — dice
 cuándo fue la última vez que la frenaron, porque un límite de la semana pasada
 no dice nada de hoy.
 
+### Y después resultó que sí había porcentaje
+
+La tabla de arriba se cerró con «no se puede» y **estaba mal**. La conclusión
+era honesta con lo que se había probado —cabeceras, `/models`, una llamada real,
+un archivo en el disco— pero los cuatro caminos eran los cuatro que se me
+ocurrieron, y ninguno era el bueno. z.ai tiene un endpoint de cuota:
+
+```
+GET https://api.z.ai/api/monitor/usage/quota/limit
+Authorization: Bearer <la clave que opencode ya guardó>
+```
+
+Contra la cuenta de esta máquina, HTTP 200:
+
+```json
+{"code":200,"data":{"limits":[
+  {"type":"CREDIT_LIMIT","unit":3,"number":5,"usage":2000,
+   "currentValue":0,"remaining":2000,"percentage":0},
+  {"type":"CREDIT_LIMIT","unit":6,"number":1,"usage":10000,
+   "currentValue":0,"remaining":10000,"percentage":0,
+   "nextResetTime":1789727724998}],
+  "level":"lite"},"success":true}
+```
+
+`unit:3` es la ventana de 5 h y `unit:6` la semanal. **`usage` es el techo, no
+lo gastado** —lo gastado es `currentValue`— y el nombre invita a leerlo al
+revés, que da 100 % en una cuenta que no gastó nada. Hay un test para eso solo.
+
+Lo que costó la corrección no fue el código sino la regla: para pedirlo hay que
+abrir el `auth.json` de opencode, y el encabezado de ese adaptador prometía no
+abrirlo nunca. Se resolvió como se resolvió el de Anthropic y no con una
+excepción nueva: la clave se lee **sólo** con `--refrescar` o `--calentar`, vive
+en un archivo aparte (`zai.ts`, el único que la toca), y lo que ve la pantalla
+por defecto es el cache de la última corrida —el mismo `cache-endpoint.ts` que
+ya existía, con la clave `opencode:zai`—. `opencode.ts` sigue sin abrir el
+archivo, que era el punto.
+
+Entre las tres fuentes que ahora puede tener una fila de opencode —el 429
+guardado, el cache, el endpoint— gana **la más nueva**, con el `masNueva()` que
+ya era la regla para Claude. No es cosmético: un 429 de hace dos horas describe
+mejor el presente que una barra al 40 % de anteayer, y al revés también.
+
+**La ventana de 5 h se guarda con un techo de reinicio.** z.ai manda
+`nextResetTime` sólo en la semanal; la corta es rodante. O sea que no se sabe
+cuándo reinicia, pero sí que no puede reiniciar más tarde que *ahora + 5 h*, y
+eso es un dato verdadero. Hace falta porque el número se cachea: sin un instante
+de vencimiento, `vencida()` nunca marca la lectura y un 100 % de anteayer se
+sigue mostrando como si fuera de hoy — el caso peor que `tipos.ts` ya documenta.
+
+### Y de paso: el 429 estaba en hora de Beijing
+
+Tener las dos puntas del mismo dato dejó a la vista un error que llevaba desde
+que se escribió `fechaDeReinicio()`. El comentario decía que el texto del 429 se
+interpreta como hora local «porque el reinicio que informó zai coincidía con el
+reloj de la máquina». Era una coincidencia del huso donde se midió.
+
+El 429 guardado decía `reset at 2026-09-11 18:35:24`. El `nextResetTime` del
+endpoint para esa misma ventana semanal —epoch en ms, sin ambigüedad posible— es
+`2026-09-18T10:35:24Z`. Leído como local en UTC, entre los dos hay 6 días y
+16 horas, que no es ninguna ventana de nada. Leído como UTC+8, hay 7 días
+exactos, al segundo. La hora del texto es de Beijing.
+
+El costo era 8 horas de error en el «libre en» de cualquier máquina fuera de
+UTC+8, y siempre para el lado peor: creerte libre antes de tiempo. El test que
+lo cubría estaba en `codex.test.ts` y afirmaba `getHours() === 18` — o sea que
+el supuesto viejo tenía test, que es la forma más cara de tener algo mal. Se
+movió a `opencode.test.ts` con la expectativa corregida y en UTC explícito.
+
+### Y un tercero que estaba escondido atrás del anterior
+
+Probar el cache viejo a mano —envejecerlo tres días y ponerlo al 100 %— destapó
+que el sello decía `endpoint · ahora` para esa lectura. Era un `if` que daba por
+sentado que `origen: 'endpoint'` significaba «recién pedido», y hace rato que no
+significa eso: `endpointEnCache()` devuelve lecturas guardadas **con su origen
+intacto**. O sea que un número de hace tres días se anunciaba como de recién.
+
+Se veía poco porque las filas de Claude tienen además el cache de
+`.claude.json`, que casi siempre le gana por fecha; las de opencode no tienen
+otra fuente, así que ahí pasa siempre. La edad ahora sale de `medidoEn` y de
+nada más, para los dos orígenes, con el mismo «— viejo» a las 6 h que ya tenía
+el cache. Un número viejo presentado como actual es la misma mentira que el
+silencio, que es con lo que arranca `cache-cuota.ts`.
+
+### Una cosa más que apareció mirando esto
+
+Los `providerID` que guarda la base de esta máquina son `zai`, y en la tabla de
+proveedores de opencode `zai` apunta a `api.z.ai/api/paas/v4` —el saldo por
+uso—, mientras que la suscripción es `zai-coding-plan` →
+`api.z.ai/api/coding/paas/v4`. Concuerda con que los contadores del endpoint den
+`currentValue: 0` quince minutos después de una sesión de 45 k tokens: el gasto
+no está pegando contra el plan. No es un bug de quartermaster y no se arregla
+desde acá —hay que elegir el otro proveedor en opencode—, pero el adaptador
+consulta la cuota para los dos `providerID`, así que la barra aparece igual.
+
 Lo que encontré en esta máquina para la que falta:
 
 - **Gemini CLI 0.59.0** — instalado, autenticado (`oauth-personal`). Pero en

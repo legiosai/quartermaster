@@ -22,10 +22,17 @@ stops measuring what the tool does.
   for a broken login. When a credential is expired the answer is a sentence
   telling the user which profile is stale and what command fixes it.
 - **No account, no cloud, no telemetry.** Everything is read from disk and from
-  the user's own credential. Nothing leaves the machine except the quota poll
-  itself, to the same host Claude Code already talks to.
+  the user's own credential. Nothing leaves the machine except the quota polls
+  themselves — one per vendor, each to the same host that vendor's own tool
+  already talks to, each asking about the user's own account.
 
-  And that poll has a floor. An adaptive cadence once dropped to 20 s per
+  That used to read "to the same host Claude Code already talks to", when there
+  was one. The rule was never about the host being Anthropic's; it is that
+  quartermaster introduces no third party. A second vendor (z.ai, for the
+  opencode rows) does not weaken it, and phrasing it as one host would have made
+  the next adapter look like a violation when it is the rule working.
+
+  And those polls have a floor. An adaptive cadence once dropped to 20 s per
   account while a bar sat high — about 360 requests an hour, sustained, against
   an undocumented endpoint that Claude Code itself calls roughly once per
   session. Polling hard enough to get rate-limited for reading your own quota
