@@ -2093,10 +2093,33 @@ class Indicador:
         return max(MINIMO_RED, seg)
 
     def programar_calentado(self, segundos: int | None = None) -> None:
+        """Agenda el próximo calentado, y NUNCA lo aleja.
+
+        Acá estaba el hambre. Esto rearmaba siempre, y `refrescar()` lo llama en
+        cada vuelta; el sondeo corre cada SEGUNDOS_SONDEO y `cadencia()` devuelve
+        exactamente eso cuando no hay nada alto —el caso normal—. Los dos
+        temporizadores quedaban empatados en 300 s y el del sondeo llegaba
+        primero, así que cada sondeo reiniciaba la cuenta regresiva del
+        calentado justo antes de que venciera. El calentado no ocurría NUNCA.
+
+        Medido el 2026-09-15 con 0.1.13: un solo calentado al arrancar y después
+        siete horas y media sin ninguno, con `calentando` en False y un
+        temporizador armado todo el tiempo —armado y reiniciado, que es distinto
+        de disparado—. Y por eso forzar un `refrescar()` no lo revivía: volvía a
+        correr la cuenta 300 s más allá.
+
+        La regla es simple: una fecha que está más lejos que la que ya hay no
+        reemplaza a nada. Apretar la cadencia —que es para lo que existe volver
+        a llamar— sigue funcionando, porque ésa siempre es más cerca.
+        """
+        cuanto = self.cadencia() if segundos is None else segundos
+        cuando = GLib.get_monotonic_time() + cuanto * 1_000_000
+        if (self.reloj is not None and self.proxima_lectura is not None
+                and cuando >= self.proxima_lectura):
+            return
         if self.reloj is not None:
             GLib.source_remove(self.reloj)
-        cuanto = self.cadencia() if segundos is None else segundos
-        self.proxima_lectura = GLib.get_monotonic_time() + cuanto * 1_000_000
+        self.proxima_lectura = cuando
         self.reloj = GLib.timeout_add_seconds(cuanto, self.calentar)
 
     def falta_para_lectura(self) -> float | None:

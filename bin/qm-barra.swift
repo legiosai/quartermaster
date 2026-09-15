@@ -960,9 +960,28 @@ final class Barra: NSObject, NSApplicationDelegate {
 
     var minutosAlTecho: Double? = nil
 
+    /// Agenda el próximo calentado, y NUNCA lo aleja.
+    ///
+    /// Esto se llama al final del armado del menú, y el menú se arma en cada
+    /// `refrescar()` — que acá lo dispara el vigía de archivos, y Claude Code
+    /// reescribe su .claude.json cada veinte segundos. Rearmar siempre
+    /// significaba correr la fecha del calentado con cada escritura ajena:
+    /// el calentado no llegaba a vencer nunca.
+    ///
+    /// Del lado de GNOME, que tiene la misma forma con el sondeo periódico en
+    /// vez del vigía de archivos, pasó de verdad: medido el 2026-09-15, un solo
+    /// calentado al arrancar y siete horas y media sin ninguno, con la bandera
+    /// libre y un temporizador armado todo el tiempo —armado y reiniciado, que
+    /// es distinto de disparado—.
+    ///
+    /// La regla es simple: una fecha más lejos que la que ya hay no reemplaza a
+    /// nada. Apretar la cadencia sigue andando, porque ésa siempre es más cerca.
     func programar() {
+        let cuanto = cadencia()
+        let cuando = Date().addingTimeInterval(cuanto)
+        if let r = reloj, r.isValid, cuando >= r.fireDate { return }
         reloj?.invalidate()
-        let t = Timer(timeInterval: cadencia(), repeats: false) { _ in
+        let t = Timer(timeInterval: cuanto, repeats: false) { _ in
             // Codex primero: su número no está en ningún disco hasta que
             // alguien lo pide, y el refresco de abajo lee del cache.
             self.calentarCodex()

@@ -63,22 +63,30 @@ def cargar():
 
 
 class RelojFalso:
-    """GLib de mentira: no corre nada, anota qué se armó."""
+    """GLib de mentira: no corre nada, anota qué se armó. El reloj avanza a mano."""
 
     def __init__(self):
         self.armados = []
+        self.ahora = 10_000 * 1_000_000
+        self.vivas = {}
+
+    def avanzar(self, segundos):
+        self.ahora += segundos * 1_000_000
 
     def get_monotonic_time(self):
-        return 10_000 * 1_000_000
+        return self.ahora
 
     def timeout_add_seconds(self, seg, _fn):
         self.armados.append(seg)
-        return len(self.armados)
+        idc = len(self.armados)
+        self.vivas[idc] = self.ahora + seg * 1_000_000
+        return idc
 
     def timeout_add(self, _ms, _fn):
         return 1
 
-    def source_remove(self, _id):
+    def source_remove(self, idc):
+        self.vivas.pop(idc, None)
         return True
 
 
@@ -126,6 +134,22 @@ def vigia_con_atraso(m, ind, reloj):
         m.Indicador._vigia(ind)
 
 
+def hambre(m, ind, reloj):
+    """El sondeo empatado con la cadencia: ¿llega a vencer el calentado?
+
+    Es el caso REAL: `cadencia()` devuelve SEGUNDOS_SONDEO cuando no hay nada
+    alto, y `refrescar()` —que corre cada SEGUNDOS_SONDEO— rearma el calentado
+    en cada vuelta. Si rearmar ALEJA la fecha, el calentado no vence jamás.
+    """
+    ind.piezas = []                      # nada alto: cadencia() da el techo
+    m.Indicador.programar_calentado(ind)  # como el arranque
+    for _ in range(12):                  # doce sondeos = una hora
+        reloj.avanzar(m.SEGUNDOS_SONDEO)
+        m.Indicador.programar_calentado(ind)
+    # ¿Quedó alguna fecha en el pasado? Ésa es la que habría disparado.
+    ind.vencio = any(t <= reloj.ahora for t in reloj.vivas.values())
+
+
 def sondeo_que_revienta(m, ind, _reloj):
     def revienta():
         raise RuntimeError("un refresco cualquiera que falla")
@@ -159,27 +183,54 @@ def vigia_de_macos() -> list[str]:
         k += 1
     duracion = texto[dur_i:k + 1]
 
+    # Y `programar()`, que es donde vivía el hambre: rearmar no puede ALEJAR.
+    prog_i = texto.index("    func programar() {")
+    nivel, k = 0, prog_i
+    while True:
+        if texto[k] == "{":
+            nivel += 1
+        elif texto[k] == "}":
+            nivel -= 1
+            if nivel == 0:
+                break
+        k += 1
+    programar = texto[prog_i:k + 1].replace("self.calentarCodex()", "calentados += 1")
+
     guion = f"""import Foundation
 {duracion}
 let VIGIA_PLAZO: TimeInterval = 20 * 60
+let SEGUNDOS_SONDEO: TimeInterval = 300
+let MINIMO_RED: TimeInterval = 60
 var anotado: [String] = []
 func registrar(_ t: String) {{ anotado.append(t) }}
 var rearmes = 0
+var calentados = 0
 class Barra {{
     var calentadoEn: Date?
     var vigiaAviso = false
-    func programar() {{ rearmes += 1 }}
+    var reloj: Timer?
+    var minutosAlTecho: Double? = nil
+    func cadencia() -> TimeInterval {{ SEGUNDOS_SONDEO }}   // todo tranquilo
+{programar}
 {cuerpo}
 }}
 let b = Barra()
-b.calentadoEn = Date()                       // recién leído
-b.vigia()
+
+// 1 · el vigía
+let v = Barra()
+v.calentadoEn = Date()
+v.vigia()
 print("callado:\\(anotado.isEmpty)")
-b.calentadoEn = Date().addingTimeInterval(-1800)   // media hora sin leer
-b.vigia(); b.vigia(); b.vigia()
+v.calentadoEn = Date().addingTimeInterval(-1800)
+v.vigia(); v.vigia(); v.vigia()
 print("avisos:\\(anotado.count)")
 print("rearmes:\\(rearmes)")
-print("frase:\\(anotado.first ?? "")")
+
+// 2 · el hambre: refrescar() rearma en cada vuelta y no puede correr la fecha
+b.programar()
+let primera = b.reloj!.fireDate
+for _ in 0..<12 {{ b.programar() }}
+print("alejado:\\(b.reloj!.fireDate > primera)")
 """
     with tempfile.TemporaryDirectory() as d:
         f = pathlib.Path(d) / "v.swift"
@@ -226,7 +277,19 @@ def main() -> int:
     if not armados:
         fallas.append("el vigía anotó el atraso pero no rearmó el calentado")
 
-    # 3 · el vigía arranca con reloj puesto
+    # 3 · el hambre: el sondeo empatado con la cadencia
+    m2 = cargar()
+    m2.registrar = lambda *a, **k: None
+    reloj2 = RelojFalso()
+    m2.GLib = reloj2
+    ind2 = banco(m2)
+    hambre(m2, ind2, reloj2)
+    if not ind2.vencio:
+        fallas.append("con el sondeo y la cadencia empatados, doce vueltas de una hora "
+                      "no dejaron vencer NI UN calentado: cada refresco corría la fecha "
+                      "más lejos y el calentado no ocurría nunca")
+
+    # 4 · el vigía arranca con reloj puesto
     fuente = (RAIZ / "bin/qm-indicator").read_text(encoding="utf-8")
     if "self._ultimo_calentado: int | None = GLib.get_monotonic_time()" not in fuente:
         fallas.append("`_ultimo_calentado` arranca en None: si el PRIMER calentado nunca "
@@ -237,7 +300,7 @@ def main() -> int:
     if "$script:CalentadoEn = Get-Date" not in (RAIZ / "bin/qm-tray.ps1").read_text(encoding="utf-8"):
         fallas.append("la bandeja de Windows arma el vigía sin ponerle reloj: mismo agujero")
 
-    # 4 · el sondeo que sobrevive a su propio error
+    # 5 · el sondeo que sobrevive a su propio error
     m = cargar()
     anotado = []
     m.registrar = lambda evento, **d: anotado.append(evento)
@@ -271,6 +334,10 @@ def main() -> int:
             if dicho.get("rearmes") != "3":
                 fallas.append(f"el vigía de macOS rearmó {dicho.get('rearmes')} veces y "
                               "tenían que ser 3: avisar sin rearmar no destraba nada")
+            if dicho.get("alejado") != "false":
+                fallas.append("en macOS, doce refrescos seguidos ALEJAN la fecha del "
+                              "calentado: con el .claude.json reescribiéndose cada veinte "
+                              "segundos, el calentado no vence nunca")
         except Exception as e:  # noqa: BLE001
             fallas.append(f"no pude correr el vigía de macOS: {e}")
 
