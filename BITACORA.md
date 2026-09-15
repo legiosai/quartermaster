@@ -1707,13 +1707,32 @@ abierto pero había que volver a entrar al submenú una vez por tilde — la mit
 de la molestia. Ahora `AlCerrarSub` deja dicho que estaba abierto y `ArmarMenu`
 lo vuelve a abrir después del rearmado.
 
+Y reabrirlo tuvo su propio error, reportado con captura: el submenú volvía,
+pero **en la esquina de arriba a la izquierda de la pantalla**, suelto y lejos
+del panel. La causa es de orden, no de posición: un `ToolStripMenuItem` recién
+agregado todavía no tiene lugar asignado, y `ShowDropDown()` usa el lugar del
+item para ubicar el desplegable. La llamada estaba en medio del armado, antes
+del `PerformLayout()` del final. Medido con el panel abierto en `{X=600,Y=400}`:
+
+| cuándo se llama | el item mide | el submenú sale en |
+|---|---|---|
+| antes del layout | `{X=0,Y=0,W=32,H=19}` | `{X=0,Y=0}` |
+| después de `PerformLayout()` | `{X=0,Y=24,W=163,H=22}` | `{X=763,Y=424}` |
+
+Con las medidas al lado deja de ser una corazonada: el item sin layout mide 32
+píxeles de ancho porque todavía no midió su texto, y de un item en el origen
+sale un desplegable en el origen. Ahora se reabre después del layout.
+
 **Y el gate, porque un arreglo que no se puede comprobar es cómo se llega a
 arreglar lo mismo dos veces.** `gate-bandeja.ps1` saca `$script:AlCerrarSub` por
 AST, lo corre contra un menú de verdad con la forma real y tilda tres íconos
 seguidos: el panel y el submenú tienen que seguir visibles los tres. Probado en
 rojo de las dos maneras — sin el handler («encontré 0») y con un handler que no
 cancela («el panel se cerró al tildar el ícono #1»)—. También comprueba que
-«Salir» siga cerrando, que es el riesgo de cancelar de más.
+«Salir» siga cerrando, que es el riesgo de cancelar de más. Y como lo de la
+esquina es una cuestión de orden adentro de `ArmarMenu`, comprueba el orden:
+que el `ShowDropDown()` esté después del `PerformLayout()`. Probado en rojo
+moviéndolo a donde estaba.
 
 De paso, el `make gate-bandeja` local no podía fallar: la receta termina en
 `| tr -d '\r'` y el código de salida que veía `make` era el de `tr`, no el del

@@ -310,6 +310,33 @@ if ($asig.Count -ne 1) {
   $mn.Dispose(); $f.Dispose()
 }
 
+# Y que el submenú se reabra DESPUÉS del layout, que es de lo que salió el
+# segundo reporte: se reabría bien pero en la esquina de arriba a la izquierda
+# de la pantalla, suelto. Un ToolStripMenuItem recién agregado todavía no tiene
+# posición y `ShowDropDown()` la usa para ubicarse. Medido con el panel abierto
+# en {X=600,Y=400}: llamándolo antes del layout el item mide {0,0,32,19} y el
+# desplegable sale en {0,0}; después de PerformLayout() mide {0,24,163,22} y
+# sale en {763,424}. Es una cuestión de ORDEN dentro de ArmarMenu, así que se
+# comprueba el orden.
+$armar = $arbol.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'ArmarMenu'
+  }, $true)
+if ($armar.Count -ne 1) {
+  Fallar "esperaba una función ArmarMenu en bin/qm-tray.ps1 y encontré $($armar.Count)"
+} else {
+  $cuerpoArmar = $armar[0].Extent.Text
+  $iLayout = $cuerpoArmar.IndexOf('PerformLayout()')
+  $iAbrir = $cuerpoArmar.IndexOf('.ShowDropDown()')
+  if ($iAbrir -lt 0) {
+    Fallar 'ArmarMenu ya no reabre el submenú de íconos: tildar uno obliga a volver a entrar una vez por tilde'
+  } elseif ($iLayout -lt 0) {
+    Fallar 'ArmarMenu ya no llama PerformLayout(): no se puede comprobar el orden del que depende dónde sale el submenú'
+  } elseif ($iAbrir -lt $iLayout) {
+    Fallar 'ArmarMenu abre el submenú ANTES de PerformLayout(): sale en la esquina {0,0} de la pantalla, suelto del panel'
+  }
+}
+
 Remove-Item $salida -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($fallas.Count) {

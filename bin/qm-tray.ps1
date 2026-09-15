@@ -1890,6 +1890,7 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
   # que es lo que hace falta cuando el que sobra es justo el que estás mirando.
   # Un tilde por cuenta, más el general; clickear uno lo esconde o lo trae, se
   # guarda y se aplica en el acto — sin reiniciar nada.
+  $subIconos = $null
   if (@($script:ClavesConocidas).Count) {
     $sub = New-Object System.Windows.Forms.ToolStripMenuItem('Íconos en la bandeja')
     $sub.ForeColor = $script:Tinta
@@ -1905,11 +1906,9 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
     $sub.DropDown.Add_Closing($script:AlCerrarSub)
     VestirMenu $sub.DropDown ([bool]$script:MenuOscuro)
     $mn.Items.Add($sub) | Out-Null
-    # Si el usuario estaba tildando cuando entró este rearmado, el submenú
-    # vuelve a abrirse donde estaba. Sin esto el panel queda abierto pero el
-    # submenú no, y hay que volver a entrar una vez por tilde — que es la mitad
-    # de la molestia que se vino a sacar.
-    if ($abierto -and $script:SubIconosAbierto) { $sub.ShowDropDown() }
+    # Se guarda para reabrirlo al final. NO se abre acá: ver el comentario del
+    # ShowDropDown, abajo de PerformLayout.
+    $subIconos = $sub
   }
 
   # El item que se apretó volvió a nacer con su texto normal, así que no hay
@@ -1930,6 +1929,17 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
     # El panel cambió de alto, así que hay que reacomodarlo: sin esto se queda
     # con el tamaño de antes y recorta la última sección.
     $mn.PerformLayout()
+
+    # Y recién ACÁ se reabre el submenú, si el usuario estaba tildando. El orden
+    # no es una preferencia: un ToolStripMenuItem recién agregado todavía no
+    # tiene posición, y `ShowDropDown()` la usa para ubicar el desplegable.
+    # Abriéndolo antes del layout el item mide {X=0,Y=0,W=32,H=19} y el submenú
+    # sale en {X=0,Y=0} — la esquina de ARRIBA A LA IZQUIERDA de la pantalla,
+    # suelto y lejos del panel, que es como se reportó. Después de
+    # PerformLayout() el item mide {X=0,Y=24,W=163,H=22} y el submenú sale
+    # pegado al panel. Medido con el panel abierto en {X=600,Y=400}: antes
+    # {0,0}, después {763,424}.
+    if ($null -ne $subIconos -and $script:SubIconosAbierto) { $subIconos.ShowDropDown() }
   }
 }
 
