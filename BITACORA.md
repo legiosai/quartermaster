@@ -1703,6 +1703,28 @@ captura y comprueba la invariante que de verdad importa: que los dos aires en
 pantalla den lo mismo. Probado en rojo apagando el desplazo, e informa los
 números del reporte: «14 px de aire a la izquierda y 33 a la derecha».
 
+### Y el aire estaba de un solo lado
+
+Reportado con captura después de lo anterior: el panel se veía «poco centrado»
+arriba. Y no era el centrado horizontal, que ya estaba: el aire de 8 px entre
+tarjetas vivía ABAJO de cada una, así que había separación entre ellas y
+**ninguna encima de la primera**. El panel arrancaba pegado al borde de arriba
+del menú.
+
+Pasó arriba, que resuelve las dos cosas con el mismo píxel: la primera tarjeta
+tiene su aire, entre tarjetas sigue habiendo el mismo, y la última no necesita
+nada abajo porque el pie trae el suyo. Medido en la captura, los tramos de fondo
+quedaron 8, 8, 8, 8, 8 — parejo de arriba a abajo.
+
+El gate lo mide en la columna del medio, donde adentro de una tarjeta lo que hay
+es color de TARJETA y no de fondo, así que los tramos de fondo son exactamente
+los huecos. El aire de arriba se mide APARTE y no como «el primer tramo»: la
+primera versión lo contaba junto con los demás, y en el caso roto —sin aire
+arriba— no había primer tramo que contar, así que fallaba diciendo «no encontré
+los huecos» en vez de «arranca pegado». Un gate que falla por la razón
+equivocada manda a buscar el problema donde no está. Ahora dice: «el panel
+arranca pegado al borde de arriba (0 px de aire): falta el padding».
+
 ### Las cuatro opciones de abajo pasaron a un «⋯»
 
 Mismo reporte: con las tarjetas puestas, los cuatro renglones de texto plano

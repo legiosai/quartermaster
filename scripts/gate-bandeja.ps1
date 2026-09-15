@@ -210,6 +210,44 @@ if ($bmp) {
             "y $aireDer a la derecha")
   }
 
+  # El AIRE DE ARRIBA, que es la otra mitad del centrado y se reportó aparte.
+  # El aire entre tarjetas vivía abajo de cada una, así que había 8 px entre
+  # ellas y NINGUNO encima de la primera: el panel arrancaba pegado al borde de
+  # arriba del menú y se veía cargado. Ahora el aire va arriba, y la
+  # comprobación es que el de encima de todo sea igual al de entre tarjetas.
+  #
+  # En la columna del medio, adentro de una tarjeta lo que hay es color de
+  # TARJETA y no de fondo, así que los tramos de fondo son exactamente los
+  # huecos. El último se saltea: no es un hueco entre tarjetas sino lo que le
+  # sobra al pie debajo de su renglón.
+  $col = [int]($bmp.Width / 2)
+  $esFondo = {
+    param($y)
+    $c = $bmp.GetPixel($col, $y)
+    return ($c.R -eq $fondo.R -and $c.G -eq $fondo.G -and $c.B -eq $fondo.B)
+  }
+  # El aire de ARRIBA se mide aparte y no como «el primer tramo»: cuando falta,
+  # no hay primer tramo que contar y la comprobación tiene que decir eso y no
+  # «no encontré los huecos».
+  $arriba = 0
+  while ($arriba -lt $bmp.Height -and (& $esFondo $arriba)) { $arriba++ }
+  # Y los huecos ENTRE tarjetas, de ahí para abajo. El último tramo se saltea:
+  # no es un hueco sino lo que le sobra al pie debajo de su renglón.
+  $huecos = @()
+  $largo = 0
+  foreach ($y in $arriba..($bmp.Height - 1)) {
+    if (& $esFondo $y) { $largo++ }
+    elseif ($largo -gt 0) { $huecos += $largo; $largo = 0 }
+  }
+  if ($arriba -lt 4) {
+    Fallar "el panel arranca pegado al borde de arriba ($arriba px de aire): falta el padding"
+  } elseif (-not $huecos.Count) {
+    Fallar 'no encontré ningún hueco entre tarjetas en la captura'
+  } elseif ($arriba -ne $huecos[0]) {
+    Fallar ("el aire de arriba de todo ($arriba px) no es el mismo que el de entre tarjetas " +
+            "($($huecos[0]) px): el panel queda cargado para un lado")
+  }
+
   $padding = @()
   foreach ($y in 0..($bmp.Height - 1)) {
     foreach ($x in @(($bIzq + 2)..($bIzq + 7)) + @(($bDer - 4)..($bDer - 1))) {

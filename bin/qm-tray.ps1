@@ -1020,7 +1020,14 @@ function DibujarPerfil($p, [int]$indice) {
   # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
   # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
   # entero—, así que el aire de los costados sigue siendo fondo del menú.
-  $g.TranslateTransform((Desplazo), 0)
+  #
+  # El aire vertical va ARRIBA de la tarjeta y no abajo. Abajo también separaba
+  # una tarjeta de la siguiente, pero la PRIMERA quedaba pegada al borde de
+  # arriba del menú: había 8 px entre tarjetas y ninguno encima de todo, y el
+  # panel se veía cargado hacia arriba. Arriba resuelve las dos cosas con el
+  # mismo píxel — la última tarjeta no necesita aire abajo porque el pie trae
+  # el suyo.
+  $g.TranslateTransform((Desplazo), (Px $ENTRE_TARJETAS))
   FondoTarjeta $g $ancho $altoTarjeta
 
   $m = Px $MARGEN
@@ -1149,7 +1156,14 @@ function DibujarResumen($perfiles) {
   # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
   # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
   # entero—, así que el aire de los costados sigue siendo fondo del menú.
-  $g.TranslateTransform((Desplazo), 0)
+  #
+  # El aire vertical va ARRIBA de la tarjeta y no abajo. Abajo también separaba
+  # una tarjeta de la siguiente, pero la PRIMERA quedaba pegada al borde de
+  # arriba del menú: había 8 px entre tarjetas y ninguno encima de todo, y el
+  # panel se veía cargado hacia arriba. Arriba resuelve las dos cosas con el
+  # mismo píxel — la última tarjeta no necesita aire abajo porque el pie trae
+  # el suyo.
+  $g.TranslateTransform((Desplazo), (Px $ENTRE_TARJETAS))
   FondoTarjeta $g $ancho $altoTarjeta
 
   # El anillo, igual que el del tablero: pista tenue del mismo color y arco
@@ -1230,7 +1244,14 @@ function DibujarSinCuota($calladas) {
   # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
   # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
   # entero—, así que el aire de los costados sigue siendo fondo del menú.
-  $g.TranslateTransform((Desplazo), 0)
+  #
+  # El aire vertical va ARRIBA de la tarjeta y no abajo. Abajo también separaba
+  # una tarjeta de la siguiente, pero la PRIMERA quedaba pegada al borde de
+  # arriba del menú: había 8 px entre tarjetas y ninguno encima de todo, y el
+  # panel se veía cargado hacia arriba. Arriba resuelve las dos cosas con el
+  # mismo píxel — la última tarjeta no necesita aire abajo porque el pie trae
+  # el suyo.
+  $g.TranslateTransform((Desplazo), (Px $ENTRE_TARJETAS))
   FondoTarjeta $g $ancho $altoTarjeta
 
   $y = Px $MARGEN
@@ -1261,13 +1282,15 @@ function DibujarPieLectura([double]$falta) {
   $ancho = [int](Px $ANCHO_VISTA)
   $alto = [int](Px $ALTO_PIE)
   # El pie también, o el menú lo alinearía a la izquierda contra tarjetas que
-  # ya están corridas y se vería el escalón.
-  $bmp = Lienzo (AnchoLienzo $ancho) $alto
+  # ya están corridas y se vería el escalón. Y con el mismo aire arriba: se lo
+  # ponía la tarjeta anterior con su aire de abajo, y ahora ese aire está del
+  # otro lado.
+  $bmp = Lienzo (AnchoLienzo $ancho) (AltoConAire $alto)
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
   $g.Clear($script:Fondo)
-  $g.TranslateTransform((Desplazo), 0)
+  $g.TranslateTransform((Desplazo), (Px $ENTRE_TARJETAS))
   Escribir $g "próxima lectura en $(CuentaRegresiva $falta)" (Px $MARGEN) (Px 4) `
     $script:FPie $script:Tinta3
   $g.Dispose()
