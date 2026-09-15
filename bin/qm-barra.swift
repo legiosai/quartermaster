@@ -976,10 +976,14 @@ final class Barra: NSObject, NSApplicationDelegate {
     ///
     /// La regla es simple: una fecha más lejos que la que ya hay no reemplaza a
     /// nada. Apretar la cadencia sigue andando, porque ésa siempre es más cerca.
-    func programar() {
+    func programar(forzando: Bool = false) {
         let cuanto = cadencia()
         let cuando = Date().addingTimeInterval(cuanto)
-        if let r = reloj, r.isValid, cuando >= r.fireDate { return }
+        // `forzando` es para el vigía: cuando el calentado está parado, la fecha
+        // agendada YA VENCIÓ, así que cualquier fecha nueva es «más lejos» y la
+        // guarda la rechazaría. La defensa contra el hambre desactivaba a la
+        // defensa contra el silencio.
+        if !forzando, let r = reloj, r.isValid, cuando >= r.fireDate { return }
         reloj?.invalidate()
         let t = Timer(timeInterval: cuanto, repeats: false) { _ in
             // Codex primero: su número no está en ningún disco hasta que
@@ -1031,7 +1035,7 @@ final class Barra: NSObject, NSApplicationDelegate {
             registrar("el calentado no ocurre hace \(duracion(Int(atraso))): lo rearmo")
             vigiaAviso = true
         }
-        programar()
+        programar(forzando: true)
     }
 
     /// Refresca las dos puntas —el endpoint de cada perfil de Claude y el de

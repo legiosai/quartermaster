@@ -2092,7 +2092,7 @@ class Indicador:
             seg = min(seg, 120)
         return max(MINIMO_RED, seg)
 
-    def programar_calentado(self, segundos: int | None = None) -> None:
+    def programar_calentado(self, segundos: int | None = None, forzar: bool = False) -> None:
         """Agenda el próximo calentado, y NUNCA lo aleja.
 
         Acá estaba el hambre. Esto rearmaba siempre, y `refrescar()` lo llama en
@@ -2114,7 +2114,12 @@ class Indicador:
         """
         cuanto = self.cadencia() if segundos is None else segundos
         cuando = GLib.get_monotonic_time() + cuanto * 1_000_000
-        if (self.reloj is not None and self.proxima_lectura is not None
+        # `forzar` es para el vigía, y no es un detalle: cuando el calentado está
+        # parado, la fecha agendada YA VENCIÓ, así que cualquier fecha nueva es
+        # «más lejos» y la guarda de arriba la rechazaría. La defensa contra el
+        # hambre desactivaba a la defensa contra el silencio. Lo encontró el gate
+        # corriendo el Swift, no leyéndolo.
+        if (not forzar and self.reloj is not None and self.proxima_lectura is not None
                 and cuando >= self.proxima_lectura):
             return
         if self.reloj is not None:
@@ -2176,7 +2181,7 @@ class Indicador:
             # Y destrabarlo: la bandera pegada se suelta y se rearma ya.
             self.calentando = False
             self.calentando_desde = None
-            self.programar_calentado(1)
+            self.programar_calentado(1, forzar=True)
         except Exception as e:  # noqa: BLE001 — el vigía no puede ser lo que se cae
             registrar("vigia.reventó", error=f"{type(e).__name__}: {e}"[:110])
         return True

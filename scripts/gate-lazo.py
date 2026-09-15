@@ -130,6 +130,12 @@ def bandera_pegada(m, ind, _reloj):
 def vigia_con_atraso(m, ind, reloj):
     ind.calentando = True
     ind._ultimo_calentado = reloj.get_monotonic_time() - 1800 * 1_000_000
+    # Con un temporizador armado y su fecha YA VENCIDA, que es el estado real de
+    # un calentado parado: la guarda anti-hambre ve que cualquier fecha nueva es
+    # «más lejos» y, sin forzar, no rearmaría nada. La defensa contra el hambre
+    # apagaría a la defensa contra el silencio.
+    ind.reloj = 99
+    ind.proxima_lectura = reloj.get_monotonic_time() - 600 * 1_000_000
     for _ in range(3):
         m.Indicador._vigia(ind)
 
@@ -195,6 +201,11 @@ def vigia_de_macos() -> list[str]:
                 break
         k += 1
     programar = texto[prog_i:k + 1].replace("self.calentarCodex()", "calentados += 1")
+    # Contar los rearmes DE VERDAD: el stub que los contaba ya no está, porque
+    # ahora se ejecuta el `programar()` real —que es justo lo que hay que medir,
+    # porque su guarda anti-hambre podía dejar al vigía sin rearmar nada.
+    programar = programar.replace("{\n        let cuanto = cadencia()",
+                                  "{\n        rearmes += 1\n        let cuanto = cadencia()", 1)
 
     guion = f"""import Foundation
 {duracion}
@@ -205,7 +216,8 @@ var anotado: [String] = []
 func registrar(_ t: String) {{ anotado.append(t) }}
 var rearmes = 0
 var calentados = 0
-class Barra {{
+class Barra: NSObject {{
+    @objc func nada() {{ }}
     var calentadoEn: Date?
     var vigiaAviso = false
     var reloj: Timer?
@@ -231,6 +243,20 @@ b.programar()
 let primera = b.reloj!.fireDate
 for _ in 0..<12 {{ b.programar() }}
 print("alejado:\\(b.reloj!.fireDate > primera)")
+
+// 3 · y la guarda no puede dejar al vigía sin rearmar: con la fecha YA vencida,
+// cualquier fecha nueva es «más lejos», y sin forzar no se rearmaría nada.
+let c = Barra()
+c.programar()
+let vieja = c.reloj!.fireDate
+c.reloj = Timer(fireAt: Date().addingTimeInterval(-600), interval: 0,
+                target: c, selector: #selector(Barra.nada), userInfo: nil, repeats: false)
+RunLoop.main.add(c.reloj!, forMode: .common)
+c.calentadoEn = Date().addingTimeInterval(-1800)
+c.vigiaAviso = false
+c.vigia()
+print("vigiaRearmo:\\(c.reloj!.fireDate > Date())")
+_ = vieja
 """
     with tempfile.TemporaryDirectory() as d:
         f = pathlib.Path(d) / "v.swift"
@@ -334,6 +360,10 @@ def main() -> int:
             if dicho.get("rearmes") != "3":
                 fallas.append(f"el vigía de macOS rearmó {dicho.get('rearmes')} veces y "
                               "tenían que ser 3: avisar sin rearmar no destraba nada")
+            if dicho.get("vigiaRearmo") != "true":
+                fallas.append("la guarda anti-hambre de macOS deja al vigía sin rearmar: "
+                              "con la fecha ya vencida, la fecha nueva siempre es «más "
+                              "lejos» y la defensa contra el hambre apaga a la del silencio")
             if dicho.get("alejado") != "false":
                 fallas.append("en macOS, doce refrescos seguidos ALEJAN la fecha del "
                               "calentado: con el .claude.json reescribiéndose cada veinte "
