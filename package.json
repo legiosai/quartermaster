@@ -33,7 +33,8 @@
   "bin": {
     "qm": "bin/qm.mjs",
     "qm-web": "bin/qm-web",
-    "qm-barra": "bin/qm-barra"
+    "qm-barra": "bin/qm-barra",
+    "qm-indicator": "bin/qm-indicator"
   },
   "files": [
     "bin/",

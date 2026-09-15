@@ -31,7 +31,16 @@ cp -r bin src scripts extension Makefile package.json "$arma/usr/lib/quartermast
 cp README.md LICENSE "$arma/usr/share/doc/quartermaster/"
 # El lanzador sigue los symlinks para encontrar el src/, así que un enlace
 # alcanza y no hay que duplicar el árbol.
-ln -sf /usr/lib/quartermaster/bin/qm "$arma/usr/bin/qm"
+#
+# Los tres que da npm, y no sólo `qm`: `qm-web` es el tablero para una máquina
+# sin barra de GNOME, y `qm-indicator` es el que instala el item y el arranque
+# automático —`--instalar-extension`, `--instalar-arranque`—. Sin el enlace esas
+# banderas quedaban a una ruta de /usr/lib que nadie tiene por qué saber, y los
+# READMEs las documentaban como si estuvieran en el PATH. `qm-barra` no: es de
+# macOS y adentro de un .deb no tiene nada que hacer.
+for enlace in qm qm-web qm-indicator; do
+  ln -sf "/usr/lib/quartermaster/bin/$enlace" "$arma/usr/bin/$enlace"
+done
 find "$arma/usr/lib/quartermaster" -name '__pycache__' -prune -exec rm -rf {} +
 # Lo de Windows no tiene nada que hacer adentro de un .deb: los lanzadores .cmd,
 # la bandeja y el ícono del instalador. Son ~150 kB de archivos que en esta
