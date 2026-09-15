@@ -190,7 +190,7 @@ def vigia_de_macos() -> list[str]:
     duracion = texto[dur_i:k + 1]
 
     # Y `programar()`, que es donde vivía el hambre: rearmar no puede ALEJAR.
-    prog_i = texto.index("    func programar() {")
+    prog_i = texto.index("    func programar(forzando: Bool = false) {")
     nivel, k = 0, prog_i
     while True:
         if texto[k] == "{":
@@ -204,8 +204,9 @@ def vigia_de_macos() -> list[str]:
     # Contar los rearmes DE VERDAD: el stub que los contaba ya no está, porque
     # ahora se ejecuta el `programar()` real —que es justo lo que hay que medir,
     # porque su guarda anti-hambre podía dejar al vigía sin rearmar nada.
-    programar = programar.replace("{\n        let cuanto = cadencia()",
-                                  "{\n        rearmes += 1\n        let cuanto = cadencia()", 1)
+    assert "rearmes" not in programar
+    programar = programar.replace("        let cuanto = cadencia()",
+                                  "        rearmes += 1\n        let cuanto = cadencia()", 1)
 
     guion = f"""import Foundation
 {duracion}
