@@ -353,7 +353,12 @@ def main() -> int:
             salteado = "  · salteado: el vigía de macOS (no hay swift en esta máquina)"
     else:
         try:
-            dicho = dict(l.split(":", 1) for l in vigia_de_macos())
+            crudo = vigia_de_macos()
+            dicho = dict(l.split(":", 1) for l in crudo)
+            # Lo que dijo, pegado a cada rojo: un gate que dice «no cuadra» sin
+            # decir qué contestó obliga a adivinar, y adivinar es lo que este
+            # repo no hace.
+            fallas_antes = len(fallas)
             if dicho.get("callado") != "true":
                 fallas.append("el vigía de macOS avisa con una lectura RECIENTE: cría lobo")
             if dicho.get("avisos") != "1":
@@ -370,6 +375,8 @@ def main() -> int:
                 fallas.append("en macOS, doce refrescos seguidos ALEJAN la fecha del "
                               "calentado: con el .claude.json reescribiéndose cada veinte "
                               "segundos, el calentado no vence nunca")
+            if len(fallas) > fallas_antes:
+                fallas.append("lo que contestó el Swift: " + " · ".join(crudo))
         except Exception as e:  # noqa: BLE001
             fallas.append(f"no pude correr el vigía de macOS: {e}")
 
