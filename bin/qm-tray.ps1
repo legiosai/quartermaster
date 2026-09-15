@@ -101,11 +101,43 @@ param(
   # El tema es una lectura del registro, y en un runner de CI no está el que
   # uno quiere comprobar. En modo captura se fuerza a mano.
   [switch]$Oscuro,
-  [switch]$Claro
+  [switch]$Claro,
+
+  # ── el arranque de sesión ─────────────────────────────────────────────
+  # Escribe el acceso directo en la carpeta de Inicio de Windows y sale. Es la
+  # misma bandera que `qm-barra --instalar-arranque` y `qm-indicator
+  # --instalar-arranque`, y existe para que quien ofrece la barra en la primera
+  # corrida de `qm` no tenga que saber qué hay abajo en cada plataforma.
+  #
+  # Va acá y no en el lanzador de WSL porque el acceso directo necesita la ruta
+  # de ESTE archivo en coordenadas de Windows, y este archivo la sabe sin
+  # traducir nada: `$PSCommandPath`. Del otro lado habría que pasarla por
+  # `wslpath` y volver a escaparla.
+  [switch]$InstalarArranque
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+if ($InstalarArranque) {
+  $sh = New-Object -ComObject WScript.Shell
+  $lnk = $sh.CreateShortcut((Join-Path $sh.SpecialFolders('Startup') 'quartermaster.lnk'))
+  $lnk.TargetPath = 'powershell.exe'
+  # -QmLinux se conserva: el arranque de sesión no pasa por el .bashrc, así que
+  # sin esto la bandeja no encontraría el qm de adentro de WSL.
+  # Se llama $linea y no $args: $args es una variable automática de PowerShell
+  # y pisarla adentro de un script es pedir un bug que no se ve.
+  $linea = '-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' + $PSCommandPath + '"'
+  if ($QmLinux) { $linea += ' -QmLinux "' + $QmLinux + '"' }
+  if ($Iconos) { $linea += ' -Iconos "' + $Iconos + '"' }
+  $lnk.Arguments = $linea
+  # 7 es minimizado: sin esto parpadea una consola en cada inicio de sesión.
+  $lnk.WindowStyle = 7
+  $lnk.Description = 'quartermaster · cuota en la bandeja'
+  $lnk.Save()
+  Write-Host ('escrito: ' + $lnk.FullName)
+  exit 0
+}
 
 # ¿Pidieron explícitamente el qm de adentro de WSL? Se captura ACÁ, al nivel
 # del script, y no adentro de ResolverQm: en una función $PSBoundParameters es

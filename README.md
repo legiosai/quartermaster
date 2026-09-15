@@ -49,16 +49,18 @@ brew install legiosai/tap/quartermaster        # macOS and Linux
 npm install -g @legios/quartermaster           # anywhere
 ```
 
-**The bar item, on macOS and Linux:** the first time you run `qm` in a terminal,
-it asks once whether to put it in the bar and start it at every login. The
+**The bar item, on all three:** the first time you run `qm` in a terminal, it
+asks once whether to put it in the bar and start it at every login — the menu
+bar on macOS, the top bar on GNOME, the notification area on Windows. The
 install itself can't: brew can't start anything from a formula, the `.deb` drops
-the files and leaves, and a tool that reads OAuth tokens shouldn't register login
-agents nobody asked for. Without the question: `brew services start
-quartermaster` on macOS, and on Linux
+the files and leaves, npm's postinstall won't register anything either, and a
+tool that reads OAuth tokens shouldn't register login agents nobody asked for.
+Without the question: `brew services start quartermaster` on macOS, and
 
 ```sh
-qm-indicator --instalar-extension   # the item that opens the panel on click
+qm-indicator --instalar-extension   # Linux: the item that opens the panel on click
 qm-indicator --instalar-arranque    # and start it once: qm-indicator &
+bin/qm-tray --instalar-arranque     # Windows, from WSL: then run bin/qm-tray
 ```
 
 Saying yes on Linux **also installs the GNOME extension**, which is what makes a
@@ -74,7 +76,9 @@ extension already in place, or a GNOME Shell to install ours into. Without those
 the process would start anyway and nothing would appear up there, which is worse
 than not offering. `qm --diagnostico` says which one is missing.
 
-**Windows:** the installer from the [latest
+**Windows:** `npm install -g @legios/quartermaster` inside WSL works too, and
+the first `qm` asks the same question — the tray ships in the package. For a
+native install without WSL, the installer from the [latest
 release](https://github.com/legiosai/quartermaster/releases/latest). Per-user
 and no UAC: it puts `qm` on your `PATH`, the tray in the Start menu, and — if
 you leave the box ticked — the tray in startup.

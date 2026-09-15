@@ -1885,6 +1885,66 @@ gate. En CI no pasaba —ahí el `.ps1` se corre directo— así que el único q
 un verde de mentira era el de la máquina, que es justo donde uno lo corre antes
 de comitear. Ahora la receta se guarda el código y sale con él.
 
+### Y en Windows `qm` no ofrecía nada
+
+Reportado a mano, y la frase es el bug: «ya instalé, ¿cómo hago para que se vean
+los iconos?». En macOS y en GNOME la primera corrida de `qm` en una terminal
+pregunta si ponerlo en la barra; en Windows no preguntaba nada, y quien
+instalaba por npm en WSL se quedaba con el CLI y sin ícono sin que nada se lo
+dijera. La misma forma de silencio de siempre, en la plataforma que se sumó
+última.
+
+Lo primero fue verificar de qué lado estaba el agujero, porque yo mismo le había
+dicho al usuario que la bandeja no viajaba en el paquete de npm. **Era falso:**
+`files` incluye `bin/`, con las únicas exclusiones de `__pycache__` y del
+`.ico` —que la bandeja no usa, porque dibuja sus íconos con GDI+—. O sea que
+`qm-tray` y `qm-tray.ps1` estaban ahí desde siempre. Lo que faltaba era que
+alguien los ofreciera.
+
+Tres piezas:
+
+**La bandera, igual que en las otras dos.** La bandeja no tenía forma de
+instalarse en el arranque que no fuera `make tray-autostart`, y quien instaló
+por npm no tiene un Makefile — el mismo agujero que tenía el `.deb` en Linux.
+Ahora `qm-tray --instalar-arranque` escribe el acceso directo en Inicio, con el
+mismo nombre de bandera que `qm-barra` y `qm-indicator`, para que quien ofrece
+no tenga que saber qué hay abajo. Vive en el `.ps1` y no en el lanzador de WSL
+porque el acceso directo necesita la ruta de ese archivo en coordenadas de
+Windows, y el `.ps1` la sabe sin traducir nada: `$PSCommandPath`. El lanzador
+sólo traduce el nombre de la bandera, porque del otro lado manda PowerShell y
+nombra sus parámetros en CamelCase.
+
+**Una sola llamada a Windows.** Hacen falta dos respuestas —¿está el acceso
+directo? ¿hay una bandeja viva?— y desde WSL cada una cuesta levantar un
+powershell.exe, que es casi un segundo. Van juntas, con las dos en el código de
+salida: 1 el acceso directo, 2 la bandeja. Y esa misma llamada contesta la
+tercera pregunta, «¿hay interoperabilidad?», porque si no se puede correr no hay
+bandeja posible.
+
+**WSL dice `linux` y no lo es.** `process.platform` en WSL contesta `linux`, así
+que la rama de la bandeja va ANTES que la de GNOME y la apaga: preguntar por
+`gnome-extensions` en una WSL sería ofrecer una barra de arriba que no existe.
+Lo que decide no es el kernel sino dónde aparece el item.
+
+Tres cosas se rompieron en el camino y las tres valen:
+
+- **`command -v` no funciona con `execFileSync`.** La comprobación de interop
+  era `sale0('command', ['-v', 'powershell.exe'])`, y `command` es un builtin
+  del shell, no un ejecutable: fallaba SIEMPRE, así que la interoperabilidad
+  daba false hasta en una WSL donde andaba perfecto. Habría dejado la pregunta
+  apagada en todas las máquinas sin que ningún test lo viera.
+- **La consulta se encontraba a sí misma.** El patrón `*qm-tray.ps1*` está
+  escrito adentro del comando que la busca, así que la línea de comando de ese
+  proceso lo contiene: contestaba «hay una bandeja corriendo» con cero
+  bandejas. Medido: 0 procesos del lado de Windows y `corriendo: true` del lado
+  de acá. Se arregla con `-ne $PID`. Es la segunda vez en el día que esa trampa
+  muerde — la primera fue contando bandejas a mano.
+- **Y un default que volvía impura una función pura.** `comoArrancar` recibió un
+  tercer argumento con default `esBandeja()`, y con eso sus tests empezaron a
+  contestar según dónde corrieran: los tres de macOS y Linux se pusieron rojos
+  en esta WSL. El default volvió a `false` y la decisión la pasa quien pregunta,
+  que ya la tiene en la Situación. Los tests tenían razón en fallar.
+
 ## Windows sin WSL, y cómo se instala cada cosa
 
 La bandeja de arriba nació hablándole a WSL: `wsl.exe` estaba escrito a mano en

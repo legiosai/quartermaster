@@ -21,8 +21,25 @@ const MAC_NUEVA: Situacion = {
   interprete: false,
   hostDelItem: false,
   puedeHospedar: false,
+  bandeja: false,
+  interop: false,
   arranqueInstalado: false,
   corriendo: false,
+};
+
+/**
+ * Y la tercera: una WSL recién instalada por npm.
+ *
+ * `plataforma` dice linux porque eso es lo que dice el kernel, y todo lo de
+ * GNOME está en false: en una WSL no hay barra de arriba. Lo que hay es la
+ * bandeja de Windows, del otro lado de la interoperabilidad.
+ */
+const WSL_NUEVA: Situacion = {
+  ...MAC_NUEVA,
+  plataforma: 'linux',
+  compilador: false,
+  bandeja: true,
+  interop: true,
 };
 
 /** Lo mismo del otro lado: un Linux con GNOME, recién instalado. */
@@ -148,4 +165,49 @@ test('npm, make instalar o un clone usan el lanzador de siempre', () => {
     via: 'lanzador',
     lanzador: '/Users/x/.local/lib/node_modules/@legios/quartermaster/bin/qm-barra',
   });
+});
+
+// ── la bandeja de Windows ───────────────────────────────────────────────
+// Era el agujero que quedaba: en macOS y en GNOME `qm` ofrece la barra en la
+// primera corrida, y en Windows no ofrecía nada. Quien instalaba por npm en
+// WSL se quedaba con el CLI y sin ícono, sin que nada se lo dijera — que es la
+// misma forma de silencio que este repo existe para no cometer.
+
+test('una WSL recién instalada, en una terminal, pregunta', () => {
+  assert.strictEqual(debeOfrecer(WSL_NUEVA), true);
+});
+
+test('sin interoperabilidad con Windows no se ofrece nada', () => {
+  // Sin powershell.exe la bandeja no puede levantar, así que ofrecerla sería
+  // prometer algo que no va a aparecer.
+  assert.strictEqual(debeOfrecer({ ...WSL_NUEVA, interop: false }), false);
+});
+
+test('en WSL no se pregunta por GNOME', () => {
+  // La comprobación que importa: aunque `plataforma` diga linux, lo que decide
+  // es dónde aparece el item. Una WSL sin nada de GNOME —así viene— igual
+  // pregunta, porque la bandeja no necesita nada de eso.
+  assert.strictEqual(WSL_NUEVA.sesionGrafica, false);
+  assert.strictEqual(WSL_NUEVA.interprete, false);
+  assert.strictEqual(WSL_NUEVA.hostDelItem, false);
+  assert.strictEqual(debeOfrecer(WSL_NUEVA), true);
+});
+
+test('con el acceso directo ya puesto, o con la bandeja viva, no se ofrece', () => {
+  assert.strictEqual(debeOfrecer({ ...WSL_NUEVA, arranqueInstalado: true }), false);
+  assert.strictEqual(debeOfrecer({ ...WSL_NUEVA, corriendo: true }), false);
+});
+
+test('en WSL se arranca por el lanzador de la bandeja', () => {
+  // Y no por qm-indicator, que es lo que le tocaría a un linux: el tercer
+  // argumento es el que decide, no `process.platform`.
+  const a = comoArrancar('/casa/quartermaster', 'linux', true);
+  assert.strictEqual(a.via, 'bandeja');
+  assert.strictEqual(a.lanzador, '/casa/quartermaster/bin/qm-tray');
+});
+
+test('un Linux de verdad sigue yendo al indicador', () => {
+  const a = comoArrancar('/casa/quartermaster', 'linux', false);
+  assert.strictEqual(a.via, 'indicador');
+  assert.strictEqual(a.lanzador, '/casa/quartermaster/bin/qm-indicator');
 });

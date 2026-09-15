@@ -51,12 +51,14 @@ brew install legiosai/tap/quartermaster        # macOS y Linux
 npm install -g @legios/quartermaster           # cualquier lado
 ```
 
-**La barra, en macOS y en Linux:** la primera vez que corrés `qm` en una
-terminal, pregunta una sola vez si lo ponés en la barra y que arranque en cada
-inicio de sesión. El install no puede: brew no deja arrancar nada desde una
-fórmula, el `.deb` deja los archivos y se va, y una herramienta que lee tokens
-OAuth no debería registrar agentes de arranque que nadie pidió. Sin la pregunta:
-`brew services start quartermaster` en macOS, y en Linux
+**La barra, en las tres:** la primera vez que corrés `qm` en una terminal,
+pregunta una sola vez si lo ponés en la barra y que arranque en cada inicio de
+sesión — la barra de menú en macOS, la de arriba en GNOME, la bandeja en
+Windows. El install no puede: brew no deja arrancar nada desde una fórmula, el
+`.deb` deja los archivos y se va, el postinstall de npm tampoco registra nada, y
+una herramienta que lee tokens OAuth no debería registrar agentes de arranque
+que nadie pidió. Sin la pregunta: `brew services start quartermaster` en macOS,
+`bin/qm-tray --instalar-arranque` en Windows desde WSL, y en Linux
 
 ```sh
 qm-indicator --instalar-extension   # el item propio: un click abre el panel

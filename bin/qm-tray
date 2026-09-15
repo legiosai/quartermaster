@@ -35,6 +35,16 @@ GUION=$(wslpath -w "$AQUI/qm-tray.ps1")
 # la misma razón: el arranque automático no pasa por el .bashrc del usuario.
 QM=$(command -v qm 2>/dev/null || echo "$AQUI/qm")
 
+# `--instalar-arranque` se traduce a la forma de PowerShell. La bandera se
+# escribe igual en las tres plataformas —qm-barra, qm-indicator y ésta— para
+# que el ofrecimiento de la primera corrida de `qm` no tenga que saber cuál
+# está abajo; lo que cambia es que del otro lado del exec manda PowerShell, que
+# nombra sus parámetros con un guion y en CamelCase.
+if [ "${1-}" = "--instalar-arranque" ]; then
+  shift
+  set -- -InstalarArranque "$@"
+fi
+
 # -WindowStyle Hidden deja una consola parpadeando un instante al arrancar.
 # Es el precio de no empaquetar un .exe, y pasa una sola vez por sesión.
 exec powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden \
