@@ -213,6 +213,17 @@ footer a{color:var(--medio)}
     Necesita <b>Node ≥ 22.6</b>. No hay paso de build: el CLI se ejecuta desde
     TypeScript directamente.
   </p>
+  <p>
+    <b>El camino más corto es npm</b>: una línea, sin agregar ningún repositorio,
+    en cualquier sistema. Los otros existen para que se actualice con el gestor
+    que ya usás.
+  </p>
+
+  <h3>Cualquier sistema — npm</h3>
+  <pre><span class="p">$</span> npm install -g @legios/quartermaster</pre>
+
+  <h3>macOS — Homebrew</h3>
+  <pre><span class="p">$</span> brew install legiosai/tap/quartermaster</pre>
 
   <h3>Linux — apt</h3>
   <pre><span class="c"># una vez: la clave y el repo</span>
@@ -223,12 +234,6 @@ footer a{color:var(--medio)}
     https://quartermaster.legios.com.ar/apt stable main" \
     | sudo tee /etc/apt/sources.list.d/legios.list &gt;/dev/null
 <span class="p">$</span> sudo apt update &amp;&amp; sudo apt install quartermaster</pre>
-
-  <h3>macOS — Homebrew</h3>
-  <pre><span class="p">$</span> brew install legiosai/tap/quartermaster</pre>
-
-  <h3>Cualquier sistema — npm</h3>
-  <pre><span class="p">$</span> npm install -g @legios/quartermaster</pre>
 
   <h3>Desde el código</h3>
   <pre><span class="p">$</span> git clone https://github.com/legiosai/quartermaster
