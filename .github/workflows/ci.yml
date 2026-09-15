@@ -71,6 +71,13 @@ jobs:
       # verde. Va en este job y no en `check` porque acá está todo junto: el
       # cairo que el indicador necesita para importarse, el Swift de la barra y
       # el PowerShell de la bandeja.
+      # Que el calentado no pueda dejar de ocurrir en silencio. 0.1.13 tuvo
+      # siete horas y media sin una línea con el proceso vivo: el lazo se
+      # rearmaba desde un solo lugar y había un estado que rearmaba callado.
+      - run: make gate-lazo
+      - name: y ese gate falla en rojo con el silencio de vuelta
+        run: make gate-lazo-rojo
+
       - run: make gate-presupuesto
         env:
           QM_GATE_EXIGE: swift,pwsh,cairo

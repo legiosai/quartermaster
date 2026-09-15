@@ -65,6 +65,11 @@ ACTIVA_SEGUNDOS = 600
 # es que su callback no va a llegar.
 CALENTADO_PLAZO_US = 120 * 1_000_000
 SEGUNDOS_SONDEO = 300
+#: Cada cuánto mira el vigía, y a partir de qué atraso da la alarma. El plazo es
+#: cuatro sondeos: con la cadencia en su techo de 300 s, un calentado que no
+#: ocurrió en 20 minutos no es lentitud, es que el lazo se cortó.
+VIGIA_SEGUNDOS = 60
+VIGIA_PLAZO_US = 4 * SEGUNDOS_SONDEO * 1_000_000
 # Piso para cualquier cadencia que salga a la RED. Claude Code pide la cuota del
 # orden de una vez por sesión; un endpoint no documentado, que además puede
 # desaparecer sin aviso, no es lugar para sondear más rápido que esto. Y la
@@ -1730,6 +1735,14 @@ class Indicador:
         # y sólo las que se mueven, así que que un motivo no aparezca NO dice
         # que se arregló.
         self._motivos_calentado: set[str] = set()
+        # Cuándo terminó el último calentado. Es lo que mira el vigía: la
+        # pregunta no es «¿está armado el temporizador?» —eso se puede creer y
+        # estar equivocado— sino «¿cuándo fue la última vez que de verdad le
+        # preguntamos al servidor?».
+        # Arranca con la hora de arranque y no en None: si el PRIMER calentado
+        # nunca termina, un vigía que espera a tener una marca no mira nunca.
+        self._ultimo_calentado: int | None = GLib.get_monotonic_time()
+        self._vigia_avisado = False
         self.reloj: int | None = None
         self.proxima_lectura: int | None = None
         self.turno = 0
@@ -1741,9 +1754,15 @@ class Indicador:
         self.vigilar_extension()
         self.vigilar_tema()
         self.vigilar_version()
-        GLib.timeout_add_seconds(SEGUNDOS_SONDEO, self.refrescar)
+        # Envuelto, y devolviendo True SIEMPRE. Un callback de GLib que tira
+        # deja de devolver un valor verdadero y la fuente se QUITA: una sola
+        # excepción en un refresco mataba el sondeo para siempre, y con él al
+        # calentado, que se rearma desde acá. El envoltorio no arregla el error
+        # —lo anota— pero no deja que se lleve puesto al lazo.
+        GLib.timeout_add_seconds(SEGUNDOS_SONDEO, self._sondear)
         self.programar_calentado(5)
         self.vigilar_suspension()
+        GLib.timeout_add_seconds(VIGIA_SEGUNDOS, self._vigia)
 
     # Vigilancia de archivos ------------------------------------------------
     def vigilar(self) -> None:
@@ -2088,6 +2107,57 @@ class Indicador:
             return 0.0
         return max(0.0, (self.proxima_lectura - GLib.get_monotonic_time()) / 1_000_000)
 
+    def _sondear(self) -> bool:
+        """El refresco periódico, que NUNCA puede sacarse su propia fuente."""
+        try:
+            self.refrescar()
+        except Exception as e:  # noqa: BLE001 — anotar y seguir, no morir callado
+            registrar("sondeo.reventó", error=f"{type(e).__name__}: {e}"[:110])
+        return True
+
+    def _vigia(self) -> bool:
+        """Que el calentado no pueda dejar de ocurrir en silencio.
+
+        El 2026-09-15, con 0.1.13, este indicador dejó de preguntarle al
+        endpoint a las 02:35 y estuvo siete horas y media sin escribir una sola
+        línea: el proceso vivo, `estado.json` reescrito hacía un minuto y la
+        cuota de hacía siete horas. Forzar un `refrescar()` —que rearma el
+        calentado— no lo revivió en diez minutos, con la cadencia en un techo de
+        cinco. No fue la suspensión: BOOTTIME y MONOTONIC daban lo mismo.
+
+        La causa de fondo no es una línea, es la FORMA: el calentado se rearmaba
+        desde un solo lugar —el final de `refrescar()`—, así que cualquier corte
+        en esa cadena lo apagaba para toda la vida del proceso y sin ruido.
+
+        Esto lo mira desde afuera y no se puede quedar callado: es una fuente
+        que devuelve True siempre, no depende del calentado ni del sondeo, y
+        pregunta lo único que importa —cuánto hace que no le preguntamos al
+        servidor—. Si se pasa del plazo, lo ANOTA y lo destraba.
+        """
+        try:
+            ahora = GLib.get_monotonic_time()
+            desde = self._ultimo_calentado
+            atraso = None if desde is None else ahora - desde
+            if atraso is None or atraso <= VIGIA_PLAZO_US:
+                self._vigia_avisado = False
+                return True
+            # Una vez por corte, no una por minuto: el log tiene que poder
+            # leerse. Se vuelve a habilitar solo cuando el calentado vuelve.
+            if not self._vigia_avisado:
+                registrar("calentar.parado",
+                          hace=duracion(int(atraso / 1_000_000)),
+                          calentando=self.calentando,
+                          desde=self.calentando_desde is not None,
+                          reloj=self.reloj is not None)
+                self._vigia_avisado = True
+            # Y destrabarlo: la bandera pegada se suelta y se rearma ya.
+            self.calentando = False
+            self.calentando_desde = None
+            self.programar_calentado(1)
+        except Exception as e:  # noqa: BLE001 — el vigía no puede ser lo que se cae
+            registrar("vigia.reventó", error=f"{type(e).__name__}: {e}"[:110])
+        return True
+
     def calentar(self) -> bool:
         self.reloj = None
         if self.calentando:
@@ -2107,9 +2177,18 @@ class Indicador:
             # llega— no hay nada más que lo apague. Así que además de
             # reprogramar, se le pone un plazo: pasado eso, el callback no viene
             # y la bandera se suelta.
+            # `desde` en None con `calentando` en True es un estado que el
+            # código no debería poder producir —se ponen juntas— y por eso
+            # mismo era el único silencio posible: con el `is not None` de
+            # antes, ese caso caía al `else` y se rearmaba para siempre sin
+            # anotar nada. Ahora una bandera sin instante se trata como lo que
+            # es: pegada.
             desde = self.calentando_desde
-            if desde is not None and (GLib.get_monotonic_time() - desde) > CALENTADO_PLAZO_US:
-                registrar("calentar.colgado", segundos=int((GLib.get_monotonic_time() - desde) / 1_000_000))
+            pasado = desde is None or (GLib.get_monotonic_time() - desde) > CALENTADO_PLAZO_US
+            if pasado:
+                registrar("calentar.colgado",
+                          segundos=None if desde is None else int((GLib.get_monotonic_time() - desde) / 1_000_000),
+                          sin_instante=desde is None or None)
                 self.calentando = False
                 self.calentando_desde = None
             else:
@@ -2176,6 +2255,8 @@ class Indicador:
                 fallo = f"salió {proc.get_exit_status()}"
                 if primera:
                     fallo += f": {primera[0][:110]}"
+        self._ultimo_calentado = GLib.get_monotonic_time()
+        self._vigia_avisado = False
         self._anotar_calentado(fallo)
         # Los motivos por cuenta van aunque el calentado haya salido 0: que una
         # cuenta no se pueda calentar no hace fallar a las otras, y sin esto la

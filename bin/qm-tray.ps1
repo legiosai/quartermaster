@@ -602,6 +602,54 @@ function PctDiario($pre) {
 # clave cambia sola y el mismo umbral puede volver a avisar. Sin eso, o
 # spameás cada minuto o avisás una sola vez en la vida.
 
+# ── el registro ────────────────────────────────────────────────────────
+#
+# De las tres barras, ésta era la única MUDA. La de macOS anota desde 0.1.8 y la
+# de GNOME desde antes; acá, si se te caía la bandeja, no quedaba rastro: las
+# frases de error viajaban al panel y se perdían al cerrarlo. Medido el
+# 2026-09-15 contando escrituras a un log: macOS 12, GNOME 24, Windows 0.
+#
+# Y sirvió inmediatamente: del lado de GNOME el log es lo único que dejó ver que
+# el calentado se había parado siete horas antes.
+#
+# Va a un archivo y no al Visor de eventos: escribir ahí pide permisos de
+# administrador para registrar la fuente, y una herramienta por usuario que se
+# instala sin UAC no los tiene. Se recorta pasando 1 MB, como el de macOS.
+$script:RutaLog = Join-Path $env:LOCALAPPDATA 'quartermaster\bandeja.log'
+$script:LogUltimo = @{}
+# Si la última lectura de qm fue una frase y no un objeto: sirve para anotar la
+# VUELTA, que sin ella toda falla queda abierta para siempre.
+$script:QmFallaba = $false
+
+function Registrar {
+  param([string]$Evento, [hashtable]$Datos, [switch]$SoloSiCambia)
+  try {
+    $extra = ''
+    if ($Datos) {
+      $extra = ' ' + (($Datos.GetEnumerator() | Sort-Object Name |
+        Where-Object { $null -ne $_.Value } |
+        ForEach-Object { "$($_.Key)=$($_.Value)" }) -join ' ')
+    }
+    $linea = "$Evento$extra"
+    # Lo que se repite cada minuto no se lee. Con -SoloSiCambia, un evento que
+    # dice lo mismo que la vez pasada no se vuelve a escribir.
+    if ($SoloSiCambia) {
+      if ($script:LogUltimo[$Evento] -eq $linea) { return }
+      $script:LogUltimo[$Evento] = $linea
+    }
+    $dir = Split-Path $script:RutaLog -Parent
+    if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+    if ((Test-Path $script:RutaLog) -and (Get-Item $script:RutaLog).Length -gt 1MB) {
+      $cola = Get-Content $script:RutaLog -Tail 500 -Encoding UTF8
+      Set-Content $script:RutaLog -Value $cola -Encoding UTF8
+    }
+    Add-Content -Path $script:RutaLog -Encoding UTF8 `
+      -Value ("{0} {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $linea)
+  } catch {
+    # Un registro que rompe a la bandeja es peor que no tener registro.
+  }
+}
+
 $script:RutaAvisos = Join-Path $env:LOCALAPPDATA 'quartermaster\avisados.json'
 $script:Vistos = @{}
 try {
@@ -1661,6 +1709,27 @@ function Leer {
   try { return ($salida | ConvertFrom-Json) } catch { return 'qm no devolvió JSON' }
 }
 
+# `Leer` devuelve un OBJETO cuando pudo y una FRASE cuando no. Esa frase se
+# mostraba en el panel y se perdía al cerrarlo: si qm fallaba a las tres de la
+# mañana, al otro día no había forma de saber por qué. Se anota el cambio, no
+# cada vuelta —una falla repetida cada minuto no se lee— y también la VUELTA,
+# porque sin ella toda falla queda abierta para siempre.
+function LeerAnotando {
+  param([string]$argumentos)
+  $r = Leer $argumentos
+  if ($r -is [string]) {
+    Registrar 'qm.sin-datos' @{ motivo = $r } -SoloSiCambia
+    $script:QmFallaba = $true
+  } else {
+    if ($script:QmFallaba) {
+      Registrar 'qm.volvio'
+      $script:LogUltimo.Remove('qm.sin-datos')
+    }
+    $script:QmFallaba = $false
+  }
+  return $r
+}
+
 # Cada cuánto volver a preguntarle al endpoint.
 #
 # Un intervalo fijo de 5 minutos es inservible para una barra que sube rápido:
@@ -2405,7 +2474,7 @@ function ModeloPaneles($datos, [bool]$avisar) {
 }
 
 function Refrescar {
-  $datos = Leer
+  $datos = LeerAnotando
   # Los dos temas, que son dos claves distintas del registro y pueden no
   # coincidir. Si el de las apps cambió, AplicarTema rehace la paleta y vuelve a
   # vestir todos los menús; se redibujan igual acá abajo.
@@ -2700,7 +2769,7 @@ CrearFuentes
 # -Panel elige cuál: 'general' (el de todas las cuentas) o el nombre corto de
 # una, que es exactamente lo que muestra el ícono de esa cuenta.
 function Capturar([string]$ruta, [string]$cual) {
-  $datos = Leer
+  $datos = LeerAnotando
   $m = ModeloPaneles $datos $false
   if (-not $cual) { $cual = 'general' }
   if (-not $m.paneles.Contains($cual)) {
@@ -2758,12 +2827,59 @@ $timer = New-Object System.Windows.Forms.Timer
 $timer.Interval = $Segundos * 1000
 # RevisarVersion va PRIMERO: si el archivo cambió, no tiene sentido gastar un
 # calentado y un redibujo con el código viejo antes de saltar al nuevo.
-$timer.Add_Tick({ RevisarVersion; $null = Calentar; Refrescar })
+# Envuelto: una excepción adentro de un Add_Tick de WinForms se lleva puesta a
+# la aplicación entera con un diálogo que nadie va a ver, y la bandeja
+# desaparece sin dejar nada escrito. Anotarla y seguir es siempre mejor.
+$timer.Add_Tick({
+  try {
+    RevisarVersion
+    $null = Calentar
+    $script:CalentadoEn = Get-Date
+    Refrescar
+  } catch {
+    Registrar 'tick.reventó' @{ error = $_.Exception.Message } -SoloSiCambia
+  }
+})
 $timer.Start()
+
+# El vigía, por lo mismo que en GNOME y en macOS: que el calentado no pueda
+# dejar de ocurrir en silencio. Acá el riesgo es distinto —el Timer de WinForms
+# se repite solo, no hay un rearme único que se pueda cortar— pero la pregunta
+# que contesta es la misma: ¿cuánto hace que no le preguntamos al servidor?
+$script:CalentadoEn = Get-Date
+$script:VigiaAviso = $false
+$script:Vigia = New-Object System.Windows.Forms.Timer
+$script:Vigia.Interval = 60000
+$script:Vigia.Add_Tick({
+  try {
+    $atraso = (Get-Date) - $script:CalentadoEn
+    if ($atraso.TotalSeconds -le (4 * $Segundos)) { $script:VigiaAviso = $false; return }
+    if (-not $script:VigiaAviso) {
+      Registrar 'calentar.parado' @{ hace = [int]$atraso.TotalSeconds }
+      $script:VigiaAviso = $true
+    }
+    $null = Calentar
+    $script:CalentadoEn = Get-Date
+    Refrescar
+  } catch {
+    Registrar 'vigia.reventó' @{ error = $_.Exception.Message } -SoloSiCambia
+  }
+})
+$script:Vigia.Start()
 
 $script:Latido = New-Object System.Windows.Forms.Timer
 $script:Latido.Interval = 1000
 $script:Latido.Add_Tick({ LatirPie })
+
+# Qué arrancó: con qué qm —puede ser el nativo o el de adentro de WSL, y esa
+# elección decide si hay números o no hay nada—, con qué cadencia y con qué pid.
+$script:QmDeArranque = ResolverQm
+Registrar 'arranca' @{
+  modo     = $script:QmDeArranque.Modo
+  qm       = $script:QmDeArranque.Qm
+  cadencia = $Segundos
+  pid      = $PID
+}
 
 $null = Calentar
 Refrescar
@@ -2772,6 +2888,8 @@ try {
   [System.Windows.Forms.Application]::Run($script:Ctx)
 } finally {
   $timer.Stop()
+  $script:Vigia.Stop()
+  Registrar 'sale'
   $script:Latido.Stop()
   GuardarPrevios
   foreach ($ni in @($script:Bandeja.Values)) {

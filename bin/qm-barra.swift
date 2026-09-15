@@ -31,6 +31,12 @@ import Foundation
 let SEGUNDOS_SONDEO: TimeInterval = 300
 // Coalescer escrituras: Claude Code reescribe .claude.json varias veces seguidas.
 let DEBOUNCE: TimeInterval = 1.5
+/// Cada cuánto mira el vigía, y a partir de qué atraso da la alarma. El plazo
+/// son cuatro sondeos: con la cadencia en su techo, un calentado que no ocurrió
+/// en veinte minutos no es lentitud, es que el lazo se cortó.
+let VIGIA_SEGUNDOS: TimeInterval = 60
+let VIGIA_PLAZO: TimeInterval = 20 * 60
+
 /// Piso para cualquier cadencia que salga a la RED.
 ///
 /// La primera versión bajaba a 20 s cuando una barra pasaba el 90 %, y como
@@ -876,6 +882,13 @@ final class Barra: NSObject, NSApplicationDelegate {
     }
     var pendiente: DispatchWorkItem?
     var reloj: Timer?
+    /// Cuándo terminó el último calentado, y si el vigía ya avisó de este corte.
+    /// Es lo que mira `vigia`: la pregunta no es «¿está armado el timer?» —eso
+    /// se puede creer y estar equivocado— sino «¿cuándo fue la última vez que
+    /// de verdad le preguntamos al servidor?».
+    var calentadoEn: Date?
+    var vigiaAviso = false
+    var relojVigia: Timer?
     /// Sin esto macOS le aplica App Nap —es una app sin ventanas— y los timers
     /// se corren minutos. Medido: un sondeo de 5 min que no disparó en 7.
     var actividad: NSObjectProtocol?
@@ -923,6 +936,7 @@ final class Barra: NSObject, NSApplicationDelegate {
             options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "mirar la cuota a tiempo")
         refrescar()
+        armarVigia()
         calentarCodex()
     }
 
@@ -958,6 +972,47 @@ final class Barra: NSObject, NSApplicationDelegate {
         t.tolerance = 0
         RunLoop.main.add(t, forMode: .common)
         reloj = t
+    }
+
+    /// Que el calentado no pueda dejar de ocurrir en silencio.
+    ///
+    /// `programar()` arma un Timer de UNA sola vez, y el único lugar que lo
+    /// vuelve a armar es el final del armado del menú. Cualquier corte en esa
+    /// cadena apaga el calentado para toda la vida del proceso y sin ruido.
+    ///
+    /// Pasó del lado de GNOME, que tiene la misma forma: el 2026-09-15, con
+    /// 0.1.13, el indicador de Linux dejó de preguntarle al endpoint y estuvo
+    /// siete horas y media sin escribir una línea, con el proceso vivo y el
+    /// item redibujándose. Acá no se esperó a que pasara.
+    ///
+    /// Esto mira desde afuera, se repite solo y no depende del calentado: si
+    /// pasó el plazo sin una lectura, lo ANOTA una vez y lo rearma.
+    func armarVigia() {
+        // Con la hora de arranque y no en nil: si el PRIMER calentado nunca
+        // termina, un vigía que espera a tener una marca no mira nunca.
+        if calentadoEn == nil { calentadoEn = Date() }
+        relojVigia?.invalidate()
+        let t = Timer(timeInterval: VIGIA_SEGUNDOS, repeats: true) { [weak self] _ in
+            self?.vigia()
+        }
+        t.tolerance = 0
+        RunLoop.main.add(t, forMode: .common)
+        relojVigia = t
+    }
+
+    func vigia() {
+        guard let desde = calentadoEn else { return }
+        let atraso = Date().timeIntervalSince(desde)
+        guard atraso > VIGIA_PLAZO else {
+            vigiaAviso = false
+            return
+        }
+        // Una vez por corte, no una por minuto: el log tiene que poder leerse.
+        if !vigiaAviso {
+            registrar("el calentado no ocurre hace \(duracion(Int(atraso))): lo rearmo")
+            vigiaAviso = true
+        }
+        programar()
     }
 
     /// Refresca las dos puntas —el endpoint de cada perfil de Claude y el de
@@ -1017,6 +1072,8 @@ final class Barra: NSObject, NSApplicationDelegate {
                     self.motivosCalentado.insert(m)
                     registrar(m)
                 }
+                self.calentadoEn = Date()
+                self.vigiaAviso = false
                 self.refrescar()
             }
         }

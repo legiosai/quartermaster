@@ -131,6 +131,23 @@ extension-zip:  ## el zip de la extensión con la forma que pide extensions.gnom
 gate-duraciones:  ## que las cuatro escaleras de duración den lo mismo
 	@python3 scripts/gate-duraciones.py
 
+.PHONY: gate-lazo
+gate-lazo:  ## que el calentado no pueda dejar de ocurrir en silencio
+	@python3 scripts/gate-lazo.py
+
+.PHONY: gate-lazo-rojo
+gate-lazo-rojo:  ## el rojo de gate-lazo: la bandera pegada que no anotaba nada
+	@cp bin/qm-indicator .qm-indicator.gate
+	@# El `is not None` de 0.1.13: con la bandera pegada y sin instante, el
+	@# caso caía al else y rearmaba para siempre sin escribir una línea.
+	@sed -i 's|pasado = desde is None or (GLib.get_monotonic_time() - desde)|pasado = desde is not None and (GLib.get_monotonic_time() - desde)|' bin/qm-indicator
+	@if python3 scripts/gate-lazo.py >/dev/null 2>&1; then \
+	  mv .qm-indicator.gate bin/qm-indicator; \
+	  echo "✗ gate-lazo NO falló con la bandera pegada que no anota nada"; exit 1; \
+	fi
+	@mv .qm-indicator.gate bin/qm-indicator
+	@echo "✓ gate-lazo falla en rojo con el silencio de 0.1.13 de vuelta"
+
 .PHONY: gate-presupuesto
 gate-presupuesto:  ## que las cinco frases de presupuesto digan los mismos números
 	@python3 scripts/gate-presupuesto.py
