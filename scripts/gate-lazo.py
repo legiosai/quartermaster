@@ -204,9 +204,12 @@ def vigia_de_macos() -> list[str]:
     # Contar los rearmes DE VERDAD: el stub que los contaba ya no está, porque
     # ahora se ejecuta el `programar()` real —que es justo lo que hay que medir,
     # porque su guarda anti-hambre podía dejar al vigía sin rearmar nada.
+    # El contador va donde el rearme OCURRE —justo antes de guardar el timer
+    # nuevo— y no al entrar: puesto arriba contaba llamadas, y una llamada que
+    # la guarda rechaza no es un rearme. Medido: daba 3 cuando eran 0.
     assert "rearmes" not in programar
-    programar = programar.replace("        let cuanto = cadencia()",
-                                  "        rearmes += 1\n        let cuanto = cadencia()", 1)
+    assert programar.count("        reloj = t") == 1
+    programar = programar.replace("        reloj = t", "        rearmes += 1\n        reloj = t", 1)
 
     guion = f"""import Foundation
 {duracion}
@@ -244,17 +247,15 @@ let primera = b.reloj!.fireDate
 for _ in 0..<12 {{ b.programar() }}
 print("alejado:\\(b.reloj!.fireDate > primera)")
 
-// 3 · y la guarda no puede dejar al vigía sin rearmar: con la fecha YA vencida,
-// cualquier fecha nueva es «más lejos», y sin forzar no se rearmaría nada.
+// 3 · y la guarda no puede dejar al vigía sin rearmar: con una fecha ya agendada,
+// la del vigía es «más lejos» y sin forzar la guarda la rechazaría.
 let c = Barra()
-c.programar()
-let vieja = c.reloj!.fireDate
-c.reloj!.fireDate = Date().addingTimeInterval(-600)   // la fecha YA venció
+c.programar()                       // deja una fecha agendada
 c.calentadoEn = Date().addingTimeInterval(-1800)
 c.vigiaAviso = false
+let antes = rearmes
 c.vigia()
-print("vigiaRearmo:\\(c.reloj!.fireDate > Date())")
-_ = vieja
+print("vigiaRearmo:\\(rearmes > antes)")
 """
     with tempfile.TemporaryDirectory() as d:
         f = pathlib.Path(d) / "v.swift"
