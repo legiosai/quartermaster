@@ -302,7 +302,18 @@ function Mezclar($a, $b, [double]$t) {
 }
 $script:Tinta2 = Mezclar $script:Tinta $script:Fondo 0.38
 $script:Tinta3 = Mezclar $script:Tinta $script:Fondo 0.58
-$script:Pista  = Mezclar $script:Fondo $script:Tinta 0.14
+# La tarjeta y su borde. Los mismos valores que TEMA.tarjeta y
+# TEMA.borde_tarjeta en bin/qm-indicator: la tinta al 6 % sobre el fondo, y el
+# borde al 12 %. Apenas se ven, y eso es lo que se busca — agrupan sin pesar.
+$script:Tarjeta = Mezclar $script:Fondo $script:Tinta 0.06
+$script:BordeTarjeta = Mezclar $script:Fondo $script:Tinta 0.12
+# La pista del medidor se mide contra la TARJETA y no contra el fondo del panel.
+# Salía de `Mezclar $Fondo $Tinta 0.14` —#494949 sobre un fondo #2b2b2b—, y con
+# la cuenta dibujada plana sobre el panel estaba bien. Con la tarjeta en #383838
+# esa pista queda MÁS CLARA que la tarjeta, y la parte vacía de la barra se lee
+# como un relieve en vez de un surco. En GNOME la pista está apenas por encima
+# de la tarjeta (#313131 sobre #2e2e2e, medido), y eso es lo que se copia.
+$script:Pista  = Mezclar $script:Tarjeta $script:Tinta 0.04
 $script:BarraOscura = $true
 
 # Todo el tema en un lugar, y aplicable de nuevo: cambiar Windows de claro a
@@ -319,7 +330,18 @@ function AplicarTema {
                   else { [System.Drawing.SystemColors]::MenuText }
   $script:Tinta2 = Mezclar $script:Tinta $script:Fondo 0.38
   $script:Tinta3 = Mezclar $script:Tinta $script:Fondo 0.58
-  $script:Pista  = Mezclar $script:Fondo $script:Tinta 0.14
+  # La tarjeta y su borde. Los mismos valores que TEMA.tarjeta y
+  # TEMA.borde_tarjeta en bin/qm-indicator: la tinta al 6 % sobre el fondo, y el
+  # borde al 12 %. Apenas se ven, y eso es lo que se busca — agrupan sin pesar.
+  $script:Tarjeta = Mezclar $script:Fondo $script:Tinta 0.06
+  $script:BordeTarjeta = Mezclar $script:Fondo $script:Tinta 0.12
+  # La pista del medidor se mide contra la TARJETA y no contra el fondo del panel.
+  # Salía de `Mezclar $Fondo $Tinta 0.14` —#494949 sobre un fondo #2b2b2b—, y con
+  # la cuenta dibujada plana sobre el panel estaba bien. Con la tarjeta en #383838
+  # esa pista queda MÁS CLARA que la tarjeta, y la parte vacía de la barra se lee
+  # como un relieve en vez de un surco. En GNOME la pista está apenas por encima
+  # de la tarjeta (#313131 sobre #2e2e2e, medido), y eso es lo que se copia.
+  $script:Pista  = Mezclar $script:Tarjeta $script:Tinta 0.04
   if ($oscuro) {
     [QmTabla]::Fondo = $script:Fondo
     [QmTabla]::Resalte = Mezclar $script:Fondo $script:Tinta 0.12
@@ -656,6 +678,21 @@ function SoltarGlobos {
 $script:Escala = 1.0
 $ANCHO_VISTA = 340
 $MARGEN = 15
+# Cada cuenta va en una TARJETA redondeada con fondo propio, en vez de una
+# sección plana separada de la siguiente por una línea de pelo. Es como agrupa
+# el panel de GNOME —la «boxed list» de libadwaita— y como se ve el de macOS, y
+# el pedido fue justamente que las tres pantallas se parezcan.
+#
+# El margen es 6 y no 12 como en GNOME porque este panel es 20 px más angosto
+# (340 contra 360) y el contenido ya arranca en $MARGEN = 15: con 6 de margen
+# quedan 9 px de aire adentro de la tarjeta, que es lo que entra sin tocar el
+# ancho del contenido ni, por lo tanto, dónde recorta cada texto.
+$MARGEN_TARJETA = 6
+$RADIO_TARJETA = 10
+# El aire entre una tarjeta y la siguiente. Vive ABAJO del mapa de bits de cada
+# una: como cada tarjeta es un item del menú, no hay dónde poner un espacio que
+# no sea adentro de una.
+$ENTRE_TARJETAS = 8
 $ALTO_CABECERA = 17 + 14 + 8   # título + subtítulo + aire
 $ALTO_BARRA = 15 + 3 + 5 + 4 + 12 + 7
 $ALTO_RITMO = 16
@@ -715,6 +752,42 @@ function RectRedondeado($g, $rect, [float]$r, $brocha) {
   $p.CloseFigure()
   $g.FillPath($brocha, $p)
   $p.Dispose()
+}
+
+# Lo mismo pero de contorno. Van separadas y no en una con parámetros opcionales
+# porque el relleno se usa en seis lugares y el contorno en uno.
+function BordeRedondeado($g, $rect, [float]$r, $lapiz) {
+  $p = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $d = $r * 2
+  $p.AddArc($rect.X, $rect.Y, $d, $d, 180, 90)
+  $p.AddArc($rect.Right - $d, $rect.Y, $d, $d, 270, 90)
+  $p.AddArc($rect.Right - $d, $rect.Bottom - $d, $d, $d, 0, 90)
+  $p.AddArc($rect.X, $rect.Bottom - $d, $d, $d, 90, 90)
+  $p.CloseFigure()
+  $g.DrawPath($lapiz, $p)
+  $p.Dispose()
+}
+
+# El alto del mapa de bits de una tarjeta: la tarjeta más el aire de abajo.
+function AltoConAire([int]$altoTarjeta) { return [int]($altoTarjeta + (Px $ENTRE_TARJETAS)) }
+
+# El fondo de una tarjeta, adentro de su propio mapa de bits.
+#
+# Limpia con el fondo del MENÚ —así el aire de abajo y los costados se funden
+# con el panel— y encima pinta la caja redondeada. El medio píxel del borde no
+# es maña: sin él la línea de 1 px cae entre dos píxeles y sale de dos píxeles
+# grises en vez de uno.
+function FondoTarjeta($g, [int]$ancho, [int]$altoTarjeta) {
+  $g.Clear($script:Fondo)
+  $m = Px $MARGEN_TARJETA
+  $caja = New-Object System.Drawing.RectangleF(
+    ($m + 0.5), 0.5, ($ancho - 2 * $m - 1), ($altoTarjeta - 1))
+  $brocha = New-Object System.Drawing.SolidBrush($script:Tarjeta)
+  RectRedondeado $g $caja (Px $RADIO_TARJETA) $brocha
+  $brocha.Dispose()
+  $lapiz = New-Object System.Drawing.Pen($script:BordeTarjeta, 1)
+  BordeRedondeado $g $caja (Px $RADIO_TARJETA) $lapiz
+  $lapiz.Dispose()
 }
 
 # Escribe una línea. Con $ancho, la RECORTA con puntos suspensivos.
@@ -883,12 +956,13 @@ function AltoPerfil($p) {
 
 function DibujarPerfil($p, [int]$indice) {
   $ancho = [int](Px $ANCHO_VISTA)
-  $alto = AltoPerfil $p
+  $altoTarjeta = AltoPerfil $p
+  $alto = AltoConAire $altoTarjeta
   $bmp = Lienzo $ancho $alto
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
-  $g.Clear($script:Fondo)
+  FondoTarjeta $g $ancho $altoTarjeta
 
   $m = Px $MARGEN
   $der = $ancho - $m
@@ -1007,12 +1081,13 @@ function DibujarResumen($perfiles) {
   $c = $PALETA[$nivel]
 
   $ancho = [int](Px $ANCHO_VISTA)
-  $alto = [int](Px $ALTO_RESUMEN)
+  $altoTarjeta = [int](Px $ALTO_RESUMEN)
+  $alto = AltoConAire $altoTarjeta
   $bmp = Lienzo $ancho $alto
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
-  $g.Clear($script:Fondo)
+  FondoTarjeta $g $ancho $altoTarjeta
 
   # El anillo, igual que el del tablero: pista tenue del mismo color y arco
   # con punta redondeada.
@@ -1020,7 +1095,7 @@ function DibujarResumen($perfiles) {
   $lado = Px 44
   $grosor = Px 5
   $caja = New-Object System.Drawing.RectangleF(
-    ($m + $grosor / 2), (($alto - $lado) / 2 + $grosor / 2),
+    ($m + $grosor / 2), (($altoTarjeta - $lado) / 2 + $grosor / 2),
     ($lado - $grosor), ($lado - $grosor))
   $lapPista = New-Object System.Drawing.Pen(([System.Drawing.Color]::FromArgb(46, $c.R, $c.G, $c.B)), $grosor)
   $g.DrawEllipse($lapPista, $caja)
@@ -1083,12 +1158,13 @@ function DibujarSinCuota($calladas) {
   }
   $gm.Dispose(); $medidor.Dispose()
 
-  $alto = [int]((Px $MARGEN) + (Px 15) + ($altos | Measure-Object -Sum).Sum + (Px ($cal.Count * 5)) + (Px 10))
+  $altoTarjeta = [int]((Px $MARGEN) + (Px 15) + ($altos | Measure-Object -Sum).Sum + (Px ($cal.Count * 5)) + (Px 10))
+  $alto = AltoConAire $altoTarjeta
   $bmp = Lienzo $ancho $alto
   $g = [System.Drawing.Graphics]::FromImage($bmp)
   $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
   $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
-  $g.Clear($script:Fondo)
+  FondoTarjeta $g $ancho $altoTarjeta
 
   $y = Px $MARGEN
   Escribir $g 'SIN NÚMERO' $m $y $script:FRotulo $script:Tinta3
@@ -1871,9 +1947,11 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
     # Silencio es el bug: si no hay número, hay una frase.
     $mn.Items.Add((ItemTexto $frase)) | Out-Null
   } else {
+    # Sin separador: lo que separa una tarjeta de la siguiente es su borde y el
+    # aire que cada mapa de bits trae abajo. Una línea de pelo ADEMÁS de la
+    # tarjeta es la raya que libadwaita justamente sacó cuando agrupó en cajas.
     foreach ($b in @($piezas)) {
       $mn.Items.Add((FilaImagen $b)) | Out-Null
-      $mn.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
     }
   }
 
@@ -2452,23 +2530,22 @@ function Capturar([string]$ruta, [string]$cual) {
   if (-not $piezas.Count) { throw 'el fixture no produjo ni una tarjeta' }
 
   $ancho = ($piezas | ForEach-Object { $_.Width } | Measure-Object -Maximum).Maximum
-  # Un píxel de separador entre piezas, que es lo que pone el menú.
-  $alto = ($piezas | ForEach-Object { $_.Height } | Measure-Object -Sum).Sum + $piezas.Count - 1
+  # Las piezas se apilan pegadas, que es lo que hace el menú: lo que las separa
+  # es el borde de cada tarjeta y el aire que trae abajo. Acá se dibujaba además
+  # un píxel de separador «que es lo que pone el menú», y dejó de ser cierto
+  # cuando las cuentas pasaron a ir en tarjetas y el ToolStripSeparator se fue.
+  # Una captura que agrega una raya que el usuario no ve es un gate validando
+  # otra pantalla.
+  $alto = ($piezas | ForEach-Object { $_.Height } | Measure-Object -Sum).Sum
 
   $lienzo = Lienzo $ancho $alto
   $g = [System.Drawing.Graphics]::FromImage($lienzo)
   $g.Clear($script:Fondo)
-  $brSep = New-Object System.Drawing.SolidBrush((Mezclar $script:Fondo $script:Tinta 0.22))
   $y = 0
   for ($i = 0; $i -lt $piezas.Count; $i++) {
     $g.DrawImageUnscaled($piezas[$i], 0, $y)
     $y += $piezas[$i].Height
-    if ($i -lt $piezas.Count - 1) {
-      $g.FillRectangle($brSep, 0, $y, [int]$ancho, 1)
-      $y += 1
-    }
   }
-  $brSep.Dispose()
   $g.Dispose()
 
   $dir = Split-Path $ruta -Parent

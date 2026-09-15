@@ -1664,6 +1664,54 @@ leyendo el código; se ve mirando una captura, que es para lo que existe el modo
   variable, y `$PALETA` empezó llamándose `$NIVEL` y la tapaba la local
   `$nivel`. Las dos aparecieron corriendo el código, no leyéndolo.
 
+### Las cuentas pasaron a ir en tarjetas, como en GNOME y en macOS
+
+Pedido mirando las tres pantallas al lado: la bandeja de Windows se veía
+distinta. Dibujando las dos desde el MISMO fixture —las dos saben sacar un PNG—
+la diferencia se dejó de discutir a ojo: GNOME pone cada cuenta en una tarjeta
+redondeada con fondo propio, borde tenue y aire entre una y la siguiente; la
+bandeja las apilaba planas, separadas por una línea de pelo. La información y la
+disposición ya eran las mismas; lo que cambiaba era cómo se agrupaba.
+
+Así que la bandeja pasó a la tarjeta: `FondoTarjeta` pinta la caja redondeada
+adentro del mapa de bits de cada cuenta, el `ToolStripSeparator` se fue, y cada
+mapa de bits trae abajo el aire que la separa de la siguiente —tiene que estar
+adentro, porque cada tarjeta es un item del menú y no hay dónde poner un
+espacio que no sea adentro de una—. Los colores son los de `bin/qm-indicator`:
+la tinta al 6 % sobre el fondo para la tarjeta, al 12 % para el borde.
+
+**Lo que NO se tocó: la paleta de estado.** El verde de la bandeja es `#0ca30c`
+y el de GNOME `#33d17a`, y eso no es deriva sino dos decisiones tomadas. La
+bandeja comparte paleta con el tablero y con la barra de macOS; GNOME usa la
+suya porque un verde que se lee sobre el gris de GTK no es el mismo que se lee
+sobre el de Windows. Igualarlas hubiera roto tres pantallas para acercar una.
+
+**Lo que sí hubo que mover fue la pista del medidor.** Salía de mezclar el fondo
+del PANEL con la tinta al 14 %: `#494949` sobre `#2b2b2b`, que con la cuenta
+dibujada plana estaba bien. Con la tarjeta en `#383838`, esa pista queda más
+clara que la tarjeta y la parte vacía de la barra se lee como un relieve en vez
+de un surco. Ahora se mide contra la tarjeta, como en GNOME (`#313131` sobre
+`#2e2e2e`, medido de su propio PNG).
+
+De paso aparecieron dos cosas que el cambio dejó a la vista:
+
+- **La captura dibujaba una raya que el menú ya no pone.** `Capturar` apilaba
+  las piezas con un píxel de separador «que es lo que pone el menú», y dejó de
+  ser cierto al sacar el `ToolStripSeparator`. Una captura que agrega algo que
+  el usuario no ve es un gate validando otra pantalla.
+- **El gate de márgenes medía contra un borde que ya no era el borde.** Su regla
+  era «la franja de afuera tiene que ser del color del fondo», y con la tarjeta
+  ocupando esa franja marcó 3935 píxeles buenos. Ahora son dos preguntas
+  separadas: afuera de la tarjeta (de 336 para afuera) no puede haber NADA que
+  no sea fondo, y en el padding —entre el borde y donde arranca el contenido—
+  sólo puede haber gris de tarjeta (neutro y por debajo de fondo+30; el texto
+  más tenue del panel es 133 y las barras son de color). La franja derecha
+  arranca en 329 y no en 326 por el punto con que termina la curva: está
+  centrado en el último dato, que cae justo en el margen del contenido, y su
+  radio lo lleva a 328 — sobresale del margen y no de la tarjeta, así que es
+  dibujo bueno. Probado en rojo sacándole el recorte al nombre del perfil: las
+  dos comprobaciones disparan.
+
 ### Tildar un ícono cerraba el panel, y el primer arreglo no arreglaba nada
 
 Reportado a mano dos veces. «Íconos en la bandeja» es la lista de tildes para

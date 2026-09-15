@@ -102,28 +102,64 @@ if ($bmp) {
 } else { $altoGeneral = 0 }
 
 # ── 3 · que nada se salga de la tarjeta ─────────────────────────────────
-# La franja de afuera tiene que ser del color del fondo. Los separadores entre
-# tarjetas SÍ cruzan de lado a lado, así que una fila entera de un solo color
-# distinto del fondo es un separador y no un desborde.
+# La franja que se vigila es el PADDING de la tarjeta: desde adentro de su borde
+# hasta donde arranca el contenido. Antes era el margen del panel y la regla era
+# «acá todo tiene que ser del color del fondo», que funcionaba cuando cada
+# cuenta se dibujaba plana. Con la cuenta adentro de una tarjeta redondeada, ese
+# margen lo ocupa legítimamente la tarjeta, y la regla vieja marcaba 3935
+# píxeles buenos.
+#
+# La regla nueva dice lo mismo con lo que hay ahora: en el padding sólo puede
+# haber gris de tarjeta. Medido en el tema oscuro, los tres grises que
+# corresponden son el fondo del panel (43), el de la tarjeta (56) y su borde
+# (68); el texto más tenue del panel es 133 y las barras son de color. Así que
+# un tope de fondo+30 y la exigencia de que el píxel sea NEUTRO separan «esto es
+# la tarjeta» de «esto se salió», que es el bug que el fixture de nombres largos
+# existe para provocar.
 $bmp = Capturar $largos '' 'Oscuro' (Join-Path $salida 'largos.png')
 if ($bmp) {
   $fondo = $bmp.GetPixel(2, 2)
-  $FRANJA = 11   # el margen del diseño es 15; se deja aire por el antialias
-  $sucias = @()
-  for ($y = 0; $y -lt $bmp.Height; $y++) {
-    $izq = $bmp.GetPixel(1, $y)
-    # Una fila de separador: el píxel del borde y el del centro son iguales.
-    $centro = $bmp.GetPixel([int]($bmp.Width / 2), $y)
-    if ($izq.R -eq $centro.R -and $izq.G -eq $centro.G -and $izq.B -eq $centro.B -and
-        ($izq.R -ne $fondo.R -or $izq.G -ne $fondo.G -or $izq.B -ne $fondo.B)) { continue }
-    foreach ($x in @(0..($FRANJA - 1)) + @(($bmp.Width - $FRANJA)..($bmp.Width - 1))) {
+  $tope = $fondo.R + 30
+
+  # a · AFUERA de la tarjeta no puede haber nada. La tarjeta va de 6 a 333 y su
+  #     antialias muere en 334, así que de 336 para afuera es fondo del panel y
+  #     punto. Es la pregunta original —«¿esto se salió?»— hecha contra el borde
+  #     que hoy existe.
+  $afuera = @()
+  foreach ($y in 0..($bmp.Height - 1)) {
+    foreach ($x in @(0..4) + @(($bmp.Width - 4)..($bmp.Width - 1))) {
       $c = $bmp.GetPixel($x, $y)
-      if ($c.R -ne $fondo.R -or $c.G -ne $fondo.G -or $c.B -ne $fondo.B) { $sucias += "$x,$y" }
+      if ($c.R -ne $fondo.R -or $c.G -ne $fondo.G -or $c.B -ne $fondo.B) { $afuera += "$x,$y" }
     }
   }
-  if ($sucias.Count) {
-    Fallar ("con nombres largos hay $($sucias.Count) píxeles dibujados fuera del margen " +
-            "(el primero en " + $sucias[0] + "): algo se está saliendo de la tarjeta")
+  if ($afuera.Count) {
+    Fallar ("con nombres largos hay $($afuera.Count) píxeles dibujados FUERA de la tarjeta " +
+            "(el primero en " + $afuera[0] + "): se salió del panel")
+  }
+
+  # b · Y en el PADDING —entre el borde de la tarjeta y donde arranca el
+  #     contenido— sólo puede haber gris de tarjeta. Medido en oscuro: fondo 43,
+  #     tarjeta 56, borde 68; el texto más tenue del panel es 133 y las barras
+  #     son de color, así que un tope de fondo+30 y exigir que el píxel sea
+  #     NEUTRO alcanzan para distinguirlos.
+  #
+  #     A la derecha la franja empieza en 329 y no en 326 por el punto con que
+  #     termina la curva: está centrado en el último dato, que cae en el margen
+  #     del contenido (325), y su radio lo lleva hasta 328. Sobresale del margen
+  #     y NO de la tarjeta —le quedan 5 px hasta el borde—, así que es dibujo
+  #     bueno y la franja empieza después.
+  $padding = @()
+  foreach ($y in 0..($bmp.Height - 1)) {
+    foreach ($x in @(8..12) + @(($bmp.Width - 11)..($bmp.Width - 9))) {
+      $c = $bmp.GetPixel($x, $y)
+      $max = [math]::Max($c.R, [math]::Max($c.G, $c.B))
+      $min = [math]::Min($c.R, [math]::Min($c.G, $c.B))
+      if ($max -gt $tope -or ($max - $min) -gt 12) { $padding += "$x,$y" }
+    }
+  }
+  if ($padding.Count) {
+    Fallar ("con nombres largos hay $($padding.Count) píxeles dibujados en el padding de la " +
+            "tarjeta (el primero en " + $padding[0] + "): algo se está saliendo del contenido")
   }
   $bmp.Dispose()
 }
