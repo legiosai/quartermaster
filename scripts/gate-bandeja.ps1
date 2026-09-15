@@ -247,11 +247,74 @@ Set-StrictMode -Version Latest
   elseif ($null -ne $c.Psi) { Fallar 'sin qm, PsiQm tiene que devolver $null para que Leer conteste la frase' }
 }
 
+# ── 6 · que el menú no se cierre al tildar un ícono ─────────────────────
+# Reportado a mano dos veces. La primera se «arregló» con un par de handlers en
+# el ContextMenuStrip —prender una bandera en ItemClicked, cancelar en Closing—
+# y siguió pasando, porque ese par sirve para un hijo DIRECTO del menú y cada
+# tilde de «Íconos en la bandeja» es un NIETO. Medido, el orden real al
+# clickear un tilde es:
+#
+#     SUB.Closing     reason=ItemClicked
+#     padre.Closing   reason=AppFocusChange
+#     item.Click      <- la bandera se prendía acá, tarde
+#
+# Las dos mitades fallaban: la bandera llegaba después del Closing del padre, y
+# el padre ni siquiera ve ItemClicked. Un arreglo que no se puede comprobar es
+# cómo se llega a arreglar lo mismo dos veces, así que acá está el gate.
+#
+# Se saca $script:AlCerrarSub por AST y se lo corre contra un menú de verdad con
+# la misma FORMA que el real —ContextMenuStrip con un submenú adentro—, porque
+# cargar el archivo entero levanta una bandeja.
+$asig = $arbol.FindAll({
+    param($n)
+    $n -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+    $n.Left.Extent.Text -eq '$script:AlCerrarSub'
+  }, $true)
+if ($asig.Count -ne 1) {
+  Fallar "esperaba un `$script:AlCerrarSub en bin/qm-tray.ps1 y encontré $($asig.Count): sin él, tildar un ícono cierra el panel"
+} else {
+  Add-Type -AssemblyName System.Windows.Forms
+  $handler = & ([scriptblock]::Create("$($asig[0].Right.Extent.Text)"))
+
+  $f = New-Object System.Windows.Forms.Form
+  $f.Show(); $f.Visible = $false
+  $mn = New-Object System.Windows.Forms.ContextMenuStrip
+  $sub = New-Object System.Windows.Forms.ToolStripMenuItem('Íconos en la bandeja')
+  $sub.DropDown.Add_Closing($handler)
+  foreach ($k in @('general', 'main', 'glm')) {
+    $it = New-Object System.Windows.Forms.ToolStripMenuItem($k)
+    $it.Tag = $k
+    $sub.DropDownItems.Add($it) | Out-Null
+  }
+  $mn.Items.Add($sub) | Out-Null
+  $salir = New-Object System.Windows.Forms.ToolStripMenuItem('Salir')
+  $mn.Items.Add($salir) | Out-Null
+
+  $mn.Show(100, 100)
+  $sub.ShowDropDown()
+  # Tres tildes seguidos, que es la tarea: elegir qué íconos querés no es tocar
+  # uno, es tocar varios mirando cómo queda la bandeja.
+  foreach ($i in 0..2) {
+    $sub.DropDownItems[$i].PerformClick()
+    [System.Windows.Forms.Application]::DoEvents()
+    if (-not $mn.Visible) { Fallar "el panel se cerró al tildar el ícono #$($i + 1): es el bug reportado dos veces" ; break }
+    if (-not $sub.DropDown.Visible) { Fallar "el submenú de íconos se cerró al tildar el #$($i + 1): hay que volver a entrar una vez por tilde" ; break }
+  }
+  # Y lo que TIENE que seguir cerrando, que es la otra mitad: cancelar de más
+  # deja un panel que no se va nunca.
+  if ($mn.Visible) {
+    $salir.PerformClick()
+    [System.Windows.Forms.Application]::DoEvents()
+    if ($mn.Visible) { Fallar 'un item de primer nivel («Salir») ya no cierra el panel: se cancela de más' }
+  }
+  $mn.Dispose(); $f.Dispose()
+}
+
 Remove-Item $salida -Recurse -Force -ErrorAction SilentlyContinue
 
 if ($fallas.Count) {
   foreach ($f in $fallas) { [Console]::Error.WriteLine("GATE ROJO: $f") }
   exit 1
 }
-Write-Host "gate de la bandeja: verde — parsea, dibuja $ANCHO px en los dos temas, nada se sale del margen, el panel de una cuenta no es el de todas, y resuelve qm nativo / WSL / frase"
+Write-Host "gate de la bandeja: verde — parsea, dibuja $ANCHO px en los dos temas, nada se sale del margen, el panel de una cuenta no es el de todas, resuelve qm nativo / WSL / frase, y tildar íconos no cierra el panel"
 exit 0

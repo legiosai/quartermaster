@@ -1902,8 +1902,14 @@ function ArmarMenu($mn, $piezas, [string]$frase) {
       $it.Add_Click({ AlternarIcono ([string]$this.Tag) })
       $sub.DropDownItems.Add($it) | Out-Null
     }
+    $sub.DropDown.Add_Closing($script:AlCerrarSub)
     VestirMenu $sub.DropDown ([bool]$script:MenuOscuro)
     $mn.Items.Add($sub) | Out-Null
+    # Si el usuario estaba tildando cuando entró este rearmado, el submenú
+    # vuelve a abrirse donde estaba. Sin esto el panel queda abierto pero el
+    # submenú no, y hay que volver a entrar una vez por tilde — que es la mitad
+    # de la molestia que se vino a sacar.
+    if ($abierto -and $script:SubIconosAbierto) { $sub.ShowDropDown() }
   }
 
   # El item que se apretó volvió a nacer con su texto normal, así que no hay
@@ -1968,17 +1974,12 @@ function AlternarIcono([string]$clave) {
   }
   GuardarOcultos
 
-  # Que el panel NO se cierre al tildar. Es el mismo mecanismo que «Actualizar
-  # ahora»: WinForms cierra el menú al clickear cualquier item, y acá eso es
-  # peor que en ningún lado — elegir qué íconos querés es justamente la tarea en
-  # la que uno toca varios seguidos, y cerrar el panel después de cada tilde
-  # obliga a volver a abrirlo una vez por cuenta.
-  #
-  # La bandera se prende acá y no en un handler del submenú: los eventos de un
-  # ToolStripDropDown no suben al ContextMenuStrip, así que el padre nunca se
-  # entera de qué nieto se clickeó. Quien sabe es esta función. El que cancela
-  # sigue siendo AlCerrar, en el padre.
-  $script:MantenerAbierto = $true
+  # Que el panel no se cierre al tildar lo resuelve $script:AlCerrarSub, en el
+  # Closing del submenú. Acá se prendía $script:MantenerAbierto y no servía: el
+  # Click de un nieto corre DESPUÉS del Closing del padre, así que la bandera
+  # llegaba tarde, y el padre recibe AppFocusChange y no ItemClicked, así que la
+  # condición tampoco pegaba. Peor: como nadie la apagaba, el «Salir» siguiente
+  # se cancelaba solo. Está medido en el comentario de AlCerrarSub.
 
   # Refrescar destruye los items del menú, incluido ÉSTE, que es desde donde
   # estamos corriendo. Se difiere un turno del bucle de mensajes — y para
@@ -2334,6 +2335,43 @@ $script:AlCerrar = {
     $_.Cancel = $true
   }
   $script:MantenerAbierto = $false
+}
+# El submenú de íconos necesita el suyo, y no alcanzaba con el del padre.
+#
+# El par de arriba —prender una bandera en ItemClicked, cancelar en Closing—
+# funciona para un hijo DIRECTO del ContextMenuStrip, que es «Actualizar ahora».
+# Para un NIETO, que es cada tilde de «Íconos en la bandeja», no puede funcionar,
+# y medirlo lo dejó a la vista. Clickeando un tilde, el orden real es:
+#
+#     SUB.Closing     reason=ItemClicked
+#     padre.Closing   reason=AppFocusChange   mantener=False
+#     item.Click      -> recién acá se prendía la bandera
+#
+# O sea que fallaban las dos mitades a la vez. El `Click` del item corre
+# DESPUÉS del Closing del padre, así que la bandera se prendía tarde; y el padre
+# ni siquiera ve `ItemClicked` —le llega `AppFocusChange`, porque lo que se
+# cerró fue el submenú—, así que la condición tampoco habría pegado.
+#
+# Quien sí recibe `ItemClicked`, y antes que nadie, es el DropDown del submenú.
+# Cancelando ahí no hay cascada: el padre no recibe ningún Closing y queda
+# abierto solo. Por eso esto no mira `MantenerAbierto` — no hay nada que
+# coordinar entre dos handlers— y por eso `AlternarIcono` ya no la prende: con
+# el cierre cancelado acá, esa bandera quedaba encendida sin que nadie la
+# apagara, y el siguiente «Salir» se cancelaba a sí mismo.
+#
+# Se cancela SÓLO por ItemClicked: clickear afuera (`AppFocusChange`) y Escape
+# (`Keyboard`) tienen que seguir cerrando todo.
+$script:SubIconosAbierto = $false
+$script:AlCerrarSub = {
+  if ($_.CloseReason -eq [System.Windows.Forms.ToolStripDropDownCloseReason]::ItemClicked) {
+    $_.Cancel = $true
+    # Refrescar rehace los items, y el submenú rearmado nace cerrado. Esto es lo
+    # que ArmarMenu mira para volver a abrirlo, que es la diferencia entre
+    # «tildé uno» y «puedo tildar varios seguidos».
+    $script:SubIconosAbierto = $true
+  } else {
+    $script:SubIconosAbierto = $false
+  }
 }
 # El latido del pie: sólo corre mientras hay un panel abierto, porque es lo
 # único que se mueve ahí y nadie lo mira cerrado.

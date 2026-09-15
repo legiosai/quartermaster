@@ -1664,6 +1664,63 @@ leyendo el código; se ve mirando una captura, que es para lo que existe el modo
   variable, y `$PALETA` empezó llamándose `$NIVEL` y la tapaba la local
   `$nivel`. Las dos aparecieron corriendo el código, no leyéndolo.
 
+### Tildar un ícono cerraba el panel, y el primer arreglo no arreglaba nada
+
+Reportado a mano dos veces. «Íconos en la bandeja» es la lista de tildes para
+elegir qué íconos querés ver, y es la pantalla donde uno toca **varios seguidos**
+mirando cómo queda la bandeja. Cada tilde cerraba el panel entero, así que había
+que reabrirlo una vez por cuenta.
+
+El primer arreglo fue un par de handlers en el `ContextMenuStrip`: prender una
+bandera en `ItemClicked` y cancelar el cierre en `Closing` si la bandera está
+prendida. Eso funciona para «Actualizar ahora», que es un hijo **directo** del
+menú, y el comentario que lo acompañaba explicaba con detalle por qué la bandera
+se prendía en `AlternarIcono` y no en un handler del submenú. Estaba todo bien
+razonado y seguía sin andar, que es la peor combinación: cada tilde es un
+**nieto**, no un hijo.
+
+Se midió con un banco de pruebas de veinte líneas —un menú de mentira con la
+misma forma— y el orden real de los eventos al clickear un tilde fue:
+
+```
+SUB.Closing     reason=ItemClicked
+padre.Closing   reason=AppFocusChange   mantener=False
+item.Click      <- la bandera se prendía acá
+```
+
+Fallaban **las dos mitades a la vez**. El `Click` del item corre DESPUÉS del
+`Closing` del padre, así que la bandera llegaba tarde; y el padre ni siquiera
+recibe `ItemClicked` —le llega `AppFocusChange`, porque lo que se cerró fue el
+submenú—, así que la condición tampoco habría pegado aunque la bandera hubiera
+llegado a tiempo. Dos errores independientes tapándose uno al otro es por qué
+leerlo no alcanzaba.
+
+Quien sí recibe `ItemClicked`, y antes que nadie, es el `DropDown` del submenú.
+Cancelando ahí no hay cascada: el padre no recibe ningún `Closing` y queda
+abierto solo. Y `AlternarIcono` **dejó** de prender la bandera vieja, que ahora
+sería peor que inútil: con el cierre cancelado en el nieto, el padre nunca la
+apagaba y el «Salir» siguiente se cancelaba a sí mismo.
+
+Falta la otra mitad del pedido: `Refrescar` rehace los items, y el submenú
+rearmado nace cerrado. O sea que con sólo cancelar el cierre el panel quedaba
+abierto pero había que volver a entrar al submenú una vez por tilde — la mitad
+de la molestia. Ahora `AlCerrarSub` deja dicho que estaba abierto y `ArmarMenu`
+lo vuelve a abrir después del rearmado.
+
+**Y el gate, porque un arreglo que no se puede comprobar es cómo se llega a
+arreglar lo mismo dos veces.** `gate-bandeja.ps1` saca `$script:AlCerrarSub` por
+AST, lo corre contra un menú de verdad con la forma real y tilda tres íconos
+seguidos: el panel y el submenú tienen que seguir visibles los tres. Probado en
+rojo de las dos maneras — sin el handler («encontré 0») y con un handler que no
+cancela («el panel se cerró al tildar el ícono #1»)—. También comprueba que
+«Salir» siga cerrando, que es el riesgo de cancelar de más.
+
+De paso, el `make gate-bandeja` local no podía fallar: la receta termina en
+`| tr -d '\r'` y el código de salida que veía `make` era el de `tr`, no el del
+gate. En CI no pasaba —ahí el `.ps1` se corre directo— así que el único que veía
+un verde de mentira era el de la máquina, que es justo donde uno lo corre antes
+de comitear. Ahora la receta se guarda el código y sale con él.
+
 ## Windows sin WSL, y cómo se instala cada cosa
 
 La bandeja de arriba nació hablándole a WSL: `wsl.exe` estaba escrito a mano en

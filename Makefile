@@ -271,11 +271,13 @@ gate-winget-rojo:  ## el rojo del envío a winget: sin token, con token muerto, 
 
 .PHONY: gate-bandeja
 gate-bandeja:  ## el gate de la bandeja de Windows: parsea, dibuja y mide (necesita Windows)
-	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/gate-bandeja.ps1 2>/dev/null || echo scripts/gate-bandeja.ps1)" | tr -d '\r'
+	@salida=$$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/gate-bandeja.ps1 2>/dev/null || echo scripts/gate-bandeja.ps1)" 2>&1); \
+	 codigo=$$?; printf '%s\n' "$$salida" | tr -d '\r'; exit $$codigo
 
 .PHONY: gate-windows
 gate-windows:  ## que qm.cmd corra y que el paquete de npm ARRANQUE en Windows
-	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/gate-windows.ps1 2>/dev/null || echo scripts/gate-windows.ps1)" | tr -d '\r'
+	@salida=$$(powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$$(wslpath -w scripts/gate-windows.ps1 2>/dev/null || echo scripts/gate-windows.ps1)" 2>&1); \
+	 codigo=$$?; printf '%s\n' "$$salida" | tr -d '\r'; exit $$codigo
 
 .PHONY: test
 test:  ## los tests
