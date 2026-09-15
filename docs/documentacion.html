@@ -1,22 +1,546 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentation · quartermaster</title>
+<meta name="description" content="Every qm flag, how to read the output, the --json contract, the five surfaces and where each number comes from.">
 <!--
-  La documentación en castellano se mudó a /es/documentacion.html cuando la
-  landing pasó a inglés. Esta página se queda como redirección y no como copia:
-  dos copias del mismo texto divergen, y la que quedaría acá es la que nadie
-  edita. Los enlaces que ya andaban siguen andando.
+  hreflang tiene que ser RECÍPROCO: si esta página apunta a la otra lengua pero
+  la otra no apunta de vuelta, Google descarta el par entero y las dos quedan
+  sin señal de idioma. Estaba sólo en la raíz, así que la página en castellano
+  —la que recibe el tráfico de cualquier post en castellano— no declaraba nada.
+  x-default manda a la raíz, que es la que está en inglés.
 -->
-<title>quartermaster · documentación</title>
-<link rel="canonical" href="https://quartermaster.legios.com.ar/es/documentacion.html">
-<meta http-equiv="refresh" content="0; url=es/documentacion.html">
-<meta name="robots" content="noindex">
-<style>body{font-family:system-ui,sans-serif;background:#12151a;color:#e6e8ea;
-  display:grid;place-items:center;min-height:100vh;margin:0}
-a{color:#f2b134}</style>
+<link rel="canonical" href="https://quartermaster.legios.com.ar/documentacion.html">
+<link rel="alternate" hreflang="es" href="https://quartermaster.legios.com.ar/es/documentacion.html">
+<link rel="alternate" hreflang="en" href="https://quartermaster.legios.com.ar/documentacion.html">
+<link rel="alternate" hreflang="x-default" href="https://quartermaster.legios.com.ar/documentacion.html">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta property="og:title" content="Documentation · quartermaster">
+<meta property="og:description" content="Every flag, the --json contract, and where each number comes from.">
+<meta property="og:type" content="article">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400..600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --fondo:#0e0d0c; --sup:#171512; --sup2:#1f1c18;
+  --borde:rgba(240,236,229,.09); --borde2:rgba(240,236,229,.16);
+  --texto:#f0ece5; --medio:rgba(240,236,229,.66); --tenue:rgba(240,236,229,.44);
+  --verde:#2fbf71; --ambar:#f2b134; --rojo:#e2483d;
+  --radio:14px; --ancho:1120px;
+  --serif:"Fraunces",Georgia,"Times New Roman",serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--fondo);color:var(--texto);
+  font:400 16px/1.7 Inter,system-ui,-apple-system,"Segoe UI",sans-serif;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden}
+.env{max-width:var(--ancho);margin:0 auto;padding:0 24px}
+a{color:inherit}
+h1,h2{font-family:var(--serif);font-weight:500;line-height:1.06;letter-spacing:-.012em;margin:0;
+  font-optical-sizing:auto;font-variation-settings:"SOFT" 60,"WONK" 0}
+h1{font-size:clamp(38px,4.6vw,58px);line-height:1.03}
+h2{font-size:clamp(27px,3vw,34px)}
+h3{font-size:17px;font-weight:600;letter-spacing:-.01em;margin:0;line-height:1.35}
+p{margin:0}
+code{font-family:var(--mono);font-size:.9em;background:var(--sup2);
+  border:1px solid var(--borde);border-radius:6px;padding:.12em .38em}
+pre{margin:0;background:var(--sup);border:1px solid var(--borde);border-radius:var(--radio);
+  padding:18px 20px;overflow-x:auto;font:400 13.5px/1.75 var(--mono);color:var(--medio)}
+pre code{background:none;border:0;padding:0;font-size:inherit}
+pre .p{color:var(--tenue)}
+pre .ok{color:var(--verde)}
+pre .w{color:var(--ambar)}
+pre .r{color:var(--rojo)}
+pre b{color:var(--texto);font-weight:400}
+
+/* grano y aura, iguales a la portada */
+.grano{position:fixed;inset:0;pointer-events:none;z-index:2;opacity:.033;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.aura{position:fixed;top:-30vh;left:50%;transform:translateX(-50%);width:120vw;height:70vh;
+  pointer-events:none;z-index:0;opacity:.5;
+  background:radial-gradient(50% 50% at 50% 50%,rgba(242,177,52,.09),transparent 70%)}
+.capa{position:relative;z-index:1}
+
+header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
+  background:color-mix(in srgb,var(--fondo) 82%,transparent);border-bottom:1px solid var(--borde)}
+.nav{display:flex;align-items:center;justify-content:space-between;height:62px;gap:20px}
+.marca{display:flex;align-items:center;gap:10px;font:600 15px/1 Inter;letter-spacing:-.02em;text-decoration:none}
+.marca svg{width:23px;height:23px;flex:none}
+.nav nav{display:flex;align-items:center;gap:22px;font-size:14px}
+.nav nav a{color:var(--medio);text-decoration:none}
+.nav nav a:hover,.nav nav a[aria-current]{color:var(--texto)}
+.nav .gh{border:1px solid var(--borde2);border-radius:999px;padding:7px 14px}
+/* ── el cambio de idioma ──
+   La misma píldora que la portada, con el mismo porqué: no es una sección más
+   del menú sino un control, el idioma actual va marcado, el actual es un
+   <span> y no un <a> —no hay a dónde ir desde donde ya estás— y las banderas
+   son SVG y no emoji, porque en Windows 🇦🇷 se dibuja como las letras «AR».
+   Ver el comentario largo en index.html. */
+.nav nav .idioma{display:flex;align-items:center;gap:2px;margin-left:4px;padding:2px;
+  border:1px solid var(--borde2);border-radius:999px;background:rgba(255,255,255,.03)}
+.nav nav .idioma a,.nav nav .idioma span{display:flex;align-items:center;gap:6px;
+  padding:5px 10px;border-radius:999px;text-decoration:none;
+  font:600 12px/1 Inter,sans-serif;letter-spacing:.04em;color:var(--tenue)}
+.nav nav .idioma a:hover{color:var(--texto);background:rgba(255,255,255,.07)}
+.nav nav .idioma .actual{color:var(--texto);background:rgba(242,177,52,.13);
+  box-shadow:inset 0 0 0 1px rgba(242,177,52,.35)}
+.nav nav .idioma svg{width:16px;height:11px;border-radius:2px;flex:none;
+  box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+/* En un teléfono los anclajes están a un scroll de distancia; el link al
+   código no, y el cambio de idioma tampoco: si se esconde, quien entra en el
+   idioma equivocado desde el teléfono no tiene por dónde salir. */
+@media (max-width:560px){
+  .nav nav > a:not(.gh){display:none}
+  .nav nav .idioma b{display:none}
+  .nav nav .idioma a,.nav nav .idioma span{padding:6px 8px}}
+
+.tapa{padding:64px 0 40px;border-bottom:1px solid var(--borde)}
+.tapa p{color:var(--medio);max-width:62ch;margin-top:16px;font-size:17px}
+.migas{font:500 11.5px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--tenue);margin-bottom:18px}
+.migas a{text-decoration:none;color:var(--tenue)}
+.migas a:hover{color:var(--ambar)}
+
+.cuerpo{display:grid;grid-template-columns:224px minmax(0,1fr);gap:56px;padding:44px 0 96px;align-items:start}
+@media (max-width:900px){.cuerpo{grid-template-columns:1fr;gap:32px}.toc{position:static!important;max-height:none!important}}
+.toc{position:sticky;top:88px;max-height:calc(100vh - 120px);overflow:auto;font-size:13.5px}
+.toc p{font:500 11px/1 var(--mono);letter-spacing:.16em;text-transform:uppercase;color:var(--tenue);margin-bottom:14px}
+.toc a{display:block;color:var(--medio);text-decoration:none;padding:5px 0 5px 13px;
+  border-left:1px solid var(--borde);line-height:1.4}
+.toc a:hover{color:var(--texto);border-color:var(--borde2)}
+.toc a.act{color:var(--ambar);border-color:var(--ambar)}
+
+section{scroll-margin-top:88px;padding-bottom:52px}
+section+section{border-top:1px solid var(--borde);padding-top:44px}
+.rotulo{display:flex;align-items:center;gap:14px;font:500 11.5px/1 var(--mono);
+  letter-spacing:.16em;text-transform:uppercase;color:var(--tenue);margin-bottom:18px}
+.rotulo::after{content:"";flex:1;height:1px;background:var(--borde)}
+.rotulo b{color:var(--ambar);font-weight:500}
+section > p{color:var(--medio);max-width:68ch;margin-top:16px}
+section h3{margin-top:30px}
+section h3+p{margin-top:8px}
+.nota{border-left:2px solid var(--ambar);padding:2px 0 2px 16px;color:var(--medio);
+  max-width:66ch;margin-top:22px;font-size:15px}
+.nota b{color:var(--texto);font-weight:600}
+ul{margin:14px 0 0;padding-left:20px;color:var(--medio);max-width:68ch}
+li{margin:7px 0}
+li b,p b{color:var(--texto);font-weight:600}
+
+table{width:100%;border-collapse:collapse;margin-top:20px;font-size:14.5px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--borde);vertical-align:top}
+th{font:500 11px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--tenue)}
+td:first-child{white-space:nowrap;font-family:var(--mono);font-size:13px;color:var(--texto)}
+td{color:var(--medio)}
+@media (max-width:640px){td:first-child{white-space:normal}}
+
+.cajas{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px;margin-top:22px}
+.caja{background:var(--sup);border:1px solid var(--borde);border-radius:var(--radio);padding:18px 20px}
+.caja h3{font-size:15px}
+.caja p{color:var(--medio);font-size:14px;margin-top:7px}
+.pre-mas{margin-top:18px}
+
+footer{border-top:1px solid var(--borde);padding:34px 0 60px;color:var(--tenue);font-size:14px}
+footer a{color:var(--medio)}
+.pie-fila{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+.pie-marca{display:block;opacity:.82;transition:opacity .2s}
+.pie-marca:hover{opacity:1}
+.pie-marca img{display:block;width:132px;height:auto}
+</style>
 </head>
 <body>
-<p>La documentación está en <a href="es/documentacion.html">/es/documentacion.html</a>.</p>
+<div class="aura"></div>
+<div class="grano"></div>
+<div class="capa">
+
+<header>
+  <div class="env nav">
+    <a class="marca" href="./">
+      <svg viewBox="0 0 64 64" aria-hidden="true"><defs><linearGradient id="m" gradientUnits="userSpaceOnUse" x1="14" y1="46" x2="50" y2="14"><stop offset="0" stop-color="#2fbf71"/><stop offset=".5" stop-color="#f2b134"/><stop offset="1" stop-color="#e2483d"/></linearGradient></defs><circle cx="32" cy="32" r="20" fill="none" stroke="currentColor" stroke-opacity=".16" stroke-width="9"/><path d="M32 12A20 20 0 1 1 14.8 42" fill="none" stroke="url(#m)" stroke-width="9" stroke-linecap="round"/><path d="M41 41 51.5 51.5" fill="none" stroke="url(#m)" stroke-width="9" stroke-linecap="round"/></svg>
+      quartermaster
+    </a>
+    <nav>
+      <a href="./#superficies">Where you see it</a>
+      <a href="./#instalar">Install</a>
+      <a href="documentacion.html" aria-current="page">Docs</a>
+      <a href="cambios.html">Changelog</a>
+      <div class="idioma" role="group" aria-label="Language">
+        <span class="actual" aria-current="true"><svg viewBox="0 0 20 14" aria-hidden="true"><rect width="20" height="14" fill="#B22234"/><g fill="#fff"><rect y="1.077" width="20" height="1.077"/><rect y="3.231" width="20" height="1.077"/><rect y="5.385" width="20" height="1.077"/><rect y="7.538" width="20" height="1.077"/><rect y="9.692" width="20" height="1.077"/><rect y="11.846" width="20" height="1.077"/></g><rect width="8.4" height="7.538" fill="#3C3B6E"/><g fill="#fff"><circle cx="1.6" cy="1.5" r=".45"/><circle cx="4.2" cy="1.5" r=".45"/><circle cx="6.8" cy="1.5" r=".45"/><circle cx="2.9" cy="3" r=".45"/><circle cx="5.5" cy="3" r=".45"/><circle cx="1.6" cy="4.5" r=".45"/><circle cx="4.2" cy="4.5" r=".45"/><circle cx="6.8" cy="4.5" r=".45"/><circle cx="2.9" cy="6" r=".45"/><circle cx="5.5" cy="6" r=".45"/></g></svg><b>EN</b></span>
+        <a href="es/documentacion.html" hreflang="es" lang="es" title="Ver en español" aria-label="Ver en español"><svg viewBox="0 0 20 14" aria-hidden="true"><rect width="20" height="14" fill="#74ACDF"/><rect y="4.667" width="20" height="4.667" fill="#fff"/><circle cx="10" cy="7" r="1.7" fill="#F6B40E"/><circle cx="10" cy="7" r="1.15" fill="none" stroke="#85340A" stroke-width=".22"/></svg><b>ES</b></a>
+      </div>
+      <a class="gh" href="https://github.com/legiosai/quartermaster">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<div class="env tapa">
+  <div class="migas"><a href="./">quartermaster</a> · Documentation</div>
+  <h1>Documentation</h1>
+  <p>
+    Every flag, how the output is read, the <code>--json</code> contract and
+    where each number comes from. If anything here does not match what the
+    program does, the program is right and this page is the bug:
+    <a href="https://github.com/legiosai/quartermaster/issues">say so</a>.
+  </p>
+</div>
+
+<div class="env cuerpo">
+
+<aside class="toc">
+  <p>On this page</p>
+  <a href="#empezar">Getting started</a>
+  <a href="#uso">Every flag</a>
+  <a href="#leer">Reading the output</a>
+  <a href="#ritmo">The rate, and when it is not drawn</a>
+  <a href="#json">The --json contract</a>
+  <a href="#superficies">The six surfaces</a>
+  <a href="#lee">Where each number comes from</a>
+  <a href="#no-hace">What it does not do, on purpose</a>
+  <a href="#salida">Exit codes</a>
+  <a href="#problemas">If something is not working</a>
+</aside>
+
+<main>
+
+<section id="empezar">
+  <div class="rotulo"><b>01</b> Getting started</div>
+  <h2>Install it and run it</h2>
+  <p>
+    Needs <b>Node ≥ 22.6</b>. There is no build step: the CLI runs straight
+    from TypeScript.
+  </p>
+
+  <h3>Linux — apt</h3>
+  <pre><span class="c"># once: the key and the repo</span>
+<span class="p">$</span> sudo install -d -m 0755 /etc/apt/keyrings
+<span class="p">$</span> curl -fsSL https://quartermaster.legios.com.ar/apt/legios.gpg \
+    | sudo tee /etc/apt/keyrings/legios.asc &gt;/dev/null
+<span class="p">$</span> echo "deb [signed-by=/etc/apt/keyrings/legios.asc] \
+    https://quartermaster.legios.com.ar/apt stable main" \
+    | sudo tee /etc/apt/sources.list.d/legios.list &gt;/dev/null
+<span class="p">$</span> sudo apt update &amp;&amp; sudo apt install quartermaster</pre>
+
+  <h3>macOS — Homebrew</h3>
+  <pre><span class="p">$</span> brew install legiosai/tap/quartermaster</pre>
+
+  <h3>Any system — npm</h3>
+  <pre><span class="p">$</span> npm install -g @legios/quartermaster</pre>
+
+  <h3>From source</h3>
+  <pre><span class="p">$</span> git clone https://github.com/legiosai/quartermaster
+<span class="p">$</span> cd quartermaster &amp;&amp; make instalar</pre>
+
+  <div class="nota">
+    <b>It updates only through the manager that installed it.</b> apt with
+    <code>apt upgrade</code>, Homebrew with <code>brew upgrade</code>, npm with
+    <code>npm update -g</code>. None of the three updates by itself unless you
+    run that command, and the program does not update itself: it has no channel
+    to do it with, and it is not going to get one.
+  </div>
+</section>
+
+<section id="uso">
+  <div class="rotulo"><b>02</b> Usage</div>
+  <h2>Every flag</h2>
+  <p>
+    With no arguments it reads from disk and never touches the network.
+    Everything that goes out over the network sits behind an explicit flag.
+  </p>
+
+  <table>
+    <tr><th>Flag</th><th>What it does</th></tr>
+    <tr><td>qm</td><td>Quota and usage for every profile. No network and no credential: the quota is the one Claude Code already left in <code>.claude.json</code>.</td></tr>
+    <tr><td>--refrescar</td><td>Also asks the endpoint for the number. Needs a live token.</td></tr>
+    <tr><td>--json</td><td>The same information as JSON, for scripts and statuslines. It is a contract: see below.</td></tr>
+    <tr><td>--breve</td><td>One line and nothing else. It does not read transcripts, so it takes ~85 ms instead of a second. This is what goes in a statusline.</td></tr>
+    <tr><td>--watch [seg]</td><td>Redraws every N seconds. Minimum 30, 60 by default.</td></tr>
+    <tr><td>--dias=N</td><td>The window for local usage. 7 by default.</td></tr>
+    <tr><td>--umbral=N</td><td>Exits with code 3 if any bar is over N %.</td></tr>
+    <tr><td>--esperar</td><td>Does not return until quota drops below the threshold (80 by default). For chaining: <code>qm --esperar &amp;&amp; codex …</code></td></tr>
+    <tr><td>--cuenta=NOMBRE</td><td>With <code>--esperar</code>: watch only that account.</td></tr>
+    <tr><td>--solo=a,b</td><td>Show only those accounts.</td></tr>
+    <tr><td>--ocultar=a,b</td><td>Show every account but those.</td></tr>
+    <tr><td>--sin-codex</td><td>Do not look at the Codex account.</td></tr>
+    <tr><td>--redactado</td><td>With <code>--json</code>: strips e-mails and home paths. For committing an output.</td></tr>
+    <tr><td>--calentar</td><td>Refreshes the endpoint of every profile and the Codex one, stores what comes back and prints nothing. This is what the bar item runs.</td></tr>
+    <tr><td>--cuentas=a,b</td><td>With <code>--calentar</code>: only those. Every account skipped is one request fewer to an endpoint that is not ours.</td></tr>
+    <tr><td>--calentar-codex</td><td>The same, but only Codex and without touching the keychain.</td></tr>
+    <tr><td>--diagnostico</td><td>Everything a bug report needs, in one command and already redacted: machine, desktop, the state of the extension, the indicator and the cache, and what the journal recorded. No e-mail, no tokens, no account ids.</td></tr>
+    <tr><td>-V, --version</td><td>The version, and nothing else.</td></tr>
+    <tr><td>--red / --sin-red</td><td>Force or forbid the network probe. <b>--offline</b> is a synonym for <b>--sin-red</b>.</td></tr>
+    <tr><td>-h, --help</td><td>The same list, in the terminal.</td></tr>
+  </table>
+</section>
+
+<section id="leer">
+  <div class="rotulo"><b>03</b> The output</div>
+  <h2>How to read what it shows</h2>
+  <p>
+    Every account carries <b>two numbers, on purpose</b>. The first is the
+    session; the second is the bar that stops you first. They answer different
+    questions — "can I keep going right now?" and "do I make it to the end of
+    the week?" — and either one alone is half an answer. When the bar that stops
+    you <em>is</em> the session, a single number is shown.
+  </p>
+
+  <pre class="pre-mas"><span class="p">$</span> qm --breve
+personal 23/75%<span class="w">!</span> · teams 9/42% · codex 49/59%</pre>
+
+  <table>
+    <tr><th>Mark</th><th>What it means</th></tr>
+    <tr><td>23/75%</td><td>Session at 23 %, the bar that stops you at 75 %.</td></tr>
+    <tr><td>!</td><td>The server flagged that bar with a warning — it is not a threshold of ours, it comes in the response.</td></tr>
+    <tr><td>~</td><td>The cache is more than 6 hours old. The number is stale, not wrong.</td></tr>
+    <tr><td>42%</td><td>A single number: the bar that stops you is the session one.</td></tr>
+  </table>
+
+  <div class="nota">
+    <b>The bar you see is not always the one that stops you.</b> Inside
+    <code>cachedUsageUtilization</code> there are bars with no key of their own
+    at the top level. Reading only the two famous ones —<code>five_hour</code>
+    and <code>seven_day</code>— showed 8 % and 59 % while the one actually
+    stopping you was at 75 %, flagged by the server. An error of 67 points, and
+    in the direction you want to believe.
+  </div>
+</section>
+
+<section id="ritmo">
+  <div class="rotulo"><b>04</b> The rate</div>
+  <h2>Are you going to hit the wall before it resets?</h2>
+  <p>
+    It is the question neither the percentage nor the usage answers on its own:
+    "you are at 75 %" says nothing without knowing how fast you are climbing. qm
+    keeps a series of readings per bar and fits a line to it.
+  </p>
+
+  <pre class="pre-mas">ritmo: 12.4 pts/h · <b>100 % en 1h58m</b> — antes del reinicio</pre>
+
+  <p style="margin-top:20px">
+    The line is not what matters: <b>when it is not drawn</b> is. With two
+    readings, or with a window that has only just started, any extrapolation is
+    an invented number wearing the face of a measurement. So it says this
+    instead, which is a different thing:
+  </p>
+
+  <pre class="pre-mas">ritmo: todavía no sé el ritmo: hacen falta 3 lecturas y hay 1</pre>
+
+  <ul>
+    <li>Readings older than <b>2 hours</b> are dropped: the rate from four hours ago does not predict the one now.</li>
+    <li>Nothing is projected from a move smaller than <b>2 points</b>, because the server sends whole numbers and a rise of one cannot be told apart from rounding.</li>
+    <li>The series lives in <code>~/.cache/quartermaster/historial.jsonl</code> and is indexed by the quota's <code>medidoEn</code>, not by when qm looked: reading the same cache ten times leaves <b>one</b> sample.</li>
+  </ul>
+</section>
+
+<section id="json">
+  <div class="rotulo"><b>05</b> The contract</div>
+  <h2><code>--json</code> emits the answer, not the raw data</h2>
+  <p>
+    The four surfaces —GNOME, the macOS menu bar, the Windows tray and the
+    browser— draw the same thing because <b>none of them decides anything</b>.
+    The rule that picks which bar to show used to live copied into Python,
+    JavaScript and Swift, and a rule in three languages is a different answer
+    per screen the day someone edits one of them. Now the CLI emits the answer
+    already resolved and the renderers read fields.
+  </p>
+
+  <pre class="pre-mas"><span class="p">$</span> qm --json --redactado
+{
+  "generado": "2026-09-10T23:04:07.315Z",
+  "plataforma": "linux",
+  "ventanaDias": 7,
+  "perfiles": [
+    {
+      "producto": "claude",
+      "perfil": ".claude",
+      "directorio": "~/.claude",
+      "cuenta": "***@ejemplo.com",
+      "plan": "claude_max",
+      "credencial": "vigente (4h29m)",
+      "cuota": {
+        "estado": "ok",
+        "origen": "endpoint",
+        "medidoEn": "2026-09-10T22:56:23.201Z",
+        "edadSegundos": 464,
+        "ventanas": [ … ],
+        <b>"mostrar"</b>: [ … ],
+        <b>"frena"</b>:   { "clave": "weekly_scoped", "porcentaje": 89, … },
+        <b>"sesion"</b>:  { "clave": "session",       "porcentaje": 36, … },
+        <b>"semanal"</b>: { "clave": "weekly_scoped", "porcentaje": 89, … },
+        "historia": [ … ]
+      },
+      "proyeccion": { … },
+      <b>"presupuesto"</b>: { "porDia": 4.2, "quedaHoy": 1.8, "barra": "weekly_scoped (Fable)", … },
+      "local": { … }
+    }
+  ]
+}</pre>
+
+  <h3>The root</h3>
+  <table>
+    <tr><th>Field</th><th>What it is</th></tr>
+    <tr><td>generado</td><td>ISO 8601. When qm ran — not when the quota was measured.</td></tr>
+    <tr><td>plataforma</td><td><code>linux</code>, <code>darwin</code> or <code>win32</code>.</td></tr>
+    <tr><td>ventanaDias</td><td>The window for local usage. Whatever <code>--dias</code> set.</td></tr>
+    <tr><td>perfiles</td><td>One entry per account found. <b>It can be <code>[]</code></b> on a machine with nothing installed, and that is not an error: the exit code is still 0.</td></tr>
+  </table>
+
+  <h3>Each profile</h3>
+  <table>
+    <tr><th>Field</th><th>What it is</th></tr>
+    <tr><td>producto</td><td><code>claude</code>, <code>codex</code> or whichever provider opencode stores.</td></tr>
+    <tr><td>perfil / directorio</td><td>The profile's name and where it was read from. With <code>--redactado</code> the home path comes out as <code>~</code>.</td></tr>
+    <tr><td>cuenta / plan</td><td>The e-mail and the plan. With <code>--redactado</code> the e-mail comes out masked.</td></tr>
+    <tr><td>credencial</td><td>A sentence, in Spanish: live and how long it has left, or expired and which command fixes it.</td></tr>
+    <tr><td>cuota.estado</td><td><code>ok</code>, or the reason there is no number.</td></tr>
+    <tr><td>cuota.origen</td><td><code>endpoint</code> or <code>cache</code>: whether the number was asked for or read off the disk.</td></tr>
+    <tr><td>cuota.medidoEn</td><td>When <b>the quota</b> was measured. This is the date that matters.</td></tr>
+    <tr><td>cuota.edadSegundos</td><td>How old that number is. Past 6 h the surface marks it with <code>~</code>.</td></tr>
+    <tr><td>cuota.ventanas</td><td>Every bar, including the ones with no key of their own at the top level.</td></tr>
+    <tr><td>cuota.mostrar</td><td><b>The ones to draw.</b> A renderer that filters on its own is reimplementing the rule.</td></tr>
+    <tr><td>cuota.frena</td><td>The bar that will stop you first. It is the one that decides the color and the warning.</td></tr>
+    <tr><td>cuota.sesion / semanal</td><td>The two that answer the two questions. They can be the same one.</td></tr>
+    <tr><td>proyeccion</td><td>The rate, or the reason there is no rate yet.</td></tr>
+    <tr><td>presupuesto</td><td>How much can be spent per day for the long window to land exactly on its reset (<code>porDia</code>) and how much of that is left today (<code>quedaHoy</code>), or the reason it cannot be divided up. Which window gets divided is the core's call: it is the long one, never the 5 h one.</td></tr>
+    <tr><td>local</td><td>The usage read from the transcripts, over the <code>--dias</code> window.</td></tr>
+  </table>
+
+  <div class="nota">
+    <b>If a renderer needs to reimplement a rule, the CLI is not emitting
+    enough.</b> That is the rule of this repo, and the Windows tray is the proof
+    it holds: it draws the same meters as the macOS view without a single line
+    deciding which bar wins. It reads <code>mostrar</code> and
+    <code>frena</code>.
+  </div>
+</section>
+
+<section id="superficies">
+  <div class="rotulo"><b>06</b> Surfaces</div>
+  <h2>The six screens</h2>
+  <p>
+    All of them come out of <code>qm --json</code>. None of them knows what a
+    credential is.
+  </p>
+
+  <div class="cajas">
+    <div class="caja">
+      <h3>Claude Code's statusline</h3>
+      <p>Where the tool does what it is for: the number stops being something you have to remember to check.</p>
+    </div>
+    <div class="caja">
+      <h3>GNOME</h3>
+      <p><code>qm-indicator</code> draws one meter per account in the top bar, and the panel lives inside an extension of its own.</p>
+    </div>
+    <div class="caja">
+      <h3>The macOS menu bar</h3>
+      <p><code>qm-barra</code>. Live text, with the title measured rather than eyeballed.</p>
+    </div>
+    <div class="caja">
+      <h3>The Windows tray</h3>
+      <p><code>qm-tray.ps1</code>. It draws an arc: at 16 px one digit reads and two are a smudge.</p>
+    </div>
+    <div class="caja">
+      <h3>The browser</h3>
+      <p><code>qm-web</code>. A dashboard that redraws every 30 s.</p>
+    </div>
+  </div>
+
+  <h3>The statusline, in the profile's <code>settings.json</code></h3>
+  <pre class="pre-mas">{
+  "statusLine": { "type": "command", "command": "qm --breve" }
+}</pre>
+  <p style="margin-top:18px">
+    Mind what it does <b>not</b> do: the cache is refreshed when that profile
+    runs Claude Code, so a profile's statusline updates by being used. That is
+    enough to find out you are at 75 % while you work, and not enough to watch a
+    profile you are not using.
+  </p>
+</section>
+
+<section id="lee">
+  <div class="rotulo"><b>07</b> Provenance</div>
+  <h2>Where each number comes from</h2>
+  <ul>
+    <li><b>The quota</b> comes from <code>cachedUsageUtilization</code>, inside each profile's <code>.claude.json</code>. It is already on the disk: no network and no credential are needed, which is why it is read even when the token has expired.</li>
+    <li><b>The profiles</b> are found by looking at every <code>CLAUDE_CONFIG_DIR</code> on the machine, not only the default directory. A work seat and a personal subscription are two profiles, and every other tool sees one.</li>
+    <li><b>The usage</b> comes from the local transcripts, over the <code>--dias</code> window. It is the floor: there is always a number, even with every token expired.</li>
+    <li><b>Codex</b> does not leave its quota on the disk, so that cache is ours: it refreshes itself only when stale, except under <code>--breve</code>, which has to keep taking milliseconds.</li>
+    <li><b>opencode</b> contributes whichever providers it has configured, treated the same way.</li>
+  </ul>
+</section>
+
+<section id="no-hace">
+  <div class="rotulo"><b>08</b> Limits</div>
+  <h2>What it does not do, on purpose</h2>
+  <ul>
+    <li><b>It never refreshes a token.</b> It reads credentials, it does not write them. Refreshing would mean racing Claude Code's own write and risking the user's refresh token: a broken login in exchange for a monitoring convenience. When a credential expires, it says so and carries on with the rest.</li>
+    <li><b>No account, no cloud, no telemetry.</b> Everything is read off the disk and from the user's own credential. The only things that leave the machine are the quota probes, and only when you ask for them (<code>--refrescar</code> or <code>--calentar</code>): to <code>api.anthropic.com</code>, the same host Claude Code already talks to, and to <code>api.z.ai</code> if opencode shows you have used a z.ai provider. Neither one happens on the everyday path, which reads the disk. The full table is in <a href="https://github.com/legiosai/quartermaster/blob/main/SECURITY.md">SECURITY.md</a>.</li>
+    <li><b>That probe has a floor: 60 seconds.</b> An adaptive cadence once came down to 20 s per account —some 360 requests an hour, sustained, against an undocumented endpoint—. Getting rate-limited for reading your own quota would be a self-inflicted version of the silence this tool exists to fix.</li>
+    <li><b>The transcript adapter is not optional.</b> The endpoint is undocumented and can disappear without notice; the local floor is what guarantees there is always a number.</li>
+  </ul>
+</section>
+
+<section id="salida">
+  <div class="rotulo"><b>09</b> Scripting</div>
+  <h2>Exit codes</h2>
+  <table>
+    <tr><th>Code</th><th>When</th></tr>
+    <tr><td>0</td><td>All good. Also on a machine with no profiles: the answer is <code>"perfiles": []</code>, not an error.</td></tr>
+    <tr><td>2</td><td>Invalid arguments. The message says which one.</td></tr>
+    <tr><td>3</td><td>With <code>--umbral=N</code>: some bar reached or passed that N %.</td></tr>
+  </table>
+  <pre class="pre-mas"><span class="p">#</span> don't start a long job if we are already at 80
+<span class="p">$</span> qm --umbral=80 &gt;/dev/null || exit 0
+
+<span class="p">#</span> or wait for it to come down instead
+<span class="p">$</span> qm --esperar --cuenta=codex &amp;&amp; codex exec "…"</pre>
+</section>
+
+<section id="problemas">
+  <div class="rotulo"><b>10</b> Trouble</div>
+  <h2>If something is not working</h2>
+
+  <h3>It says the credential has expired</h3>
+  <p>That is correct and breaks nothing: the quota is still read, because it comes off the disk. The message says which command fixes it. qm does not run it for you, on purpose.</p>
+
+  <h3>The number has a <code>~</code> next to it</h3>
+  <p>The cache is more than 6 hours old. Run <code>qm --refrescar</code>, or use that profile: Claude Code rewrites the cache when it runs.</p>
+
+  <h3>An account is missing</h3>
+  <p>Check with <code>qm --json</code> whether it shows up under <code>perfiles</code>. If it is not there, its <code>CLAUDE_CONFIG_DIR</code> is not in the environment you are running qm from.</p>
+
+  <h3>Nothing appears in the GNOME top bar</h3>
+  <p>It needs the extension and a fresh session: GNOME loads extensions at login, so once it is installed you have to log out and back in.</p>
+
+  <h3>Something else</h3>
+  <p><a href="https://github.com/legiosai/quartermaster/issues">Open an issue.</a> Paste the output of <code>qm --diagnostico</code>: it gathers everything a report needs in one command — machine, desktop, the state of the extension and the indicator, the cache and what the journal recorded — and it comes redacted, with no e-mail, no tokens and no account ids. Paste it as it is.</p>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <div class="env pie-fila">
+    <span>MIT · <a href="https://github.com/legiosai/quartermaster">Code</a> · <a href="https://github.com/legiosai/quartermaster/releases">Releases</a></span>
+    <a class="pie-marca" href="https://github.com/legiosai" aria-label="Legios"><img src="legios.svg" alt="Legios" width="132" height="43"></a>
+  </div>
+</footer>
+
+</div>
+<script>
+// Marca en el índice la sección que se está leyendo. Sin librería: el índice
+// es una lista de anclas y esto sólo le pone una clase.
+const enlaces = [...document.querySelectorAll('.toc a')];
+const mapa = new Map(enlaces.map((a) => [a.getAttribute('href').slice(1), a]));
+const obs = new IntersectionObserver((entradas) => {
+  for (const e of entradas) {
+    if (!e.isIntersecting) continue;
+    for (const a of enlaces) a.classList.remove('act');
+    mapa.get(e.target.id)?.classList.add('act');
+  }
+}, { rootMargin: '-88px 0px -70% 0px', threshold: 0 });
+for (const s of document.querySelectorAll('main section')) obs.observe(s);
+</script>
 </body>
 </html>

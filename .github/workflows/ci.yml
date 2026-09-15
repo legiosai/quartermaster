@@ -62,6 +62,11 @@ jobs:
       # implementaciones se comprueban acá. Se llegó a agregar un job de macOS
       # para Swift antes de mirar qué había en el de Ubuntu: sobraba, y encima
       # fallaba porque ahí no está el cairo que necesita el panel de GNOME.
+      - name: la página de cambios es la del CHANGELOG
+        run: make gate-cambios
+      - name: y ese gate falla en rojo con el CHANGELOG movido
+        run: make gate-cambios-rojo
+
       - run: python3 scripts/gate-duraciones.py
 
       # Y la otra regla escrita cinco veces: la frase del presupuesto. 0.1.11

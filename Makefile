@@ -127,6 +127,27 @@ manifests:  ## los manifests de winget y scoop (EXE=<sha256> ZIP=<sha256>)
 extension-zip:  ## el zip de la extensión con la forma que pide extensions.gnome.org
 	@./scripts/hacer-extension-zip.sh
 
+.PHONY: cambios
+cambios:  ## regenera docs/cambios.html desde CHANGELOG.md
+	@node scripts/hacer-cambios.mjs
+
+.PHONY: gate-cambios
+gate-cambios:  ## que la página de cambios sea la del CHANGELOG, no una copia vieja
+	@node scripts/hacer-cambios.mjs --ver
+
+.PHONY: gate-cambios-rojo
+gate-cambios-rojo:  ## el rojo de gate-cambios: el CHANGELOG movido y la página igual
+	@cp CHANGELOG.md .CHANGELOG.gate
+	@# Una versión nueva arriba del archivo y la página sin regenerar: es
+	@# exactamente lo que pasa cuando alguien escribe el changelog y se olvida.
+	@printf '\n## v9.9.9 — 2999-01-01\n\n### Fixed\n\n- Una entrada que la página no tiene.\n' >> CHANGELOG.md
+	@if node scripts/hacer-cambios.mjs --ver >/dev/null 2>&1; then \
+	  mv .CHANGELOG.gate CHANGELOG.md; \
+	  echo "✗ gate-cambios NO falló con una entrada que la página no tiene"; exit 1; \
+	fi
+	@mv .CHANGELOG.gate CHANGELOG.md
+	@echo "✓ gate-cambios falla en rojo con el CHANGELOG movido y la página vieja"
+
 .PHONY: gate-duraciones
 gate-duraciones:  ## que las cuatro escaleras de duración den lo mismo
 	@python3 scripts/gate-duraciones.py

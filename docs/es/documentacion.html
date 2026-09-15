@@ -13,6 +13,9 @@
   x-default manda a la raíz, que es la que está en inglés.
 -->
 <link rel="canonical" href="https://quartermaster.legios.com.ar/es/documentacion.html">
+<link rel="alternate" hreflang="en" href="https://quartermaster.legios.com.ar/documentacion.html">
+<link rel="alternate" hreflang="es" href="https://quartermaster.legios.com.ar/es/documentacion.html">
+<link rel="alternate" hreflang="x-default" href="https://quartermaster.legios.com.ar/documentacion.html">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="Documentación · quartermaster">
 <meta property="og:description" content="Todas las banderas, el contrato de --json y de dónde sale cada número.">
@@ -71,6 +74,29 @@ header{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);
 .nav nav a{color:var(--medio);text-decoration:none}
 .nav nav a:hover,.nav nav a[aria-current]{color:var(--texto)}
 .nav .gh{border:1px solid var(--borde2);border-radius:999px;padding:7px 14px}
+/* ── el cambio de idioma ──
+   La misma píldora que la portada, con el mismo porqué: no es una sección más
+   del menú sino un control, el idioma actual va marcado, el actual es un
+   <span> y no un <a> —no hay a dónde ir desde donde ya estás— y las banderas
+   son SVG y no emoji, porque en Windows 🇦🇷 se dibuja como las letras «AR».
+   Ver el comentario largo en index.html. */
+.nav nav .idioma{display:flex;align-items:center;gap:2px;margin-left:4px;padding:2px;
+  border:1px solid var(--borde2);border-radius:999px;background:rgba(255,255,255,.03)}
+.nav nav .idioma a,.nav nav .idioma span{display:flex;align-items:center;gap:6px;
+  padding:5px 10px;border-radius:999px;text-decoration:none;
+  font:600 12px/1 Inter,sans-serif;letter-spacing:.04em;color:var(--tenue)}
+.nav nav .idioma a:hover{color:var(--texto);background:rgba(255,255,255,.07)}
+.nav nav .idioma .actual{color:var(--texto);background:rgba(242,177,52,.13);
+  box-shadow:inset 0 0 0 1px rgba(242,177,52,.35)}
+.nav nav .idioma svg{width:16px;height:11px;border-radius:2px;flex:none;
+  box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+/* En un teléfono los anclajes están a un scroll de distancia; el link al
+   código no, y el cambio de idioma tampoco: si se esconde, quien entra en el
+   idioma equivocado desde el teléfono no tiene por dónde salir. */
+@media (max-width:560px){
+  .nav nav > a:not(.gh){display:none}
+  .nav nav .idioma b{display:none}
+  .nav nav .idioma a,.nav nav .idioma span{padding:6px 8px}}
 
 .tapa{padding:64px 0 40px;border-bottom:1px solid var(--borde)}
 .tapa p{color:var(--medio);max-width:62ch;margin-top:16px;font-size:17px}
@@ -139,6 +165,11 @@ footer a{color:var(--medio)}
       <a href="./#superficies">Dónde lo ves</a>
       <a href="./#instalar">Instalar</a>
       <a href="documentacion.html" aria-current="page">Documentación</a>
+      <a href="../cambios.html">Cambios</a>
+      <div class="idioma" role="group" aria-label="Idioma">
+        <a href="../documentacion.html" hreflang="en" lang="en" title="View in English" aria-label="View in English"><svg viewBox="0 0 20 14" aria-hidden="true"><rect width="20" height="14" fill="#B22234"/><g fill="#fff"><rect y="1.077" width="20" height="1.077"/><rect y="3.231" width="20" height="1.077"/><rect y="5.385" width="20" height="1.077"/><rect y="7.538" width="20" height="1.077"/><rect y="9.692" width="20" height="1.077"/><rect y="11.846" width="20" height="1.077"/></g><rect width="8.4" height="7.538" fill="#3C3B6E"/><g fill="#fff"><circle cx="1.6" cy="1.5" r=".45"/><circle cx="4.2" cy="1.5" r=".45"/><circle cx="6.8" cy="1.5" r=".45"/><circle cx="2.9" cy="3" r=".45"/><circle cx="5.5" cy="3" r=".45"/><circle cx="1.6" cy="4.5" r=".45"/><circle cx="4.2" cy="4.5" r=".45"/><circle cx="6.8" cy="4.5" r=".45"/><circle cx="2.9" cy="6" r=".45"/><circle cx="5.5" cy="6" r=".45"/></g></svg><b>EN</b></a>
+        <span class="actual" aria-current="true"><svg viewBox="0 0 20 14" aria-hidden="true"><rect width="20" height="14" fill="#74ACDF"/><rect y="4.667" width="20" height="4.667" fill="#fff"/><circle cx="10" cy="7" r="1.7" fill="#F6B40E"/><circle cx="10" cy="7" r="1.15" fill="none" stroke="#85340A" stroke-width=".22"/></svg><b>ES</b></span>
+      </div>
       <a class="gh" href="https://github.com/legiosai/quartermaster">GitHub</a>
     </nav>
   </div>
@@ -164,7 +195,7 @@ footer a{color:var(--medio)}
   <a href="#leer">Cómo leer la salida</a>
   <a href="#ritmo">El ritmo, y cuándo no se dibuja</a>
   <a href="#json">El contrato de --json</a>
-  <a href="#superficies">Las cinco superficies</a>
+  <a href="#superficies">Las seis superficies</a>
   <a href="#lee">De dónde sale cada número</a>
   <a href="#no-hace">Lo que no hace, a propósito</a>
   <a href="#salida">Códigos de salida</a>
@@ -236,6 +267,9 @@ footer a{color:var(--medio)}
     <tr><td>--calentar</td><td>Refresca el endpoint de cada perfil y el de Codex, guarda lo que vuelve y no imprime nada. Es lo que corre el item de la barra.</td></tr>
     <tr><td>--cuentas=a,b</td><td>Con <code>--calentar</code>: sólo esas. Cada cuenta salteada es un pedido menos a un endpoint que no es nuestro.</td></tr>
     <tr><td>--calentar-codex</td><td>Igual, pero sólo Codex y sin tocar el llavero.</td></tr>
+    <tr><td>--diagnostico</td><td>Todo lo que hace falta para reportar un bug, en un comando y ya redactado: máquina, escritorio, estado de la extensión, del indicador y del cache, y lo que anotó el journal. Sin mails, sin tokens, sin ids de cuenta.</td></tr>
+    <tr><td>-V, --version</td><td>La versión, y nada más.</td></tr>
+    <tr><td>--red / --sin-red</td><td>Forzar o prohibir el sondeo por red. <b>--offline</b> es sinónimo de <b>--sin-red</b>.</td></tr>
     <tr><td>-h, --help</td><td>La misma lista, en la terminal.</td></tr>
   </table>
 </section>
@@ -381,7 +415,7 @@ personal 23/75%<span class="w">!</span> · teams 9/42% · codex 49/59%</pre>
 
 <section id="superficies">
   <div class="rotulo"><b>06</b> Superficies</div>
-  <h2>Las cinco pantallas</h2>
+  <h2>Las seis pantallas</h2>
   <p>
     Todas salen de <code>qm --json</code>. Ninguna sabe qué es una credencial.
   </p>
@@ -438,7 +472,7 @@ personal 23/75%<span class="w">!</span> · teams 9/42% · codex 49/59%</pre>
   <h2>Lo que no hace, a propósito</h2>
   <ul>
     <li><b>Nunca refresca un token.</b> Lee credenciales, no las escribe. Refrescar sería correr una carrera contra la escritura del propio Claude Code y arriesgar el refresh token del usuario: cambiar una comodidad de monitoreo por un login roto. Cuando una credencial vence, lo dice y sigue con el resto.</li>
-    <li><b>Sin cuenta, sin nube, sin telemetría.</b> Todo se lee del disco y de la credencial del usuario. Lo único que sale de la máquina es el sondeo de cuota, al mismo host con el que Claude Code ya habla.</li>
+    <li><b>Sin cuenta, sin nube, sin telemetría.</b> Todo se lee del disco y de la credencial del usuario. Lo único que sale de la máquina son los sondeos de cuota, y sólo cuando se piden (<code>--refrescar</code> o <code>--calentar</code>): a <code>api.anthropic.com</code>, el mismo host con el que Claude Code ya habla, y a <code>api.z.ai</code> si opencode muestra que usaste un proveedor de z.ai. Ninguno de los dos sale por el camino de todos los días, que lee el disco. La tabla completa está en <a href="https://github.com/legiosai/quartermaster/blob/main/SECURITY.md">SECURITY.md</a>.</li>
     <li><b>Ese sondeo tiene piso: 60 segundos.</b> Una cadencia adaptativa llegó a bajar a 20 s por cuenta —unas 360 consultas por hora, sostenidas, contra un endpoint no documentado—. Que te limiten por leer tu propia cuota sería una versión autoinfligida del silencio que la herramienta existe para arreglar.</li>
     <li><b>El adaptador de transcripciones no es opcional.</b> El endpoint no está documentado y puede desaparecer sin aviso; el piso local es lo que garantiza que siempre haya un número.</li>
   </ul>
@@ -477,7 +511,7 @@ personal 23/75%<span class="w">!</span> · teams 9/42% · codex 49/59%</pre>
   <p>Hace falta la extensión y una sesión nueva: GNOME carga extensiones al iniciar sesión, así que después de instalarla hay que salir y volver a entrar.</p>
 
   <h3>Otra cosa</h3>
-  <p><a href="https://github.com/legiosai/quartermaster/issues">Abrí un issue.</a> Si podés, pegá la salida de <code>qm --json --redactado</code>: está pensada exactamente para eso — saca mails y rutas de casa para que se pueda comitear.</p>
+  <p><a href="https://github.com/legiosai/quartermaster/issues">Abrí un issue.</a> Pegá la salida de <code>qm --diagnostico</code>: junta en un comando todo lo que hace falta —máquina, escritorio, estado de la extensión y del indicador, el cache y lo que anotó el journal— y ya viene redactada, sin mails, sin tokens y sin ids de cuenta. Se pega tal cual.</p>
 </section>
 
 </main>
