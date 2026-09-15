@@ -37,8 +37,13 @@ haría correr GLib, sin levantar interfaz:
 
 import importlib.machinery
 import importlib.util
+import os
 import pathlib
+import re
+import shutil
+import subprocess
 import sys
+import tempfile
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent
 
@@ -128,6 +133,64 @@ def sondeo_que_revienta(m, ind, _reloj):
     ind.devuelto = [m.Indicador._sondear(ind) for _ in range(3)]
 
 
+def vigia_de_macos() -> list[str]:
+    """El vigía de la barra de macOS, EJECUTADO.
+
+    Compilar no alcanza: lo que hay que comprobar es que con una lectura
+    reciente se calle, que con una vieja avise UNA vez, y que rearme. Se le saca
+    el cuerpo a `func vigia()` y se lo envuelve con lo que nombra —el reloj, la
+    bandera, `registrar`, `duracion` y `programar`— igual que hace
+    gate-duraciones con la escalera.
+    """
+    texto = (RAIZ / "bin/qm-barra.swift").read_text(encoding="utf-8")
+    i = texto.index("    func vigia() {")
+    j = texto.index("\n    }\n", i) + len("\n    }\n")
+    cuerpo = texto[i:j].replace("func vigia()", "func vigia()")
+    # `duracion` de verdad, para que la frase sea la que se va a leer.
+    dur_i = texto.index("func duracion(_ segundos: Int) -> String {")
+    nivel, k = 0, dur_i
+    while True:
+        if texto[k] == "{":
+            nivel += 1
+        elif texto[k] == "}":
+            nivel -= 1
+            if nivel == 0:
+                break
+        k += 1
+    duracion = texto[dur_i:k + 1]
+
+    guion = f"""import Foundation
+{duracion}
+let VIGIA_PLAZO: TimeInterval = 20 * 60
+var anotado: [String] = []
+func registrar(_ t: String) {{ anotado.append(t) }}
+var rearmes = 0
+class Barra {{
+    var calentadoEn: Date?
+    var vigiaAviso = false
+    func programar() {{ rearmes += 1 }}
+{cuerpo}
+}}
+let b = Barra()
+b.calentadoEn = Date()                       // recién leído
+b.vigia()
+print("callado:\\(anotado.isEmpty)")
+b.calentadoEn = Date().addingTimeInterval(-1800)   // media hora sin leer
+b.vigia(); b.vigia(); b.vigia()
+print("avisos:\\(anotado.count)")
+print("rearmes:\\(rearmes)")
+print("frase:\\(anotado.first ?? "")")
+"""
+    with tempfile.TemporaryDirectory() as d:
+        f = pathlib.Path(d) / "v.swift"
+        f.write_text(guion, encoding="utf-8")
+        r = subprocess.run(["swift", str(f)], capture_output=True, text=True,
+                           encoding="utf-8", timeout=300)
+    if r.returncode != 0:
+        raise RuntimeError((r.stderr or "swift falló").strip().splitlines()[-1])
+    return r.stdout.strip().splitlines()
+
+
 def main() -> int:
     fallas = []
 
@@ -188,12 +251,37 @@ def main() -> int:
     if not any(l.startswith("sondeo.reventó") for l in anotado):
         fallas.append("el sondeo se tragó la excepción sin anotarla")
 
+    # 5 · el vigía de macOS, ejecutado donde haya swiftc
+    exigidos = {x for x in os.environ.get("QM_GATE_EXIGE", "").split(",") if x}
+    salteado = ""
+    if shutil.which("swift") is None:
+        if "swift" in exigidos:
+            fallas.append("falta swift y este job lo exige: el vigía de la barra de macOS "
+                          "quedaría sólo compilado, no corrido")
+        else:
+            salteado = "  · salteado: el vigía de macOS (no hay swift en esta máquina)"
+    else:
+        try:
+            dicho = dict(l.split(":", 1) for l in vigia_de_macos())
+            if dicho.get("callado") != "true":
+                fallas.append("el vigía de macOS avisa con una lectura RECIENTE: cría lobo")
+            if dicho.get("avisos") != "1":
+                fallas.append(f"el vigía de macOS avisó {dicho.get('avisos')} veces en tres "
+                              "vueltas: tiene que ser una por corte")
+            if dicho.get("rearmes") != "3":
+                fallas.append(f"el vigía de macOS rearmó {dicho.get('rearmes')} veces y "
+                              "tenían que ser 3: avisar sin rearmar no destraba nada")
+        except Exception as e:  # noqa: BLE001
+            fallas.append(f"no pude correr el vigía de macOS: {e}")
+
     if fallas:
         for f in fallas:
             print(f"GATE ROJO: {f}", file=sys.stderr)
         return 1
     print("lazo: la bandera pegada se suelta y se anota, el vigía avisa una vez y rearma, "
           "y el sondeo sobrevive a su propio error")
+    if salteado:
+        print(salteado)
     return 0
 
 

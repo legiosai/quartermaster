@@ -75,6 +75,8 @@ jobs:
       # siete horas y media sin una línea con el proceso vivo: el lazo se
       # rearmaba desde un solo lugar y había un estado que rearmaba callado.
       - run: make gate-lazo
+        env:
+          QM_GATE_EXIGE: swift   # el runner lo trae: el vigía de macOS se CORRE, no se compila nomás
       - name: y ese gate falla en rojo con el silencio de vuelta
         run: make gate-lazo-rojo
 
