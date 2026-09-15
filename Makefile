@@ -98,18 +98,15 @@ extension-quitar:  ## saca el item propio y devuelve el de AppIndicator
 
 .PHONY: autostart
 autostart:  ## que el indicador arranque solo al iniciar sesión
-	@mkdir -p $(HOME)/.config/autostart
-	@printf '%s\n' \
-	  '[Desktop Entry]' \
-	  'Type=Application' \
-	  'Name=quartermaster' \
-	  'Comment=Cuota de Claude Code en la barra de arriba' \
-	  'Exec=$(CURDIR)/bin/qm-indicator' \
-	  'Icon=utilities-system-monitor-symbolic' \
-	  'Terminal=false' \
-	  'X-GNOME-Autostart-enabled=true' \
-	  > $(HOME)/.config/autostart/quartermaster.desktop
-	@echo "$(HOME)/.config/autostart/quartermaster.desktop escrito"
+	@# El .desktop lo escribe el indicador, no este Makefile: quien instaló por
+	@# apt o por npm no tiene un Makefile, y `qm` se lo ofrece en la primera
+	@# corrida llamando a esta misma bandera. Dos lugares que escriben el mismo
+	@# archivo se despegan; éste es el que había.
+	@"$(CURDIR)/bin/qm-indicator" --instalar-arranque
+
+.PHONY: autostart-quitar
+autostart-quitar:  ## saca el indicador del arranque automático
+	@"$(CURDIR)/bin/qm-indicator" --quitar-arranque
 
 .PHONY: version
 version:  ## mueve la versión a los siete lugares (V=0.1.7 o V=patch)

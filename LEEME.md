@@ -51,11 +51,22 @@ brew install legiosai/tap/quartermaster        # macOS y Linux
 npm install -g @legios/quartermaster           # cualquier lado
 ```
 
-**La barra de menú en macOS:** la primera vez que corrés `qm` en una terminal,
-pregunta una sola vez si la ponés en la barra y que arranque en cada inicio de
-sesión. El install no puede: brew no deja arrancar nada desde una fórmula, y una
-herramienta que lee tokens OAuth no debería registrar agentes de arranque que
-nadie pidió. Sin la pregunta: `brew services start quartermaster`.
+**La barra, en macOS y en Linux:** la primera vez que corrés `qm` en una
+terminal, pregunta una sola vez si lo ponés en la barra y que arranque en cada
+inicio de sesión. El install no puede: brew no deja arrancar nada desde una
+fórmula, el `.deb` deja los archivos y se va, y una herramienta que lee tokens
+OAuth no debería registrar agentes de arranque que nadie pidió. Sin la pregunta:
+`brew services start quartermaster` en macOS, y en Linux
+
+```sh
+qm-indicator --instalar-arranque   # y arrancalo una vez: qm-indicator &
+```
+
+En Linux la pregunta sólo aparece si hay dónde mostrarlo: sesión gráfica,
+`python3-gi` con `AyatanaAppIndicator3`, y una extensión de GNOME que hospede el
+item —la propia o una de AppIndicator—. Sin eso el proceso arrancaría igual y no
+se vería nada arriba, que es peor que no ofrecer. `qm --diagnostico` dice cuál de
+las tres falta.
 
 **Windows:** el instalador de la [última
 release](https://github.com/legiosai/quartermaster/releases/latest). Por usuario

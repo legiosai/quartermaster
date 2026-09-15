@@ -2425,7 +2425,64 @@ def leer_desde(ruta: str) -> dict:
     return json.loads(pathlib.Path(ruta).read_text())
 
 
+ARRANQUE = Path(os.environ.get("XDG_CONFIG_HOME", str(Path.home() / ".config"))) \
+    / "autostart" / "quartermaster.desktop"
+
+
+def instalar_arranque() -> int:
+    """Que el item arranque solo al iniciar sesión.
+
+    Vive acá y no sólo en el Makefile porque quien instaló por apt o por npm no
+    tiene un Makefile: el .deb deja bin/qm-indicator en /usr/lib/quartermaster y
+    nada más, así que el item quedaba a un comando que hay que saber. Es el
+    mismo agujero que en macOS tapó `qm-barra --instalar-arranque`, y `qm` lo
+    ofrece en la primera corrida por el mismo camino.
+
+    El Exec apunta a ESTE archivo resuelto, no a `qm-indicator` a secas: el
+    arranque de la sesión no pasa por el .zshrc del usuario, así que ~/.local/bin
+    puede no estar en su PATH.
+    """
+    try:
+        ARRANQUE.parent.mkdir(parents=True, exist_ok=True)
+        ARRANQUE.write_text(
+            "[Desktop Entry]\n"
+            "Type=Application\n"
+            "Name=quartermaster\n"
+            "Comment=Cuota de Claude Code en la barra de arriba\n"
+            f"Exec={YO}\n"
+            "Icon=utilities-system-monitor-symbolic\n"
+            "Terminal=false\n"
+            "X-GNOME-Autostart-enabled=true\n",
+            encoding="utf-8")
+    except OSError as e:
+        print(f"no pude escribir {ARRANQUE}: {e}", file=sys.stderr)
+        return 1
+    print(f"{ARRANQUE} escrito")
+    return 0
+
+
+def quitar_arranque() -> int:
+    """Lo contrario, porque instalar sin poder desinstalar no es una opción."""
+    try:
+        ARRANQUE.unlink()
+    except FileNotFoundError:
+        print(f"{ARRANQUE} no estaba")
+        return 0
+    except OSError as e:
+        print(f"no pude borrar {ARRANQUE}: {e}", file=sys.stderr)
+        return 1
+    print(f"{ARRANQUE} borrado")
+    return 0
+
+
 def main() -> int:
+    # Antes que nada: ninguna de las dos necesita sesión gráfica ni un qm en el
+    # PATH, y `qm` llama a la primera desde una terminal.
+    if "--instalar-arranque" in sys.argv:
+        return instalar_arranque()
+    if "--quitar-arranque" in sys.argv:
+        return quitar_arranque()
+
     fijo = None
     if "--desde" in sys.argv:
         i = sys.argv.index("--desde")
