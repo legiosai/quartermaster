@@ -43,6 +43,31 @@ const compilado = join(RAIZ, 'dist', 'cli', 'qm.js');
 const fuente = join(RAIZ, 'src', 'cli', 'qm.ts');
 
 if (sirveEsteNode() && existsSync(compilado)) {
+  // `src/adapters/opencode.ts` usa node:sqlite, que es experimental, así que
+  // Node escribe dos renglones en stderr en cada corrida:
+  //
+  //   (node:56893) ExperimentalWarning: SQLite is an experimental feature…
+  //   (Use `node --trace-warnings ...` to show where the warning was created)
+  //
+  // Eso no es de qm y no es para quien lo corre, pero sale por el mismo canal
+  // por el que qm explica: `qm --calentar` dice por ahí por qué una cuenta no
+  // se calentó, y las tres barras anotan esos renglones en su log. Medido el
+  // 2026-09-15: el journal del indicador de GNOME quedaba con dos warnings por
+  // cada pid de node y el motivo de verdad enterrado entre ellos.
+  //
+  // El lanzador de shell lo apaga con --disable-warning, pero por ACÁ no pasa:
+  // cuando el Node que corre sirve, el CLI se importa en este mismo proceso, y
+  // este proceso lo arrancó npm sin banderas. Así que se filtra a mano.
+  //
+  // Se saca SÓLO esa clase: el manejador de siempre se guarda y se le sigue
+  // pasando todo lo demás, para que una deprecación de verdad no se pierda.
+  const porDefecto = process.listeners('warning')[0];
+  process.removeAllListeners('warning');
+  process.on('warning', (w) => {
+    if (w.name === 'ExperimentalWarning') return;
+    if (porDefecto) porDefecto(w);
+    else console.error(w.stack ?? String(w));
+  });
   // El CLI hace su trabajo al importarse y maneja su propio código de salida.
   await import(pathToFileURL(compilado).href);
 } else {
