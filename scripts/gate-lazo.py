@@ -217,8 +217,7 @@ var anotado: [String] = []
 func registrar(_ t: String) {{ anotado.append(t) }}
 var rearmes = 0
 var calentados = 0
-class Barra: NSObject {{
-    @objc func nada() {{ }}
+class Barra {{
     var calentadoEn: Date?
     var vigiaAviso = false
     var reloj: Timer?
@@ -250,9 +249,7 @@ print("alejado:\\(b.reloj!.fireDate > primera)")
 let c = Barra()
 c.programar()
 let vieja = c.reloj!.fireDate
-c.reloj = Timer(fireAt: Date().addingTimeInterval(-600), interval: 0,
-                target: c, selector: #selector(Barra.nada), userInfo: nil, repeats: false)
-RunLoop.main.add(c.reloj!, forMode: .common)
+c.reloj!.fireDate = Date().addingTimeInterval(-600)   // la fecha YA venció
 c.calentadoEn = Date().addingTimeInterval(-1800)
 c.vigiaAviso = false
 c.vigia()
@@ -265,7 +262,11 @@ _ = vieja
         r = subprocess.run(["swift", str(f)], capture_output=True, text=True,
                            encoding="utf-8", timeout=300)
     if r.returncode != 0:
-        raise RuntimeError((r.stderr or "swift falló").strip().splitlines()[-1])
+        # Las últimas líneas, no la última: un error de Swift termina en la
+        # línea del fuente y sin las de arriba no dice qué estuvo mal.
+        cola = (r.stderr or "swift falló").strip().splitlines()
+        errores = [l for l in cola if ": error:" in l] or cola[-4:]
+        raise RuntimeError(" / ".join(errores[:3]))
     return r.stdout.strip().splitlines()
 
 
