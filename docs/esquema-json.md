@@ -31,9 +31,34 @@ exists to avoid.
   "generado": "2026-09-13T02:45:11.367Z",  // ISO 8601, UTC
   "plataforma": "linux",                   // process.platform
   "ventanaDias": 7,                        // the local-usage window, --dias
+  "frenaPrimero": { … },                   // which account blocks you first. null if none has a number
   "perfiles": [ … ]                        // one per ACCOUNT, not per machine
 }
 ```
+
+### `frenaPrimero` — the one answer, resolved once
+
+```jsonc
+{
+  "perfil": ".claude-teams",   // matches a `perfil` in the array below
+  "producto": "claude",
+  "ventana": { … },            // the same window shape as `cuota.frena`
+  "dormida": false             // true only when EVERY account is dormant
+}
+```
+
+**Do not recompute this.** It is not "the highest `frena.porcentaje`": a dormant
+account (see `relevancia`) never leads while an awake one exists, because an
+abandoned free account pinned at 100 % would win that title forever — 100 is the
+maximum. That choice used to live in each renderer, six copies of it, and the
+day the rule changed five of them kept the old answer. Read the field.
+
+### The order of `perfiles`
+
+Awake accounts first, in discovery order; dormant ones last, also in discovery
+order. **Draw them in the order they arrive.** Nothing is ever removed from the
+array — hiding an account is a separate, explicit user preference
+(`config.json`), never something the tool decides on its own.
 
 Each entry of `perfiles`:
 
@@ -138,15 +163,40 @@ never reached the one caller that needed it.
 ```
 
 It is the newest timestamp across the profile's transcripts — when this
-account was last actually used. It is `null` where it cannot be measured (Codex
-and the opencode providers do not expose it per account); `null` means *not
-known*, never *not used*.
+account was last actually used. For Codex it is the newest rollout file, and
+for an opencode provider it is that provider's own `max(time_updated)`; it is
+`null` only where nothing on disk can answer, and `null` means *not known*,
+never *not used*.
 
 It exists because **level does not predict movement**. A bar at 2% tells you how
 much is left; it does not tell you whether the number is about to change. The
 account you are using right now is the one whose number is moving, whatever the
 level. The GNOME item uses this to decide which accounts to re-read from the
-endpoint.
+endpoint, and it is one of the inputs to `relevancia`.
+
+### `relevancia` — where this account goes, and why
+
+```jsonc
+"relevancia": {
+  "dormida": true,
+  "porque": ["sin usar hace 21 días", "plan free"]   // prose, do not parse
+}
+```
+
+A **dormant** account is one with evidence it is not being used *and* nothing
+paid waiting on the other side. It sorts to the end of `perfiles` and never
+leads `frenaPrimero`. It is never hidden, and every number it has is still
+there: the founding bug of this project was a monitor that did not show an
+account.
+
+Both halves are required, and the second one is the important one. An exhausted
+account you *do* use is exactly what this tool exists to point at, so the test
+can never be "is it at 100 %". The signals are the plan (free, or none
+reported), whether the credential is expired, the last use, and the local
+request count over a window at least as long as the cutoff — `--dias=1` is not
+evidence that an account was abandoned. Seven days is the cutoff.
+
+`porque` is empty when `dormida` is false.
 
 > Measured 2026-09-13 with two sessions open: a team account sitting at 2% got
 > **one** endpoint read in 55 minutes, because the warm-up filtered by level
@@ -245,7 +295,10 @@ the tray red and fires the "you are blocked" warning for something that ended.
 
 - Every field above keeps its meaning.
 - New fields may appear. **Ignore what you do not know.**
-- `frase` is prose for humans: read it, show it, do not parse it.
+- `frase` and `relevancia.porque` are prose for humans: read them, show them,
+  do not parse them.
+- The order of `perfiles` is meaningful (see above). It was not before
+  `frenaPrimero` existed; nothing may reorder it now.
 - `--redactado` removes emails and home paths, and nothing else changes shape.
 
 ## What is deliberately not here

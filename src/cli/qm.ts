@@ -33,11 +33,19 @@ import {
   duenoCodex,
   hayCodex,
   DIRECTORIO_CODEX,
+  ultimaActividadCodex,
 } from '../adapters/codex.ts';
 import { endpointEnCache, frenadoHasta, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import * as entorno from '../adapters/entorno.ts';
 import { cuentaPedida, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
+import {
+  DIAS_DORMIDA,
+  elQueFrena,
+  ordenarPorRelevancia,
+  relevancia,
+  type Relevancia,
+} from '../core/relevancia.ts';
 import {
   consumoOpencode,
   hayOpencode,
@@ -212,6 +220,14 @@ interface FilaPerfil {
   ultimoUso: Date | null;
   /** false cuando no hay de dónde medirlo: informar 0 sería mentir. */
   localMedido: boolean;
+  /**
+   * La credencial está vencida.
+   *
+   * Existe como booleano y no leyendo `veredicto` porque `veredicto` es un
+   * texto para mostrar: una regla del núcleo que lo compare con la cadena
+   * 'vencida' se rompe el día que alguien mejore la redacción.
+   */
+  credencialVencida: boolean;
 }
 
 /**
@@ -290,6 +306,8 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
   return {
     producto: 'codex',
     localMedido: local !== null,
+    // La credencial la administra codex: desde acá no se puede saber si venció.
+    credencialVencida: false,
     perfil,
     veredicto: info === null ? 'la pone codex' : `la pone codex · ${info.creditosReset} reset(s) sin usar`,
     cuota,
@@ -300,10 +318,10 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     tokens: local?.tokens ?? 0,
     tokensVentana: ventana?.tokens ?? 0,
     porModelo: [],
-    // Codex no expone cuándo fue la última actividad en lo que devuelve
-    // `consumoCodex`, así que acá es null y no un cero inventado. El día que lo
-    // exponga, entra por el mismo campo.
-    ultimoUso: null,
+    // La fecha del rollout más nuevo. Cuesta un stat por archivo y ningún
+    // parseo, así que también vale en --breve — que es donde más hace falta,
+    // porque es el modo que corren todas las barras.
+    ultimoUso: ultimaActividadCodex(),
   };
 }
 
@@ -369,6 +387,8 @@ async function filasOpencode(o: Opciones): Promise<FilaPerfil[]> {
     return ({
     producto: 'opencode',
     localMedido: true,
+    // opencode guarda sus propias credenciales y no informa vencimiento.
+    credencialVencida: false,
     perfil: {
       directorio: 'opencode',
       nombre: nombreOpencode(prov),
@@ -388,10 +408,12 @@ async function filasOpencode(o: Opciones): Promise<FilaPerfil[]> {
     requests: c.sesiones,
     tokens: c.tokens,
     tokensVentana: enVentana.get(c.proveedor) ?? 0,
-    // `CuentaOpencode` tampoco lo trae. Hay una fecha de «cuándo se tocó la
-    // base» pero es de toda la base, no de esta cuenta: usarla diría que todos
-    // los proveedores se usaron a la vez, que es falso.
-    ultimoUso: null,
+    // La fecha POR PROVEEDOR, que es la que ya se usa dos renglones más arriba
+    // para el veredicto. Acá decía null con un comentario que explicaba que la
+    // única fecha disponible era la de toda la base — dejó de ser cierto cuando
+    // se agregó `ultimoUsoOpencode()`, que hace `max(time_updated) group by
+    // proveedor`. El dato estaba, y se escribía sólo como texto.
+    ultimoUso: cuando,
     porModelo: c.modelo === null ? [] : [[c.modelo, c.tokens]],
   });
   }));
@@ -541,6 +563,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
         return {
           producto: 'claude',
           localMedido: false,
+          credencialVencida: cred.vencida,
           perfil,
           veredicto,
           cuota,
@@ -564,6 +587,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
       return {
         producto: 'claude',
         localMedido: true,
+        credencialVencida: cred.vencida,
         perfil,
         veredicto,
         cuota,
@@ -589,7 +613,29 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
   // lo segundo es una preferencia.
   const { filas, nota } = seleccionar(todas, configEfectiva());
   if (nota !== null && !o.json && !o.breve) console.error(tenue(`  (${nota} · ${RUTA_CONFIG})`));
-  return filas;
+  // Y acá, lo último: las dormidas al fondo. Ordenar es del núcleo y no de cada
+  // pantalla — ninguno de los seis renderers ordena perfiles, así que con esto
+  // alcanza para que el orden sea el mismo en todos.
+  return ordenarPorRelevancia(filas, (f) => relevanciaDe(f, o));
+}
+
+/**
+ * Dónde va esta fila: al frente o al fondo.
+ *
+ * Traduce lo que sabe una `FilaPerfil` a las señales que entiende el núcleo. La
+ * traducción vive acá y no adentro de `relevancia()` para que el núcleo no
+ * tenga que saber qué es un perfil de Claude ni una fila de Codex.
+ */
+function relevanciaDe(f: FilaPerfil, o: Opciones): Relevancia {
+  return relevancia({
+    plan: f.perfil.cuenta?.plan ?? null,
+    ultimoUso: f.ultimoUso,
+    // `localMedido` es la diferencia entre «cero» y «no lo medí», y el núcleo
+    // trata esas dos cosas distinto a propósito.
+    requests: f.localMedido ? f.requests : null,
+    ventanaDias: f.localMedido ? o.dias : null,
+    credencialVencida: f.credencialVencida,
+  });
 }
 
 /** La config del archivo, con --solo / --ocultar pisándola. */
@@ -710,18 +756,22 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
         `  ${relleno('', 18)} ${tenue(`local: ${tokens(f.tokens)} en ${o.dias}d · ${tokens(f.tokensVentana)} en ${o.ventanaH}h · ${f.requests} requests`)}`,
       );
     }
+    // Por qué esta cuenta quedó al fondo. Una cuenta que baja de lugar sin
+    // decir por qué es una decisión invisible, y una decisión invisible es
+    // indistinguible de un bug.
+    const rel = relevanciaDe(f, o);
+    if (rel.dormida) {
+      console.log(`  ${relleno('', 18)} ${tenue(`dormida: ${rel.porque.join(' · ')} — no encabeza`)}`);
+    }
     console.log();
   }
 
   // El renglón que sirve cuando no querés leer la tabla entera.
-  const peores: { f: FilaPerfil; v: VentanaCuota }[] = [];
-  for (const f of filas) {
-    if (f.cuota.estado !== 'ok') continue;
-    const v = peor(paraMostrar(f.cuota.ventanas));
-    if (v !== null) peores.push({ f, v });
-  }
-  peores.sort((a, b) => b.v.porcentaje - a.v.porcentaje);
-  const top = peores[0];
+  // Quién encabeza NO es «el porcentaje más alto»: una cuenta dormida en 100 %
+  // ganaría siempre, porque 100 es el máximo. La regla está en el núcleo y la
+  // comparten las seis pantallas.
+  const lider = elQueFrena(filas, (f) => frenaDe(f)?.porcentaje ?? null, (f) => relevanciaDe(f, o).dormida);
+  const top = lider === null ? undefined : { f: lider, v: frenaDe(lider)! };
   if (top) {
     console.log(
       `  ${negrita('lo primero que te frena:')} ${top.f.perfil.nombre} · ${nombreVentana(top.v)} ${colorPct(top.v.porcentaje)(`${top.v.porcentaje.toFixed(0)}%`)}` +
@@ -753,7 +803,7 @@ function nombreCorto(n: string): string {
  * cada perfil que tenga número. Los perfiles sin cuota no se listan — en una
  * línea de 80 columnas, decir «no sé» de tres perfiles tapa el que sí sabés.
  */
-function pintarBreve(filas: readonly FilaPerfil[]): void {
+function pintarBreve(filas: readonly FilaPerfil[], o: Opciones): void {
   const partes: string[] = [];
   for (const f of filas) {
     if (f.cuota.estado !== 'ok') continue;
@@ -763,7 +813,10 @@ function pintarBreve(filas: readonly FilaPerfil[]): void {
     // El «!» ya no es sólo severidad: también avisa que a este ritmo tocás el
     // techo antes de que la ventana se reinicie, que es lo que duele.
     const chocas = f.proyeccion?.estado === 'sube' && f.proyeccion.chocas;
-    const aviso = v.severidad !== 'normal' || chocas ? '!' : '';
+    // Una cuenta dormida no lleva «!». El signo existe para avisarte de algo
+    // que te va a frenar, y una cuenta que nadie usa no te frena: en una
+    // statusline de una línea, ese «!» es ruido permanente.
+    const aviso = !relevanciaDe(f, o).dormida && (v.severidad !== 'normal' || chocas) ? '!' : '';
     // Dos números, dos preguntas: la sesión dice si podés seguir AHORA, y la
     // barra que frena antes dice si llegás al final de la ventana larga. Una
     // sola de las dos deja media respuesta.
@@ -884,6 +937,29 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
     generado: new Date().toISOString(),
     plataforma: process.platform,
     ventanaDias: o.dias,
+    // QUIÉN ENCABEZA, ya resuelto.
+    //
+    // Antes no estaba, y la consecuencia era medible: la elección del perfil
+    // que encabeza estaba escrita SEIS veces —terminal, GNOME, macOS, Windows,
+    // tablero y waybar— y las seis decían «el `frena` con el porcentaje más
+    // alto». Seis copias son seis respuestas el día que alguien cambia el
+    // criterio, que es exactamente lo que pasó: bajar las cuentas dormidas
+    // habría arreglado una pantalla y dejado las otras cinco como estaban.
+    //
+    // Es el mismo argumento que dejó escrito `frena` adentro de cada cuota, una
+    // vuelta más arriba: el CLI resuelve, los renderers dibujan.
+    frenaPrimero: ((): unknown => {
+      const lider = elQueFrena(filas, (f) => frenaDe(f)?.porcentaje ?? null, (f) => relevanciaDe(f, o).dormida);
+      if (lider === null) return null;
+      return {
+        perfil: lider.perfil.nombre,
+        producto: lider.producto,
+        ventana: ventanaJson0(frenaDe(lider)),
+        // true cuando NO quedaba ninguna despierta: el encabezado es lo único
+        // que había, y quien dibuja puede decirlo en vez de afirmarlo a secas.
+        dormida: relevanciaDe(lider, o).dormida,
+      };
+    })(),
     perfiles: filas.map((f) => ({
       producto: f.producto,
       perfil: f.perfil.nombre,
@@ -950,6 +1026,9 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
       // barra, y el sondeo corre --breve. Adentro de `local` el campo estaba
       // escrito pero nunca llegaba a quien lo necesitaba.
       ultimoUso: f.ultimoUso?.toISOString() ?? null,
+      // Dónde va esta cuenta en la lista, y por qué. `porque` es prosa para
+      // mostrar al lado; no se parsea, igual que `frase`.
+      relevancia: relevanciaDe(f, o),
       // En --breve no se leyeron las transcripciones. Informar 0 sería decir
       // "no consumiste nada" cuando lo que pasa es "no lo medí".
       local: o.breve || !f.localMedido
@@ -965,10 +1044,28 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
   };
 }
 
-/** El porcentaje más alto visto en cualquier perfil, para --umbral. */
-function maximo(filas: readonly FilaPerfil[]): number {
+/** La ventana que frena en esta fila, ya resuelta. null si no hay número. */
+function frenaDe(f: FilaPerfil): VentanaCuota | null {
+  return f.cuota.estado === 'ok' ? peor(paraMostrar(f.cuota.ventanas)) : null;
+}
+
+/**
+ * El porcentaje más alto que IMPORTA, para --umbral.
+ *
+ * Las dormidas no cuentan, y no es un detalle de presentación: `--esperar` usa
+ * el mismo criterio y duerme hasta el reinicio de la barra más alta. Con una
+ * cuenta free abandonada en 100 % que reinicia en quince días, `qm --esperar &&
+ * codex ...` se quedaba esperando quince días para correr un comando que podía
+ * correr ya. El umbral tiene que mirar lo que te frena de verdad.
+ *
+ * Si TODAS están dormidas se las mira igual: en ese caso son lo único que hay,
+ * y devolver 0 sería afirmar que no hay ninguna barra alta.
+ */
+function maximo(filas: readonly FilaPerfil[], o: Opciones): number {
+  const cuentan = filas.filter((f) => !relevanciaDe(f, o).dormida);
+  const mirar = cuentan.length > 0 ? cuentan : filas;
   let m = 0;
-  for (const f of filas) {
+  for (const f of mirar) {
     if (f.cuota.estado !== 'ok') continue;
     for (const v of f.cuota.ventanas) m = Math.max(m, v.porcentaje);
   }
@@ -1180,9 +1277,14 @@ if (process.argv.includes('--esperar')) {
       console.error(cuenta === null ? 'no hay ninguna cuenta' : `no encontré la cuenta "${cuenta}"`);
       process.exit(2);
     }
+    // Las dormidas no hacen esperar a nadie. Si `--cuenta=` dejó SÓLO dormidas,
+    // se las mira igual: pediste esa cuenta y esperar por ella es lo que
+    // pediste.
+    const despiertas = filas.filter((f) => !relevanciaDe(f, opts).dormida);
+    const cuentan = despiertas.length > 0 ? despiertas : filas;
     let peorPct = 0;
     let cuando: Date | null = null;
-    for (const f of filas) {
+    for (const f of cuentan) {
       if (f.cuota.estado !== 'ok') continue;
       const v = peor(paraMostrar(f.cuota.ventanas));
       if (v === null) continue;
@@ -1227,9 +1329,9 @@ const unaVuelta = async (): Promise<number> => {
     return 0;
   }
   if (opciones.json) console.log(JSON.stringify(comoJson(filas, opciones), null, 2));
-  else if (opciones.breve) pintarBreve(filas);
+  else if (opciones.breve) pintarBreve(filas, opciones);
   else pintar(filas, opciones);
-  if (opciones.umbral !== null && maximo(filas) >= opciones.umbral) return 3;
+  if (opciones.umbral !== null && maximo(filas, opciones) >= opciones.umbral) return 3;
   return 0;
 };
 

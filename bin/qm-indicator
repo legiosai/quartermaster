@@ -690,6 +690,14 @@ class VistaCuenta:
                               + (" · viejo" if edad >= VIEJO_SEGUNDOS else ""))
             self.lecturas = "lecturas:  " + "   ·   ".join(partes) if partes else None
 
+        # Por qué esta cuenta quedó al fondo y no encabeza. El núcleo ya lo
+        # resolvió y lo escribió en palabras; acá sólo se dibuja. Una cuenta
+        # que cambia de lugar sin decir por qué es indistinguible de un bug.
+        rel = p.get("relevancia") or {}
+        self.dormida = None
+        if rel.get("dormida"):
+            self.dormida = "dormida:  " + "   ·   ".join(rel.get("porque") or [])
+
     @staticmethod
     def _ancho_contenido() -> float:
         return ANCHO_PANEL - 2 * MARGEN - 2 * PAD_TARJETA
@@ -707,6 +715,8 @@ class VistaCuenta:
             # 16 por renglón, y 4 de aire arriba del bloque.
             alto += 4 + 16 * len(self.presupuesto)
         if self.lecturas:
+            alto += 17
+        if self.dormida:
             alto += 17
         return alto + PAD_TARJETA - 4
 
@@ -831,6 +841,11 @@ class VistaCuenta:
             if not self.ritmo and not self.presupuesto:
                 y += 4
             pluma.escribir(ix, y, self.lecturas, 10.5, TEMA.terciario, ancho=ancho, elipsis=True)
+            y += 17
+        if self.dormida:
+            if not self.ritmo and not self.presupuesto and not self.lecturas:
+                y += 4
+            pluma.escribir(ix, y, self.dormida, 10.5, TEMA.terciario, ancho=ancho, elipsis=True)
         return arriba + alto
 
 
@@ -897,21 +912,33 @@ class VistaResumen:
         self.nivel, self.reinicia = nivel, reinicia
 
     @staticmethod
-    def desde(perfiles: list) -> "VistaResumen | None":
-        mejor = None
-        for p in perfiles:
-            cuota = p.get("cuota") or {}
-            if cuota.get("estado") != "ok":
-                continue
-            v = cuota.get("frena")
-            if v and (mejor is None or v["porcentaje"] > mejor[1]["porcentaje"]):
-                mejor = (p, v)
-        if mejor is None:
+    def desde(datos: dict) -> "VistaResumen | None":
+        """Lee quién encabeza del JSON. NO lo vuelve a decidir.
+
+        Acá adentro había un `for` que se quedaba con el `frena` de porcentaje
+        más alto. Decía lo mismo que el CLI sólo por casualidad, y dejó de
+        decirlo el día que el criterio cambió: una cuenta dormida en 100 % ya no
+        encabeza, y esta copia no se había enterado. La misma elección estaba
+        escrita seis veces, una por pantalla.
+
+        CONTRIBUTING.md lo dice así: una regla que un renderer tiene que
+        reimplementar es un bug del CLI. Ahora el CLI la emite en
+        `frenaPrimero` y esto sólo la busca.
+        """
+        lider = datos.get("frenaPrimero")
+        if not lider:
             return None
-        p, v = mejor
+        v = lider.get("ventana")
+        if not v:
+            return None
+        # El perfil completo, para la proyección. Si no aparece —no debería—
+        # igual se dibuja la cabecera con lo que vino.
+        p = next((x for x in datos.get("perfiles", [])
+                  if x.get("perfil") == lider.get("perfil")), {})
         proy = p.get("proyeccion")
         choca = bool(proy and proy.get("estado") == "sube" and proy.get("chocasAntesDelReinicio"))
-        return VistaResumen(corto(p.get("perfil") or "?"), nombre_ventana(v), v["porcentaje"],
+        nombre = p.get("perfil") or lider.get("perfil") or "?"
+        return VistaResumen(corto(nombre), nombre_ventana(v), v["porcentaje"],
                             nivel_de(v["porcentaje"], v.get("preocupa", False) or choca),
                             v.get("reinicia"))
 
@@ -1019,9 +1046,15 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             continue
         proy = p.get("proyeccion")
         chocas = bool(proy and proy["estado"] == "sube" and proy["chocasAntesDelReinicio"])
+        # Una cuenta dormida no alarma. El `!` del item y la notificación de
+        # escritorio existen para avisarte de algo que te va a frenar; una
+        # cuenta que nadie usa, en 100 % desde hace semanas, no te frena nada y
+        # el aviso es puro ruido — el mismo ruido que hizo que alguien quisiera
+        # esconderla, que es lo que este repo no quiere que haga falta.
+        dormida = bool((p.get("relevancia") or {}).get("dormida"))
 
-        def alerta(v, _frena=frena, _chocas=chocas) -> bool:
-            if not v:
+        def alerta(v, _frena=frena, _chocas=chocas, _dormida=dormida) -> bool:
+            if not v or _dormida:
                 return False
             return bool(v.get("preocupa")) or (_chocas and v.get("clave") == _frena.get("clave"))
 
@@ -1050,9 +1083,15 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             "ultimo_uso": p.get("ultimoUso"),
             "viejo": (cuota.get("edadSegundos") or 0) >= VIEJO_SEGUNDOS,
         })
-        if avisar is not None:
+        if avisar is not None and not dormida:
             # Todas las barras, no sólo la que frena: la semanal puede estar
             # tranquila mientras la de sesión te para, y al revés.
+            #
+            # Salvo si la cuenta está dormida. Una notificación de escritorio
+            # que dice «codex llegó al 95 %» por una cuenta free que nadie toca
+            # hace semanas no avisa de nada: interrumpe. Es el mismo ruido que
+            # hace que alguien termine escondiendo la cuenta, y esconderla es lo
+            # que este cambio existe para que no haga falta.
             avisar(nombre, cuota.get("mostrar") or [], frena, proy, chocas)
     return piezas
 
@@ -1165,7 +1204,7 @@ def modelo_panel(datos):
         i += 1
     if calladas:
         vistas.append(VistaSinCuota(calladas))
-    return VistaResumen.desde(perfiles), vistas
+    return VistaResumen.desde(datos), vistas
 
 
 def _pluma_de_medir() -> Pluma:

@@ -2,6 +2,22 @@
     "generado": "2026-09-10T13:44:14.067Z",
     "plataforma": "linux",
     "ventanaDias": 7,
+    "frenaPrimero": {
+        "perfil": ".claude-nombre-larguisimo-nombre-larguisimo-nombre-larguisimo-nombre-larguisimo-",
+        "producto": "claude",
+        "ventana": {
+            "clave": "weekly_scoped",
+            "alcance": "Fable",
+            "grupo": "weekly",
+            "porcentaje": 89,
+            "severidad": "warning",
+            "activa": true,
+            "reinicia": "2026-09-13T04:00:00.305Z",
+            "nombre": "weekly_scoped (Fable)",
+            "preocupa": true
+        },
+        "dormida": false
+    },
     "perfiles": [
         {
             "producto": "claude",
@@ -262,7 +278,11 @@
                 "horasHoy": 10.3,
                 "horasRestantes": 62.3
             },
-            "local": null
+            "local": null,
+            "relevancia": {
+                "dormida": false,
+                "porque": []
+            }
         }
     ]
 }

@@ -1,7 +1,8 @@
-"""Dos invariantes del panel que no avisan cuando se rompen.
+"""Tres invariantes del panel que no avisan cuando se rompen.
 
 1 · Ninguna tarjeta puede ser más alta que una pantalla.
 2 · Nada se dibuja fuera de la tarjeta.
+3 · La cabecera existe, y no la encabeza una cuenta dormida.
 
 El panel de GNOME es un `Gtk.Menu`, y un menú rueda ITEM por item: con un solo
 item más alto que la pantalla no hay nada que rodar y el menú directamente no
@@ -42,9 +43,53 @@ def main() -> int:
     if not margen_limpio(m):
         return 1
 
+    if not cabecera_correcta(m):
+        return 1
+
     print(f"tarjetas: la más alta es {nombre} con {alto} px, bajo el techo de {TECHO}; "
           f"y nada se sale del margen")
+    print("cabecera: está, y la encabeza una cuenta despierta")
     return 0
+
+
+def cabecera_correcta(m) -> bool:
+    """Que el panel tenga cabecera, y que no la encabece una cuenta dormida.
+
+    Las dos mitades existen porque las dos se rompieron de verdad, en silencio:
+
+    · La cabecera DESAPARECIÓ entera el día que dejó de calcularse acá y pasó a
+      leerse de `frenaPrimero`. Los fixtures todavía no traían ese campo, así
+      que `VistaResumen.desde()` devolvía None y el panel se dibujaba sin
+      encabezado. Los gates siguieron verdes: ninguno miraba si estaba.
+
+    · Y encabezarla con una cuenta dormida es el bug que originó todo el cambio.
+      Una cuenta free abandonada y clavada en 100 % gana por porcentaje siempre,
+      porque 100 es el máximo posible.
+    """
+    cabecera, _ = m.modelo_panel(m.leer_desde("test/fixtures/panel.json"))
+    if cabecera is None:
+        print("GATE ROJO: el panel se dibujó SIN cabecera. El fixture no trae "
+              "`frenaPrimero`, o el renderer dejó de leerlo.", file=sys.stderr)
+        return False
+
+    datos = m.leer_desde("test/fixtures/panel-dormida.json")
+    cabecera, _ = m.modelo_panel(datos)
+    if cabecera is None:
+        print("GATE ROJO: sin cabecera en el fixture de la cuenta dormida",
+              file=sys.stderr)
+        return False
+    dormidas = {p.get("perfil") for p in datos.get("perfiles", [])
+                if (p.get("relevancia") or {}).get("dormida")}
+    if not dormidas:
+        print("GATE ROJO: el fixture panel-dormida.json perdió su cuenta dormida, "
+              "así que no prueba nada", file=sys.stderr)
+        return False
+    if cabecera.cuenta in {m.corto(x) for x in dormidas}:
+        print(f"GATE ROJO: encabeza «{cabecera.cuenta}», que está dormida. Una "
+              f"cuenta que nadie usa no puede ser «lo primero que te frena».",
+              file=sys.stderr)
+        return False
+    return True
 
 
 def margen_limpio(m) -> bool:

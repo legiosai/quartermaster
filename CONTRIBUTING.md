@@ -61,6 +61,7 @@ Useful gates, all runnable locally:
 | `make gate-npm` | the npm tarball **installs and runs**, not just that it exists | — |
 | `make gate-npm-rojo` | …and that the gate above actually goes red | — |
 | `make gate-dibujo` | the GNOME surfaces compile, parse and draw pixels | Linux + GTK |
+| `make gate-dibujo-rojo` | …and that it catches a panel with no header, or one headed by a dormant account | Linux + GTK |
 | `make gate-duraciones` | the four duration ladders agree across languages | — |
 | `make gate-presupuesto` | the five budget phrases quote the same numbers | — |
 | `make gate-presupuesto-rojo` | …and that the gate above actually goes red | — |

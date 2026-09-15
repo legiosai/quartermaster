@@ -235,6 +235,27 @@ gate-calentado-rojo:  ## los dos rojos de gate-calentado: el filtro y la regla
 gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
 
+.PHONY: gate-dibujo-rojo
+gate-dibujo-rojo:  ## los dos rojos de la cabecera: sin frenaPrimero, y encabezada por una dormida
+	@cp test/fixtures/panel.json .panel.gate
+	@python3 -c "import json;d=json.load(open('test/fixtures/panel.json'));d.pop('frenaPrimero',None);json.dump(d,open('test/fixtures/panel.json','w'),indent=4)"
+	@if python3 scripts/gate-tarjetas.py >/dev/null 2>&1; then \
+	  mv .panel.gate test/fixtures/panel.json; \
+	  echo "✗ el gate NO falló con un fixture sin frenaPrimero: el panel se dibujaría sin cabecera y nadie se enteraría."; exit 1; \
+	else \
+	  mv .panel.gate test/fixtures/panel.json; \
+	  echo "✓ el gate falla en rojo cuando el panel se queda sin cabecera"; \
+	fi
+	@cp test/fixtures/panel-dormida.json .dormida.gate
+	@python3 -c "import json;d=json.load(open('test/fixtures/panel-dormida.json'));c=[p for p in d['perfiles'] if p['perfil']=='codex'][0];d['frenaPrimero']={'perfil':'codex','producto':'codex','ventana':c['cuota']['frena'],'dormida':True};json.dump(d,open('test/fixtures/panel-dormida.json','w'),indent=4)"
+	@if python3 scripts/gate-tarjetas.py >/dev/null 2>&1; then \
+	  mv .dormida.gate test/fixtures/panel-dormida.json; \
+	  echo "✗ el gate NO falló con una cuenta dormida encabezando. Es el bug que el cambio vino a arreglar."; exit 1; \
+	else \
+	  mv .dormida.gate test/fixtures/panel-dormida.json; \
+	  echo "✓ el gate falla en rojo cuando encabeza una cuenta dormida"; \
+	fi
+
 .PHONY: construir
 construir:  ## compila src/ a dist/ — sólo hace falta para el tarball de npm
 	@npm run --silent construir

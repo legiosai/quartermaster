@@ -3,17 +3,17 @@
     "plataforma": "linux",
     "ventanaDias": 7,
     "frenaPrimero": {
-        "perfil": "codex",
-        "producto": "codex",
+        "perfil": ".claude",
+        "producto": "claude",
         "ventana": {
-            "clave": "weekly_all",
-            "alcance": null,
+            "clave": "weekly_scoped",
+            "alcance": "Fable",
             "grupo": "weekly",
-            "porcentaje": 100,
-            "severidad": "normal",
-            "activa": false,
-            "reinicia": "2026-09-15T10:54:36.000Z",
-            "nombre": "weekly_all",
+            "porcentaje": 89,
+            "severidad": "warning",
+            "activa": true,
+            "reinicia": "2026-09-13T04:00:00.305Z",
+            "nombre": "weekly_scoped (Fable)",
             "preocupa": true
         },
         "dormida": false
@@ -266,11 +266,9 @@
                 "clave": "weekly_scoped",
                 "alcance": "Fable",
                 "porDia": 4.2,
-                "porDiaHoy": 6.8,
-                "restanteMedido": 4.2,
                 "quedaHoy": 1.8,
                 "gastadoHoy": 2.6,
-                "restanteHoy": 4.2,
+                "restanteHoy": 1.6,
                 "gastadoMedido": 2.6,
                 "medidoDesde": "2026-09-13T03:00:00.000Z",
                 "cubreElDia": true,
@@ -575,8 +573,6 @@
                 "clave": "weekly_scoped",
                 "alcance": "Fable",
                 "porDia": 13.9,
-                "porDiaHoy": 16.1,
-                "restanteMedido": 6.7,
                 "quedaHoy": 5.9,
                 "gastadoHoy": null,
                 "restanteHoy": null,
@@ -598,7 +594,7 @@
             "perfil": "codex",
             "directorio": "~/.codex",
             "cuenta": "***@hotmail.com",
-            "plan": "plus",
+            "plan": "free",
             "credencial": "la pone codex \u00b7 2 reset(s) sin usar",
             "cuota": {
                 "estado": "ok",
@@ -874,8 +870,6 @@
                 "clave": "weekly_all",
                 "alcance": null,
                 "porDia": 0,
-                "porDiaHoy": 0,
-                "restanteMedido": null,
                 "quedaHoy": 0,
                 "gastadoHoy": null,
                 "restanteHoy": null,
@@ -887,9 +881,13 @@
                 "horasRestantes": 117.2
             },
             "local": null,
+            "ultimoUso": "2026-08-20T10:00:00.000Z",
             "relevancia": {
-                "dormida": false,
-                "porque": []
+                "dormida": true,
+                "porque": [
+                    "sin usar hace 21 d\u00edas",
+                    "plan free"
+                ]
             }
         }
     ]

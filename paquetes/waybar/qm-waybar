@@ -52,22 +52,31 @@ try {
   morirCon('qm ?', 'qm no devolvió JSON');
 }
 
+// El nombre corto, igual que nombreCorto() en src/core/config.ts:
+// `.claude-teams` → `teams`, y el perfil por defecto → `main`.
+const nombreCorto = (n) => {
+  const corto = n.replace(/^\.claude/, '').replace(/^-/, '');
+  return corto === '' ? 'main' : corto;
+};
+
 const filas = (estado.perfiles ?? []).map((p) => {
   const cuota = p.cuota ?? {};
   const frena = cuota.frena ?? null;
   const sesion = cuota.sesion ?? null;
-  // El nombre corto, igual que nombreCorto() en src/core/config.ts:
-  // `.claude-teams` → `teams`, y el perfil por defecto → `main`.
-  const corto = (p.perfil ?? '').replace(/^\.claude/, '').replace(/^-/, '');
   return {
-    nombre: corto === '' ? 'main' : corto,
+    nombre: nombreCorto(p.perfil ?? ''),
     producto: p.producto,
     estado: cuota.estado ?? 'sin-cuota',
     frena,
     sesion,
     // La edad del cache importa: un 8 % de hace dos días no es un 8 %.
     viejo: typeof cuota.edadSegundos === 'number' && cuota.edadSegundos > 6 * 3600,
-    nota: cuota.detalle ?? null,
+    // `frase` es como se llama en el contrato. Acá decía `cuota.detalle`, que
+    // no existe en el esquema: la nota era siempre null y el tooltip nunca
+    // explicaba por qué a una cuenta le faltaba el número.
+    nota: cuota.frase ?? null,
+    dormida: Boolean(p.relevancia?.dormida),
+    porque: p.relevancia?.porque ?? [],
   };
 });
 
@@ -77,12 +86,12 @@ const pct = (v) => (v && typeof v.porcentaje === 'number' ? Math.round(v.porcent
 
 // La cuenta que frena antes es la que va en el texto: es la que contesta
 // «¿puedo seguir?», que es la única pregunta que entra en una barra de estado.
-let peor = null;
-for (const f of filas) {
-  const p = pct(f.frena);
-  if (p === null) continue;
-  if (peor === null || p > pct(peor.frena)) peor = f;
-}
+//
+// QUIÉN es la decide el CLI y viene en `frenaPrimero`. Acá había un `for` que
+// se quedaba con el porcentaje más alto — la sexta copia de la misma regla, y
+// la que dejaba una cuenta free abandonada en 100 % ocupando la barra entera.
+const lider = estado.frenaPrimero ?? null;
+const peor = lider === null ? null : filas.find((f) => f.nombre === nombreCorto(lider.perfil)) ?? null;
 
 const etiqueta = (f) => {
   const s = pct(f.sesion);
@@ -128,6 +137,7 @@ const tooltip = filas.map((f) => {
   if (s !== null) lineas.push(`  sesión      ${s}%`);
   if (p !== null) lineas.push(`  ${nombreFrena.padEnd(11)} ${p}%${cuando(f.frena?.reinicia)}`);
   if (f.viejo) lineas.push('  (cache de más de 6 h)');
+  if (f.dormida) lineas.push(`  dormida: ${f.porque.join(' · ')}`);
   return lineas.join('\n');
 }).join('\n\n');
 

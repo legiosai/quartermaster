@@ -992,6 +992,17 @@ function FraseLecturas($cuota) {
   return 'lecturas:  ' + ($partes -join '   ·   ')
 }
 
+# «dormida: sin usar hace 12 días · plan free».
+#
+# Por qué esta cuenta quedó al final y no encabeza. La decisión la toma el
+# núcleo y llega hecha en `relevancia`; acá sólo se dibuja. Una cuenta que
+# cambia de lugar sin decir por qué es indistinguible de un bug.
+function FraseDormida($p) {
+  if (-not $p.PSObject.Properties['relevancia']) { return $null }
+  if (-not $p.relevancia.dormida) { return $null }
+  return 'dormida:  ' + (@($p.relevancia.porque) -join '   ·   ')
+}
+
 function Presupuesto($p) {
   if (-not $p.PSObject.Properties['presupuesto']) { return $null }
   return $p.presupuesto
@@ -1006,6 +1017,7 @@ function AltoPerfil($p) {
   if (FraseRitmo $p.proyeccion) { $alto += (Px $ALTO_RITMO) }
   $alto += (Px $ALTO_PRESUPUESTO) * (@(RenglonesPresupuesto (Presupuesto $p))).Count
   if (FraseLecturas $cuota) { $alto += (Px $ALTO_LECTURAS) }
+  if (FraseDormida $p) { $alto += (Px $ALTO_LECTURAS) }
   return [int]($alto + (Px 10))
 }
 
@@ -1116,6 +1128,12 @@ function DibujarPerfil($p, [int]$indice) {
   $lecturas = FraseLecturas $cuota
   if ($lecturas) {
     Escribir $g $lecturas $m $y $script:FPie $script:Tinta3 -1 ($der - $m)
+    $y += Px $ALTO_LECTURAS
+  }
+
+  $dormida = FraseDormida $p
+  if ($dormida) {
+    Escribir $g $dormida $m $y $script:FPie $script:Tinta3 -1 ($der - $m)
   }
 
   $g.Dispose()
@@ -1130,15 +1148,16 @@ function DibujarPerfil($p, [int]$indice) {
 #
 # Devuelve $null cuando ninguna cuenta dejó número: una cabecera vacía sería
 # peor que no tenerla, y cada perfil ya dice su propia frase abajo.
-function DibujarResumen($perfiles) {
-  $mejorP = $null; $mejor = $null
-  foreach ($p in $perfiles) {
-    if ($p.cuota.estado -ne 'ok') { continue }
-    $v = $p.cuota.frena
-    if ($null -eq $v) { continue }
-    if ($null -eq $mejor -or $v.porcentaje -gt $mejor.porcentaje) { $mejor = $v; $mejorP = $p }
-  }
-  if ($null -eq $mejor) { return $null }
+# QUIÉN encabeza lo decide qm y llega en $datos.frenaPrimero. Acá adentro había
+# un foreach que se quedaba con el `frena` de porcentaje más alto: la misma
+# elección estaba escrita seis veces, una por pantalla, y las seis coincidían
+# sólo por casualidad. El día que el criterio cambió —una cuenta dormida en
+# 100 % ya no encabeza— cinco se quedaron con el criterio viejo.
+function DibujarResumen($datos) {
+  $lider = $datos.frenaPrimero
+  if ($null -eq $lider -or $null -eq $lider.ventana) { return $null }
+  $mejor = $lider.ventana
+  $mejorP = $datos.perfiles | Where-Object { $_.perfil -eq $lider.perfil } | Select-Object -First 1
 
   $pct = [int][math]::Round($mejor.porcentaje)
   $chocas = [bool]($mejorP.proyeccion -and $mejorP.proyeccion.estado -eq 'sube' `
@@ -2227,7 +2246,7 @@ function ModeloPaneles($datos, [bool]$avisar) {
   $mueven = @()
   $general = @()
 
-  $resumen = DibujarResumen $datos.perfiles
+  $resumen = DibujarResumen $datos
   if ($resumen) { $bitmaps += $resumen; $general += $resumen }
 
   # El índice del color de cuenta avanza sólo con las que dejaron número, igual
@@ -2308,11 +2327,15 @@ function ModeloPaneles($datos, [bool]$avisar) {
       texto = ($partes -join ' · ')
     }
 
-    if ($avisar) { RevisarAvisos $nombre $cuota.mostrar $peor $proy $chocas }
+    # Una cuenta dormida no alarma: la notificación avisa de algo que te va a
+    # frenar, y una cuenta que nadie usa no frena nada.
+    if ($avisar -and -not $p.relevancia.dormida) { RevisarAvisos $nombre $cuota.mostrar $peor $proy $chocas }
     if ($null -ne $peor) {
       $pct = [double]$peor.porcentaje
       if ($pct -ge 40) { $mueven += $nombre }
-      if ($pct -gt $pico) { $pico = $pct }
+      # El color del ícono sigue a lo que te frena DE VERDAD: una cuenta dormida
+      # en 100 % dejaba la bandeja en rojo permanente por algo que nadie usa.
+      if ($pct -gt $pico -and -not $p.relevancia.dormida) { $pico = $pct }
     }
     if ($chocas) {
       $seg = Faltan $proy.techo

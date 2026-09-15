@@ -123,3 +123,30 @@ test('--calentar que no puede calentar nada sale 1 y dice por qué', () => {
   assert.strictEqual(r.stdout, '', 'calentar no imprime nada por stdout');
   assert.match(r.stderr, /\S/, 'salió 1 sin decir nada por stderr');
 });
+
+// ── quién encabeza, y dónde va cada cuenta ──────────────────────────────
+//
+// Estos dos campos existen para que NADIE los vuelva a calcular. La elección
+// del perfil que encabeza estaba escrita seis veces —terminal, GNOME, macOS,
+// Windows, tablero y waybar— y las seis coincidían sólo por casualidad.
+
+test('--json trae frenaPrimero en la raíz, aunque no haya cuentas', () => {
+  const { salida, codigo } = correr(['--json', '--breve']);
+  assert.strictEqual(codigo, 0, `salió ${codigo}: ${salida.slice(0, 200)}`);
+  const d = JSON.parse(salida) as Record<string, unknown>;
+  assert.ok('frenaPrimero' in d, 'la clave tiene que estar siempre, aunque valga null');
+  assert.strictEqual(d['frenaPrimero'], null, 'sin cuentas no hay nada que frene');
+});
+
+test('cada perfil dice dónde va y por qué', () => {
+  const { salida, codigo } = correr(['--json', '--breve']);
+  assert.strictEqual(codigo, 0);
+  const d = JSON.parse(salida) as { perfiles: Record<string, unknown>[] };
+  for (const p of d.perfiles) {
+    const r = p['relevancia'] as { dormida: unknown; porque: unknown } | undefined;
+    assert.ok(r !== undefined, `el perfil ${String(p['perfil'])} no trae relevancia`);
+    assert.strictEqual(typeof r.dormida, 'boolean');
+    assert.ok(Array.isArray(r.porque), 'porque es una lista de frases');
+    if (!r.dormida) assert.deepStrictEqual(r.porque, [], 'una cuenta despierta no tiene por qué');
+  }
+});

@@ -170,6 +170,29 @@ function rollouts(desde?: Date): string[] {
 }
 
 /**
+ * Cuándo se usó Codex por última vez.
+ *
+ * El mismo truco barato que `ultimaActividad()` para Claude: `rollouts()` ya
+ * viene ordenado por fecha de modificación, así que la respuesta es el primero.
+ * Sin parsear nada, porque el consumidor es `qm --breve` y ahí cada milisegundo
+ * lo paga una statusline.
+ *
+ * Antes esto no existía y la fila de Codex informaba `ultimoUso: null`. Eso
+ * dejaba a Codex sin la única señal que dice si una cuenta se está moviendo —
+ * justo la cuenta que más la necesitaba, porque es la que se queda en 100 %
+ * para siempre cuando alguien deja de pagarla.
+ */
+export function ultimaActividadCodex(): Date | null {
+  const [masNuevo] = rollouts();
+  if (masNuevo === undefined) return null;
+  try {
+    return new Date(statSync(masNuevo).mtimeMs);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Recorre un rollout buscando un campo, y devuelve la última aparición.
  *
  * Se filtra por el CAMPO y no por el nombre del evento a propósito: Codex

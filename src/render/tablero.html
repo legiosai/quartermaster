@@ -594,6 +594,10 @@ function tarjeta(p) {
       </div>
     </div>
     <div class="col">${cuerpo}</div>
+    ${p.relevancia && p.relevancia.dormida
+      ? `<div class="frase">dormida: ${esc((p.relevancia.porque || []).join(' · '))} — sigue acá con todos sus
+           números, pero no encabeza y va al final de la lista.</div>`
+      : ''}
     <div class="consumo">
       <div class="rotulo">consumo local · ${datos.ventanaDias} d</div>
       ${p.local === null || p.local === undefined
@@ -610,13 +614,16 @@ function tarjeta(p) {
 }
 
 function heroe() {
-  // Una sola cifra héroe por vista: la barra que te frena primero, en toda la máquina.
-  let mejor = null;
-  for (const p of datos.perfiles) {
-    if (p.cuota.estado !== 'ok') continue;
-    const v = p.cuota.frena;
-    if (v && (!mejor || v.porcentaje > mejor.v.porcentaje)) mejor = { p, v };
-  }
+  // Una sola cifra héroe por vista: la barra que te frena primero, en toda la
+  // máquina. QUIÉN encabeza lo decide el CLI y llega en `frenaPrimero`: acá
+  // había un `for` que se quedaba con el porcentaje más alto, y esa misma
+  // elección estaba escrita en las otras cinco pantallas. Seis copias son seis
+  // respuestas en cuanto el criterio cambia — y cambió: una cuenta dormida en
+  // 100 % ya no encabeza.
+  const lider = datos.frenaPrimero;
+  const mejor = lider && lider.ventana
+    ? { p: datos.perfiles.find((x) => x.perfil === lider.perfil) ?? {}, v: lider.ventana }
+    : null;
   if (!mejor) {
     return `<div class="heroe"><div class="texto">
       <div class="rotulo">lo primero que te frena</div>

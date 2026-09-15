@@ -370,6 +370,25 @@ struct PerfilVista {
     let presupuesto: Presupuesto?
     /// Cuándo se usó por última vez, según qm. Existe también en --breve.
     let ultimoUso: Date?
+    /// Va al final y no encabeza. Lo decide qm; acá sólo se dibuja.
+    let dormida: Bool
+    /// Por qué, en palabras. Prosa para mostrar, no para parsear.
+    let porque: [String]
+}
+
+/// Quién frena primero en toda la máquina, ya resuelto por qm.
+///
+/// Antes esto se decidía acá adentro, recorriendo los perfiles y quedándose con
+/// el `frena` de porcentaje más alto. Era la misma elección escrita seis veces
+/// —una por pantalla— y las seis coincidían sólo por casualidad: el día que el
+/// criterio cambió (una cuenta dormida en 100 % ya no encabeza), cinco se
+/// quedaron con el criterio viejo. CONTRIBUTING.md: una regla que un renderer
+/// reimplementa es un bug del CLI.
+struct Lider {
+    let perfil: String
+    let ventana: Ventana
+    /// true si NO quedaba ninguna despierta: el encabezado es lo único que hay.
+    let dormida: Bool
 }
 
 // Las reglas del núcleo no se reimplementan acá: `qm` manda `mostrar`, `frena`,
@@ -388,7 +407,7 @@ func fecha(_ s: Any?) -> Date? {
 
 // ── leer a qm ────────────────────────────────────────────────────────────
 enum Lectura {
-    case ok([PerfilVista])
+    case ok([PerfilVista], Lider?)
     /// Silencio es el bug: si no hay número, hay una frase.
     case falla(String)
 }
@@ -479,9 +498,27 @@ func leer() -> Lectura {
             edadSegundos: cuota["edadSegundos"] as? Int,
             proyeccion: proy,
             presupuesto: pre,
-            ultimoUso: fecha(p["ultimoUso"]))
+            ultimoUso: fecha(p["ultimoUso"]),
+            dormida: ((p["relevancia"] as? [String: Any])?["dormida"] as? Bool) ?? false,
+            porque: ((p["relevancia"] as? [String: Any])?["porque"] as? [String]) ?? [])
     }
-    return .ok(perfiles)
+
+    var lider: Lider? = nil
+    if let l = raiz["frenaPrimero"] as? [String: Any],
+       let nombre = l["perfil"] as? String,
+       let v = l["ventana"] as? [String: Any] {
+        lider = Lider(perfil: nombre,
+                      ventana: Ventana(clave: v["clave"] as? String ?? "?",
+                                       alcance: v["alcance"] as? String,
+                                       porcentaje: v["porcentaje"] as? Int ?? 0,
+                                       severidad: v["severidad"] as? String ?? "normal",
+                                       activa: v["activa"] as? Bool ?? false,
+                                       reinicia: fecha(v["reinicia"]),
+                                       grupo: v["grupo"] as? String,
+                                       preocupa: v["preocupa"] as? Bool ?? false),
+                      dormida: (l["dormida"] as? Bool) ?? false)
+    }
+    return .ok(perfiles, lider)
 }
 
 // ── avisos ───────────────────────────────────────────────────────────────
@@ -521,20 +558,14 @@ final class VistaResumen: NSView {
     private let nivel: Nivel
     private let reinicia: Date?
 
-    init?(_ perfiles: [PerfilVista]) {
-        var mejor: (PerfilVista, Ventana, Int)? = nil
-        var i = 0
-        for p in perfiles where p.hayNumero {
-            if let v = p.frena, mejor == nil || v.porcentaje > mejor!.1.porcentaje {
-                mejor = (p, v, i)
-            }
-            i += 1
-        }
-        guard let (p, v, _) = mejor else { return nil }
-        cuenta = corto(p.nombre)
+    init?(_ lider: Lider?, _ perfiles: [PerfilVista]) {
+        guard let l = lider else { return nil }
+        let p = perfiles.first(where: { $0.nombre == l.perfil })
+        let v = l.ventana
+        cuenta = corto(p?.nombre ?? l.perfil)
         barra = v.nombre
         pct = v.porcentaje
-        nivel = nivelDe(v.porcentaje, preocupa: v.preocupa || (p.proyeccion?.chocas ?? false))
+        nivel = nivelDe(v.porcentaje, preocupa: v.preocupa || (p?.proyeccion?.chocas ?? false))
         reinicia = v.reinicia
         super.init(frame: NSRect(x: 0, y: 0, width: 340, height: 74))
     }
@@ -1058,7 +1089,7 @@ final class Barra: NSObject, NSApplicationDelegate {
             item.button?.image = icono("exclamationmark.triangle.fill")
             agregar(menu, porque, activo: false)
 
-        case .ok(let perfiles):
+        case .ok(let perfiles, let lider):
             if ultimaFalla != nil { registrar("lectura de qm volvió a andar") }
             ultimaFalla = nil
             vigilar(perfiles)
@@ -1069,7 +1100,7 @@ final class Barra: NSObject, NSApplicationDelegate {
             var iCuenta = 0
             var peorPct = 0
 
-            if let resumen = VistaResumen(perfiles) {
+            if let resumen = VistaResumen(lider, perfiles) {
                 let fila = NSMenuItem()
                 fila.view = resumen
                 menu.addItem(fila)
@@ -1092,7 +1123,9 @@ final class Barra: NSObject, NSApplicationDelegate {
                     // El `!` no es sólo severidad: también avisa que a este
                     // ritmo tocás el techo ANTES del reinicio.
                     let chocas = p.proyeccion?.chocas ?? false
-                    let esLaProyectada = { (v: Ventana) in chocas && v.clave == cual.clave }
+                    // Una cuenta dormida no alarma: el «!» avisa de algo que te
+                    // va a frenar, y una cuenta que nadie usa no frena nada.
+                    let esLaProyectada = { (v: Ventana) in !p.dormida && chocas && v.clave == cual.clave }
 
                     let ses = p.sesion
                     let sem = p.semanal
@@ -1100,18 +1133,23 @@ final class Barra: NSObject, NSApplicationDelegate {
                     piezas.append(Trozo(
                         nombre: corto(p.nombre), producto: p.producto, indice: piezas.count,
                         sesion: ses?.porcentaje,
-                        sesionAlerta: ses.map { $0.preocupa || esLaProyectada($0) } ?? false,
+                        sesionAlerta: ses.map { !p.dormida && ($0.preocupa || esLaProyectada($0)) } ?? false,
                         semanal: sem?.porcentaje,
-                        semanalAlerta: sem.map { $0.preocupa || esLaProyectada($0) } ?? false,
+                        semanalAlerta: sem.map { !p.dormida && ($0.preocupa || esLaProyectada($0)) } ?? false,
                         diario: p.presupuesto?.pctDiario,
                         viejo: viejo,
                         perfil: p.nombre,
                         reiniciaSesion: ses?.reinicia,
                         reiniciaSemanal: sem?.reinicia,
                         ultimoUso: p.ultimoUso))
-                    peorPct = max(peorPct, cual.porcentaje)
-                    revisarAvisos(p, visibles)
-                    revisarLiberadas(p, visibles)
+                    // El color del ícono sigue a lo que te frena DE VERDAD: una
+                    // cuenta dormida en 100 % dejaba la barra de menú en rojo
+                    // permanente por una cuenta que nadie usa.
+                    if !p.dormida { peorPct = max(peorPct, cual.porcentaje) }
+                    if !p.dormida {
+                        revisarAvisos(p, visibles)
+                        revisarLiberadas(p, visibles)
+                    }
                 }
             }
 
