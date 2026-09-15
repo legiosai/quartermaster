@@ -57,14 +57,22 @@ agents nobody asked for. Without the question: `brew services start
 quartermaster` on macOS, and on Linux
 
 ```sh
-qm-indicator --instalar-arranque   # and start it once: qm-indicator &
+qm-indicator --instalar-extension   # the item that opens the panel on click
+qm-indicator --instalar-arranque    # and start it once: qm-indicator &
 ```
 
-On Linux the question only appears when there is somewhere to show it: a
-graphical session, `python3-gi` with `AyatanaAppIndicator3`, and a GNOME
-extension to host the item — ours or an AppIndicator one. Without those the
-process would start anyway and nothing would appear up there, which is worse than
-not offering. `qm --diagnostico` says which of the three is missing.
+Saying yes on Linux **also installs the GNOME extension**, which is what makes a
+click open the panel: without it the item is hosted by AppIndicator and the click
+falls through to the GTK menu — the one that does not hold the grab and closes
+the moment you touch it. GNOME does not load a freshly installed extension on
+Wayland, so when it had to be installed the closing line says so and you have to
+log out once.
+
+The question only appears when there is somewhere to show it: a graphical
+session, `python3-gi` with `AyatanaAppIndicator3`, and a host for the item — an
+extension already in place, or a GNOME Shell to install ours into. Without those
+the process would start anyway and nothing would appear up there, which is worse
+than not offering. `qm --diagnostico` says which one is missing.
 
 **Windows:** the installer from the [latest
 release](https://github.com/legiosai/quartermaster/releases/latest). Per-user

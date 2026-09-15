@@ -39,6 +39,7 @@
     "bin/",
     "!bin/__pycache__",
     "!bin/quartermaster.ico",
+    "extension/",
     "dist/",
     "scripts/",
     "src/render/tablero.html",

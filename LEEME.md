@@ -59,14 +59,21 @@ OAuth no debería registrar agentes de arranque que nadie pidió. Sin la pregunt
 `brew services start quartermaster` en macOS, y en Linux
 
 ```sh
-qm-indicator --instalar-arranque   # y arrancalo una vez: qm-indicator &
+qm-indicator --instalar-extension   # el item propio: un click abre el panel
+qm-indicator --instalar-arranque    # y arrancalo una vez: qm-indicator &
 ```
 
-En Linux la pregunta sólo aparece si hay dónde mostrarlo: sesión gráfica,
-`python3-gi` con `AyatanaAppIndicator3`, y una extensión de GNOME que hospede el
-item —la propia o una de AppIndicator—. Sin eso el proceso arrancaría igual y no
-se vería nada arriba, que es peor que no ofrecer. `qm --diagnostico` dice cuál de
-las tres falta.
+Decir que sí en Linux **también instala la extensión de GNOME**, que es la que
+hace que un click abra el panel: sin ella el item lo hospeda AppIndicator y el
+click cae al menú de GTK, el que no sostiene el agarre y se cierra apenas lo
+tocás. GNOME no carga una extensión recién instalada en Wayland, así que si hizo
+falta instalarla la frase final lo dice y hay que cerrar sesión una vez.
+
+La pregunta sólo aparece si hay dónde mostrarlo: sesión gráfica, `python3-gi` con
+`AyatanaAppIndicator3`, y un host para el item —una extensión ya puesta, o
+GNOME Shell donde instalar la nuestra—. Sin eso el proceso arrancaría igual y no
+se vería nada arriba, que es peor que no ofrecer. `qm --diagnostico` dice cuál
+falta.
 
 **Windows:** el instalador de la [última
 release](https://github.com/legiosai/quartermaster/releases/latest). Por usuario

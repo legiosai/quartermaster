@@ -80,21 +80,16 @@ indicador:  ## arranca el item de la barra de GNOME (necesita appindicatorsuppor
 
 .PHONY: extension
 extension:  ## el item propio en la barra de GNOME: un click abre el panel
-	@mkdir -p $(HOME)/.local/share/gnome-shell/extensions
-	@rm -rf $(HOME)/.local/share/gnome-shell/extensions/quartermaster@legios
-	@cp -rf "$(CURDIR)/extension/quartermaster@legios" $(HOME)/.local/share/gnome-shell/extensions/
-	@# GNOME Shell no carga una extensión recién instalada en Wayland, así que
-	@# `gnome-extensions enable` falla con «doesn't exist». Anotarla en la lista
-	@# de habilitadas hace que quede puesta al volver a entrar.
-	@gsettings get org.gnome.shell enabled-extensions | grep -q 'quartermaster@legios' || gsettings set org.gnome.shell enabled-extensions "$$(gsettings get org.gnome.shell enabled-extensions | sed "s/^@as .\[.\]$$/['quartermaster@legios']/; s/]$$/, 'quartermaster@legios']/")"
-	@gnome-extensions enable quartermaster@legios 2>/dev/null && echo "extensión habilitada ahora" || echo "instalada y anotada. GNOME no carga extensiones nuevas en Wayland: cerrá sesión y volvé a entrar una vez."
+	@# Lo hace el indicador, por lo mismo que el arranque automático: quien
+	@# instaló por npm o por apt no tiene Makefile, y `qm` se la ofrece en la
+	@# primera corrida llamando a esta misma bandera. Sale 2 cuando quedó
+	@# instalada pero GNOME la carga recién en la próxima sesión, que no es un
+	@# error: es lo que hay que decirle a quien la instaló.
+	@"$(CURDIR)/bin/qm-indicator" --instalar-extension || [ $$? = 2 ]
 
 .PHONY: extension-quitar
 extension-quitar:  ## saca el item propio y devuelve el de AppIndicator
-	@gnome-extensions disable quartermaster@legios 2>/dev/null || true
-	@rm -rf $(HOME)/.local/share/gnome-shell/extensions/quartermaster@legios
-	@rm -f $(HOME)/.cache/quartermaster/extension-viva
-	@echo "extensión quitada"
+	@"$(CURDIR)/bin/qm-indicator" --quitar-extension
 
 .PHONY: autostart
 autostart:  ## que el indicador arranque solo al iniciar sesión

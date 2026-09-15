@@ -20,6 +20,7 @@ const MAC_NUEVA: Situacion = {
   sesionGrafica: false,
   interprete: false,
   hostDelItem: false,
+  puedeHospedar: false,
   arranqueInstalado: false,
   corriendo: false,
 };
@@ -32,6 +33,7 @@ const LINUX_NUEVO: Situacion = {
   sesionGrafica: true,
   interprete: true,
   hostDelItem: true,
+  puedeHospedar: true,
 };
 
 test('una Mac recién instalada, en una terminal, pregunta', () => {
@@ -74,17 +76,34 @@ test('por SSH no se ofrece poner algo en una barra que no existe', () => {
   assert.strictEqual(debeOfrecer({ ...LINUX_NUEVO, sesionGrafica: false }), false);
 });
 
-test('sin python3-gi el item no levanta, y sin extensión que lo muestre no se ve', () => {
+test('sin python3-gi el item no levanta, así que no se ofrece', () => {
   assert.strictEqual(debeOfrecer({ ...LINUX_NUEVO, interprete: false }), false);
-  // El caso que importa: el proceso ARRANCA igual sin una extensión que lo
-  // hospede, y no aparece nada arriba. Ofrecerlo sería prometer algo que no se
-  // ve, que es exactamente el bug que este programa existe para no cometer.
-  assert.strictEqual(debeOfrecer({ ...LINUX_NUEVO, hostDelItem: false }), false);
+});
+
+test('sin NINGÚN host, ni puesto ni por poner, no se ofrece', () => {
+  // El proceso ARRANCA igual sin una extensión que lo hospede, y no aparece
+  // nada arriba. Ofrecerlo sería prometer algo que no se ve, que es justo el
+  // bug que este programa existe para no cometer.
+  assert.strictEqual(
+    debeOfrecer({ ...LINUX_NUEVO, hostDelItem: false, puedeHospedar: false }), false);
+});
+
+test('sin host pero con la extensión en el paquete, SÍ se ofrece: la ponemos nosotros', () => {
+  // El caso de una instalación por npm en un GNOME pelado. Hasta 0.1.11
+  // `extension/` no viajaba en el paquete y este caso no existía: quien
+  // instalaba por npm no podía tener el panel ni sabiéndolo.
+  assert.strictEqual(debeOfrecer({ ...LINUX_NUEVO, hostDelItem: false }), true);
+});
+
+test('con un host ya puesto se ofrece aunque no podamos instalar la nuestra', () => {
+  // Un .deb viejo, o un paquete sin extension/: el item lo muestra AppIndicator.
+  assert.strictEqual(debeOfrecer({ ...LINUX_NUEVO, puedeHospedar: false }), true);
 });
 
 test('swiftc no es un requisito en Linux, ni la extensión lo es en macOS', () => {
   assert.strictEqual(debeOfrecer({ ...LINUX_NUEVO, compilador: false }), true);
-  assert.strictEqual(debeOfrecer({ ...MAC_NUEVA, hostDelItem: false, interprete: false }), true);
+  assert.strictEqual(
+    debeOfrecer({ ...MAC_NUEVA, hostDelItem: false, puedeHospedar: false, interprete: false }), true);
 });
 
 test('si la barra ya corre o ya arranca sola, no se pregunta', () => {

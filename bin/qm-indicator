@@ -2475,6 +2475,101 @@ def quitar_arranque() -> int:
     return 0
 
 
+EXTENSION_UUID = "quartermaster@legios"
+EXTENSIONES = Path(os.environ.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) \
+    / "gnome-shell" / "extensions"
+#: De dónde sale la extensión: al lado del paquete, sea un clone, el .deb o npm.
+EXTENSION_FUENTE = YO.parent.parent / "extension" / EXTENSION_UUID
+
+
+def _habilitadas() -> list[str] | None:
+    """La lista de `enabled-extensions`, o None si no hay gsettings."""
+    try:
+        dicho = subprocess.run(
+            ["gsettings", "get", "org.gnome.shell", "enabled-extensions"],
+            capture_output=True, text=True, timeout=5, check=True).stdout.strip()
+    except (OSError, subprocess.SubprocessError):
+        return None
+    # `@as []` para la lista vacía, `['a', 'b']` para el resto.
+    if dicho.startswith("@as"):
+        dicho = dicho[3:].strip()
+    return [x.strip().strip("'\"") for x in dicho.strip("[]").split(",") if x.strip()]
+
+
+def instalar_extension() -> int:
+    """El item propio en la barra: un click abre el panel.
+
+    Sin ella el item lo hospeda AppIndicator y el click izquierdo cae al menú de
+    GTK, que no sostiene el agarre y se cierra apenas lo tocás — el síntoma que
+    la extensión existe para evitar, escrito en su propio extension.js.
+
+    Vive acá y no sólo en el Makefile por lo mismo que `--instalar-arranque`:
+    quien instaló por npm o por apt no tiene un Makefile.
+
+    Salidas: 0 habilitada y andando ya, 2 instalada pero GNOME la carga recién
+    en la próxima sesión, 1 no se pudo. El 2 no es un error y no se puede
+    esconder: decir «listo» de algo que no se ve hasta cerrar sesión es
+    exactamente la mentira que este programa no comete.
+    """
+    if not EXTENSION_FUENTE.is_dir():
+        print(f"no encuentro la extensión en {EXTENSION_FUENTE}", file=sys.stderr)
+        return 1
+    destino = EXTENSIONES / EXTENSION_UUID
+    try:
+        EXTENSIONES.mkdir(parents=True, exist_ok=True)
+        if destino.exists():
+            shutil.rmtree(destino)
+        shutil.copytree(EXTENSION_FUENTE, destino)
+    except OSError as e:
+        print(f"no pude copiarla a {destino}: {e}", file=sys.stderr)
+        return 1
+
+    # Anotarla en la lista de habilitadas ANTES de pedir el enable: en Wayland
+    # GNOME no carga una extensión recién copiada, así que `gnome-extensions
+    # enable` falla con «doesn't exist» y sin esta anotación no quedaría puesta
+    # tampoco para la próxima sesión.
+    lista = _habilitadas()
+    if lista is not None and EXTENSION_UUID not in lista:
+        nueva = "[" + ", ".join(f"'{x}'" for x in [*lista, EXTENSION_UUID]) + "]"
+        try:
+            subprocess.run(["gsettings", "set", "org.gnome.shell", "enabled-extensions", nueva],
+                           capture_output=True, timeout=5, check=True)
+        except (OSError, subprocess.SubprocessError) as e:
+            print(f"no pude anotarla en enabled-extensions: {e}", file=sys.stderr)
+            return 1
+
+    try:
+        ok = subprocess.run(["gnome-extensions", "enable", EXTENSION_UUID],
+                            capture_output=True, timeout=5).returncode == 0
+    except OSError:
+        ok = False
+    if ok:
+        print(f"{EXTENSION_UUID} habilitada")
+        return 0
+    print(f"{EXTENSION_UUID} instalada y anotada. GNOME no carga extensiones "
+          "nuevas en Wayland: cerrá sesión y volvé a entrar una vez.")
+    return 2
+
+
+def quitar_extension() -> int:
+    """Saca el item propio y devuelve el de AppIndicator."""
+    try:
+        subprocess.run(["gnome-extensions", "disable", EXTENSION_UUID],
+                       capture_output=True, timeout=5)
+    except OSError:
+        pass
+    destino = EXTENSIONES / EXTENSION_UUID
+    try:
+        if destino.exists():
+            shutil.rmtree(destino)
+        (CACHE / "extension-viva").unlink(missing_ok=True)
+    except OSError as e:
+        print(f"no pude borrarla: {e}", file=sys.stderr)
+        return 1
+    print(f"{EXTENSION_UUID} quitada")
+    return 0
+
+
 def main() -> int:
     # Antes que nada: ninguna de las dos necesita sesión gráfica ni un qm en el
     # PATH, y `qm` llama a la primera desde una terminal.
@@ -2482,6 +2577,10 @@ def main() -> int:
         return instalar_arranque()
     if "--quitar-arranque" in sys.argv:
         return quitar_arranque()
+    if "--instalar-extension" in sys.argv:
+        return instalar_extension()
+    if "--quitar-extension" in sys.argv:
+        return quitar_extension()
 
     fijo = None
     if "--desde" in sys.argv:
