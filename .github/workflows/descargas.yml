@@ -1,0 +1,44 @@
+# ¿Alguien instaló esto? Una vez por día, a docs/descargas.json.
+#
+# Los contadores públicos —npm y los adjuntos de cada release— cuentan sobre
+# todo lo nuestro: los mirrors bajan cada versión nueva y release.yml baja el
+# instalador para el hash de winget. scripts/descargas.mjs resta eso y deja
+# un número. Como los adjuntos de GitHub son acumulados, «esta semana» sólo
+# existe si alguien anota lo que decían ayer: eso es esta corrida diaria.
+#
+# Comitea a main sólo si el JSON cambió. Es el mismo permiso con el que
+# release.yml crea la release; main no está protegida.
+name: descargas
+on:
+  workflow_dispatch:
+  schedule:
+    # Al mediodía UTC: npm cierra el día anterior de madrugada, así que a esta
+    # hora el número de ayer ya está.
+    - cron: '0 12 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  contar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: bajar los números
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/descargas.mjs
+      - name: comitear si cambió
+        run: |
+          if git diff --quiet -- docs/descargas.json; then
+            echo "sin cambios"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/descargas.json
+          git commit -m "descargas: $(date -u +%F)"
+          git push

@@ -131,6 +131,10 @@ extension-zip:  ## el zip de la extensión con la forma que pide extensions.gnom
 cambios:  ## regenera docs/cambios.html desde CHANGELOG.md
 	@node scripts/hacer-cambios.mjs
 
+.PHONY: descargas
+descargas:  ## ¿alguien lo instaló? npm y las releases, menos lo nuestro, a docs/descargas.json
+	@node scripts/descargas.mjs
+
 .PHONY: gate-cambios
 gate-cambios:  ## que la página de cambios sea la del CHANGELOG, no una copia vieja
 	@node scripts/hacer-cambios.mjs --ver

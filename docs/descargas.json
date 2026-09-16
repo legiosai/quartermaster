@@ -1,0 +1,349 @@
+{
+  "generado": "2026-09-16T14:37:16.933Z",
+  "resumen": {
+    "humanasHastaHoy": {
+      "npm": 0,
+      "github": 30
+    },
+    "estaSemana": {
+      "desde": "2026-09-16",
+      "npm": 0,
+      "github": 0
+    },
+    "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
+  },
+  "npm": {
+    "total": 1302,
+    "enDiasSinPublicar": 0,
+    "porPublicacion": 100,
+    "dias": [
+      {
+        "dia": "2026-09-11",
+        "descargas": 345,
+        "publicaciones": 3,
+        "humanas": null
+      },
+      {
+        "dia": "2026-09-12",
+        "descargas": 0,
+        "publicaciones": 0,
+        "humanas": 0
+      },
+      {
+        "dia": "2026-09-13",
+        "descargas": 180,
+        "publicaciones": 1,
+        "humanas": null
+      },
+      {
+        "dia": "2026-09-14",
+        "descargas": 777,
+        "publicaciones": 5,
+        "humanas": null
+      },
+      {
+        "dia": "2026-09-15",
+        "descargas": 0,
+        "publicaciones": 3,
+        "humanas": null
+      },
+      {
+        "dia": "2026-09-16",
+        "descargas": 0,
+        "publicaciones": 1,
+        "humanas": null
+      }
+    ]
+  },
+  "github": {
+    "humanas": 30,
+    "porVersion": [
+      {
+        "version": "v0.1.15",
+        "publicada": "2026-09-16",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 6,
+            "netas": 2
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.14",
+        "publicada": "2026-09-15",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 6,
+            "netas": 2
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.13",
+        "publicada": "2026-09-15",
+        "humanas": 8,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 9,
+            "netas": 5
+          },
+          "zip": {
+            "bajadas": 3,
+            "netas": 1
+          },
+          "extension": {
+            "bajadas": 1,
+            "netas": 1
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
+      {
+        "version": "v0.1.12",
+        "publicada": "2026-09-15",
+        "humanas": 3,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 6,
+            "netas": 2
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
+      {
+        "version": "v0.1.11",
+        "publicada": "2026-09-14",
+        "humanas": 1,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 5,
+            "netas": 1
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.10",
+        "publicada": "2026-09-14",
+        "humanas": 0,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 4,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.9",
+        "publicada": "2026-09-14",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 6,
+            "netas": 2
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.8",
+        "publicada": "2026-09-14",
+        "humanas": 0,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 4,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.7",
+        "publicada": "2026-09-14",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 6,
+            "netas": 2
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.6",
+        "publicada": "2026-09-13",
+        "humanas": 10,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 11,
+            "netas": 7
+          },
+          "zip": {
+            "bajadas": 4,
+            "netas": 2
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
+      {
+        "version": "v0.1.5",
+        "publicada": "2026-09-11",
+        "humanas": 0,
+        "adjuntos": {}
+      },
+      {
+        "version": "v0.1.3",
+        "publicada": "2026-09-10",
+        "humanas": 0,
+        "adjuntos": {
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.2",
+        "publicada": "2026-09-10",
+        "humanas": 0,
+        "adjuntos": {
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.1",
+        "publicada": "2026-09-10",
+        "humanas": 0,
+        "adjuntos": {
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
+      {
+        "version": "v0.1.0",
+        "publicada": "2026-09-10",
+        "humanas": 0,
+        "adjuntos": {}
+      }
+    ]
+  },
+  "piso": {
+    "exe": 4,
+    "zip": 2
+  },
+  "historial": [
+    {
+      "fecha": "2026-09-16",
+      "npm": 0,
+      "github": 30
+    }
+  ]
+}
