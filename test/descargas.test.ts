@@ -49,7 +49,7 @@ describe('adjuntos de las releases', () => {
       ],
     }]);
     strictEqual(r.humanas, (9 - PISO.exe) + (3 - PISO.zip) + 1 + 1);
-    strictEqual(r.porVersion[0]!.adjuntos.exe.netas, 5);
+    strictEqual(r.porVersion[0]!.adjuntos['exe']?.netas, 5);
   });
 
   it('una release que bajó menos que el piso no da negativo', () => {

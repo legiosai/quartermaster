@@ -165,6 +165,15 @@ async function principal() {
     process.stdout.write(texto);
     return;
   }
+  // Si lo único que cambió es la hora de la corrida, no se escribe: el
+  // workflow comitea cuando el archivo cambia, y un `generado` distinto cada
+  // día es un commit diario que no dice nada. La primera corrida del día que
+  // no trae ni una descarga nueva deja el archivo como estaba.
+  const sinHora = (o) => JSON.stringify({ ...o, generado: null });
+  if (sinHora(previo) === sinHora(salida)) {
+    console.log('docs/descargas.json sin cambios: ningún número se movió');
+    return;
+  }
   writeFileSync(SALIDA, texto);
   const s = salida.resumen;
   console.log(`docs/descargas.json escrito · humanas hasta hoy: npm ${s.humanasHastaHoy.npm} · github ${s.humanasHastaHoy.github}` +
