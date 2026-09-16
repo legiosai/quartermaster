@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { parsearUtilizacion, aFecha } from '../src/adapters/utilizacion.ts';
 import { frase, peor, paraMostrar, nombreVentana, esPreocupante, vencida, type ResultadoCuota } from '../src/core/tipos.ts';
-import { anchoVisible, duracion, relleno, tenue } from '../src/render/barras.ts';
+import { anchoVisible, duracion, reinicio, relleno, tenue } from '../src/render/barras.ts';
 
 // Las fixtures son respuestas REALES de dos cuentas de distinto tipo, sacadas
 // de `cachedUsageUtilization` en .claude.json y redactadas sólo en accountUuid.
@@ -202,6 +202,14 @@ test('tenue() sigue siendo medible por anchoVisible, pinte o no pinte', () => {
     assert.strictEqual(paraMostrar([marcada]).length, 1);
   });
 }
+
+test('reinicio: «reinicia en» hacia adelante, «reinició hace» cuando ya pasó', () => {
+  assert.strictEqual(reinicio(2 * 3600_000 + 14 * 60_000), 'reinicia en 2h14m');
+  assert.strictEqual(reinicio(-(33 * 3600_000)), 'reinició hace 1d9h');
+  // «reinicia en vencido» no es castellano: era lo único que la terminal
+  // sabía decir de una ventana que ya cerró, y el GNOME y Windows ya no.
+  assert.ok(!reinicio(-1).includes('vencido'));
+});
 
 test('duracion: arriba de un día se cuenta en días', () => {
   // «213h21m» es un número que hay que dividir a mano. Aparece en «último uso»

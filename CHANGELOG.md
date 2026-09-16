@@ -14,6 +14,27 @@ out unless they changed what you see.
 
 ---
 
+## v0.1.15 — 2026-09-16
+
+### Fixed
+
+- **The macOS menu bar could stop refreshing for good, with the process alive
+  and its watchdog "re-arming" every minute.** Measured on one machine: the
+  watchdog logged `lo rearmo` once at 13:57 and then nothing for twenty hours,
+  while the token had been live since 09:32 the next morning and the bar kept
+  drawing a day-old `13%`. The cause was the watchdog itself: once tripped, it
+  forced a new five-minute timer every sixty seconds, invalidating the one it
+  had just armed, so the timer never fired. The forced re-arm now only replaces
+  a timer whose date has already passed; a pending one is left alone.
+- **The terminal said `13% reinicia en vencido` for a session window that had
+  already reset.** A window whose reset time has passed carries the number of
+  the *previous* window; the GNOME indicator and the Windows tray already said
+  so, the terminal was the last screen still printing it as live. Now the bar
+  and the figure of an expired window are dimmed, its severity flag is dropped,
+  and the footer reads `reinició hace 1d9h`. In `qm --breve` the expired figure
+  becomes `?` (`teams ~?/26%`): the real number after a reset is not on this
+  machine, and a stale `13` looked like it was.
+
 ## v0.1.14 — 2026-09-15
 
 ### Fixed

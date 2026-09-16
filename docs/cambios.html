@@ -323,6 +323,12 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2 id="v0.1.15">v0.1.15 — 2026-09-16</h2>
+<h3>Fixed</h3>
+<ul>
+<li><strong>The macOS menu bar could stop refreshing for good, with the process alive and its watchdog "re-arming" every minute.</strong> Measured on one machine: the watchdog logged <code>lo rearmo</code> once at 13:57 and then nothing for twenty hours, while the token had been live since 09:32 the next morning and the bar kept drawing a day-old <code>13%</code>. The cause was the watchdog itself: once tripped, it forced a new five-minute timer every sixty seconds, invalidating the one it had just armed, so the timer never fired. The forced re-arm now only replaces a timer whose date has already passed; a pending one is left alone.</li>
+<li><strong>The terminal said <code>13% reinicia en vencido</code> for a session window that had already reset.</strong> A window whose reset time has passed carries the number of the <em>previous</em> window; the GNOME indicator and the Windows tray already said so, the terminal was the last screen still printing it as live. Now the bar and the figure of an expired window are dimmed, its severity flag is dropped, and the footer reads <code>reinició hace 1d9h</code>. In <code>qm --breve</code> the expired figure becomes <code>?</code> (<code>teams ~?/26%</code>): the real number after a reset is not on this machine, and a stale <code>13</code> looked like it was.</li>
+</ul>
 <h2 id="v0.1.14">v0.1.14 — 2026-09-15</h2>
 <h3>Fixed</h3>
 <ul>

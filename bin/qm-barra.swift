@@ -983,7 +983,20 @@ final class Barra: NSObject, NSApplicationDelegate {
         // agendada YA VENCIÓ, así que cualquier fecha nueva es «más lejos» y la
         // guarda la rechazaría. La defensa contra el hambre desactivaba a la
         // defensa contra el silencio.
-        if !forzando, let r = reloj, r.isValid, cuando >= r.fireDate { return }
+        if let r = reloj, r.isValid {
+            if !forzando, cuando >= r.fireDate { return }
+            // Forzando también tiene un límite: sólo reemplaza un reloj cuya
+            // fecha YA PASÓ. El vigía corre cada minuto y, una vez que avisó,
+            // llamaba a esto con `forzando` en cada vuelta: cada llamada
+            // invalidaba el Timer de cinco minutos recién armado y ponía otro
+            // de cinco minutos. Un reloj que se reemplaza cada 60 s con uno de
+            // 300 s no dispara nunca. Medido el 2026-09-16: «lo rearmo» a las
+            // 13:57 del día anterior, y desde ahí veinte horas sin un solo
+            // calentado, con el proceso vivo, el token vigente desde las 09:32
+            // y el vigía «rearmando» en silencio cada minuto. La defensa
+            // contra el silencio se había vuelto la causa del silencio.
+            if forzando, r.fireDate > Date() { return }
+        }
         reloj?.invalidate()
         let t = Timer(timeInterval: cuanto, repeats: false) { _ in
             // Codex primero: su número no está en ningún disco hasta que

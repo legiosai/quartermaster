@@ -70,6 +70,7 @@ import {
 } from '../core/tipos.ts';
 import {
   barra,
+  barraSinColor,
   duracion,
   negrita,
   relleno,
@@ -78,6 +79,7 @@ import {
   tokens,
   verde,
   amarillo,
+  reinicio,
 } from '../render/barras.ts';
 
 interface Opciones {
@@ -681,14 +683,19 @@ function sello(r: Extract<ResultadoCuota, { estado: 'ok' }>): string {
 
 function pintarVentana(v: VentanaCuota, marca: boolean): void {
   const pct = `${v.porcentaje.toFixed(0)}%`.padStart(4);
-  const resta = v.reinicia
-    ? tenue(` reinicia en ${duracion(v.reinicia.getTime() - Date.now())}`)
-    : '';
-  const aviso = v.severidad !== 'normal' ? ` ${amarillo(v.severidad)}` : '';
+  // Una ventana cuyo reinicio ya pasó lleva un número de la ventana ANTERIOR:
+  // el 13 % de una sesión que cerró anteayer no dice nada de la de hoy. No se
+  // inventa un 0 % (ver `vencida()` en tipos.ts), pero tampoco se pinta como
+  // vigente: barra y cifra van en tenue, sin color de nivel ni aviso de
+  // severidad, y el pie dice «reinició hace» en vez de «reinicia en vencido».
+  const vencida = vencidaVentana(v);
+  const resta = v.reinicia ? tenue(` ${reinicio(v.reinicia.getTime() - Date.now())}`) : '';
+  const aviso = !vencida && v.severidad !== 'normal' ? ` ${amarillo(v.severidad)}` : '';
   const flecha = marca ? negrita('▸ ') : '  ';
-  console.log(
-    `  ${relleno('', 17)}${flecha}${relleno(nombreVentana(v), 24)} ${barra(v.porcentaje / 100)} ${colorPct(v.porcentaje)(pct)}${aviso}${resta}`,
-  );
+  const medidor = vencida
+    ? `${tenue(barraSinColor(v.porcentaje / 100))} ${tenue(pct)}`
+    : `${barra(v.porcentaje / 100)} ${colorPct(v.porcentaje)(pct)}`;
+  console.log(`  ${relleno('', 17)}${flecha}${relleno(nombreVentana(v), 24)} ${medidor}${aviso}${resta}`);
 }
 
 /**
@@ -775,7 +782,7 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
   if (top) {
     console.log(
       `  ${negrita('lo primero que te frena:')} ${top.f.perfil.nombre} · ${nombreVentana(top.v)} ${colorPct(top.v.porcentaje)(`${top.v.porcentaje.toFixed(0)}%`)}` +
-        (top.v.reinicia ? tenue(` · reinicia en ${duracion(top.v.reinicia.getTime() - Date.now())}`) : ''),
+        (top.v.reinicia ? tenue(` · ${reinicio(top.v.reinicia.getTime() - Date.now())}`) : ''),
     );
     console.log();
   }
@@ -821,10 +828,16 @@ function pintarBreve(filas: readonly FilaPerfil[], o: Opciones): void {
     // barra que frena antes dice si llegás al final de la ventana larga. Una
     // sola de las dos deja media respuesta.
     const sesion = paraMostrar(f.cuota.ventanas).find((w) => w.grupo === 'session' || w.clave === 'session');
+    // Una ventana que ya se reinició no tiene número: el guardado es de la
+    // anterior y el real no está en esta máquina. En una statusline eso es «?»
+    // y no un 13 % que parece de ahora — el «~» ya dice que la lectura es
+    // vieja, pero un número viejo de una ventana abierta y uno de una ventana
+    // cerrada son cosas distintas, y sólo el segundo se sabe inútil.
+    const cifraDe = (w: VentanaCuota): string => (vencidaVentana(w) ? '?' : w.porcentaje.toFixed(0));
     const cifra =
       sesion === undefined || sesion.clave === v.clave
-        ? `${v.porcentaje.toFixed(0)}%`
-        : `${sesion.porcentaje.toFixed(0)}/${v.porcentaje.toFixed(0)}%`;
+        ? `${cifraDe(v)}%`
+        : `${cifraDe(sesion)}/${cifraDe(v)}%`;
     partes.push(
       `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${cifra}${aviso}`)}`,
     );

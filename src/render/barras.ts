@@ -19,11 +19,17 @@ export function anchoVisible(texto: string): number {
   return texto.replace(ANSI, '').length;
 }
 
+/** Los bloques solos, sin color: para pintarlos en tenue cuando el número ya no vale. */
+export function barraSinColor(fraccion: number, ancho = 15): string {
+  const f = Math.min(1, Math.max(0, Number.isFinite(fraccion) ? fraccion : 0));
+  const llenos = Math.round(f * ancho);
+  return '█'.repeat(llenos) + '░'.repeat(ancho - llenos);
+}
+
 /** Barra de bloques. `fraccion` fuera de [0,1] se recorta. */
 export function barra(fraccion: number, ancho = 15): string {
   const f = Math.min(1, Math.max(0, Number.isFinite(fraccion) ? fraccion : 0));
-  const llenos = Math.round(f * ancho);
-  const cuerpo = '█'.repeat(llenos) + '░'.repeat(ancho - llenos);
+  const cuerpo = barraSinColor(f, ancho);
   if (f >= 0.9) return rojo(cuerpo);
   if (f >= 0.7) return amarillo(cuerpo);
   return verde(cuerpo);
@@ -52,6 +58,19 @@ export function duracion(ms: number): string {
   if (h > 0) return `${h}h${String(m).padStart(2, '0')}m`;
   if (m > 0) return `${m}m`;
   return `${s}s`;
+}
+
+/**
+ * «reinicia en 2h14m» o, cuando ya pasó, «reinició hace 1d9h».
+ *
+ * «reinicia en vencido» no es castellano, y el indicador de GNOME y la bandeja
+ * de Windows ya lo decían bien; la terminal era la única pantalla que seguía
+ * imprimiéndolo. Cuando el reinicio ya pasó, se dice que pasó y hace cuánto:
+ * eso es lo que le dice al que mira que el porcentaje de al lado es de una
+ * ventana que ya cerró.
+ */
+export function reinicio(ms: number): string {
+  return ms < 0 ? `reinició hace ${duracion(-ms)}` : `reinicia en ${duracion(ms)}`;
 }
 
 /** Rellena a `ancho` COLUMNAS, no a `ancho` bytes: el color no cuenta. */
