@@ -3,9 +3,45 @@
 # Los gates VIVÍAN acá y la release tenía su propia copia recortada. Están en
 # gates.yml para que haya uno solo: lo que corre en un push es, literalmente,
 # lo que corre en un tag. La razón larga está en la cabecera de ese archivo.
+#
+# DOS COSAS MÁS, Y LAS DOS SON PLATA. Unificar los gates las hizo visibles, que
+# es lo que pasa cuando todo queda en una lista:
+#
+#   1. Una rama con PR abierto corría los gates DOS VECES por commit —una por
+#      `push` y otra por `pull_request`, sobre el mismo sha—, y cada vuelta
+#      incluye el job de Windows, que es el más caro. El `if` de abajo deja la
+#      de `push` y se queda con la de `pull_request` sólo cuando viene de un
+#      fork, que es el único caso en que la de push no existe.
+#
+#      La alternativa habitual —`push: branches: [main]`— también saca la
+#      duplicada, pero de paso deja sin CI a una rama que todavía no tiene PR,
+#      y acá se trabaja así: se empuja la rama, se mira el verde, después se
+#      abre el PR.
+#
+#   2. Un tag corría este workflow ADEMÁS de release.yml, y desde que los dos
+#      llaman al mismo gates.yml eso es correr los mismos trece gates dos veces
+#      en el momento más caro. release.yml los corre y de él depende todo lo
+#      que publica: acá no hace falta.
+#
+# Y `concurrency` cancela la corrida anterior de la misma rama. El repo arregla
+# para adelante —el 2026-09-15 hubo cinco pushes a main en doce minutos, cada
+# uno con su suite entera— y de esas cinco la única que importaba era la última.
+# La de main NO se cancela: ahí cada commit es el que quedó publicado y su verde
+# tiene que existir.
 name: ci
-on: [push, pull_request]
+on:
+  push:
+    tags-ignore: ['**']   # el tag lo comprueba release.yml, con estos mismos gates
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   gates:
+    # En un PR de este mismo repo, el evento `push` ya corrió los gates sobre el
+    # mismo sha. El de `pull_request` sólo aporta algo cuando viene de un fork,
+    # que es donde no hubo push a esta rama.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     uses: ./.github/workflows/gates.yml
