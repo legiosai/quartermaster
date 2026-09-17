@@ -1,21 +1,21 @@
 {
-  "generado": "2026-09-17T16:12:12.876Z",
+  "generado": "2026-09-17T18:43:26.537Z",
   "resumen": {
     "humanasHastaHoy": {
       "npm": 0,
-      "github": 36
+      "github": 39
     },
     "estaSemana": {
       "desde": "2026-09-16",
       "npm": 0,
-      "github": 6
+      "github": 9
     },
     "sinContador": {
-      "brew": null,
-      "scoop": null
+      "brew": 2,
+      "scoop": 0
     },
-    "llegaron": null,
-    "estrellas": 4,
+    "llegaron": 29,
+    "estrellas": 5,
     "cobertura": "completa",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
@@ -69,19 +69,19 @@
     ]
   },
   "github": {
-    "humanas": 36,
+    "humanas": 39,
     "porVersion": [
       {
         "version": "v0.1.16",
         "publicada": "2026-09-17",
-        "humanas": 0,
+        "humanas": 2,
         "adjuntos": {
           "exe": {
-            "bajadas": 0,
-            "netas": 0
+            "bajadas": 6,
+            "netas": 2
           },
           "zip": {
-            "bajadas": 0,
+            "bajadas": 2,
             "netas": 0
           },
           "extension": {
@@ -97,15 +97,15 @@
       {
         "version": "v0.1.15",
         "publicada": "2026-09-16",
-        "humanas": 8,
+        "humanas": 9,
         "adjuntos": {
           "exe": {
             "bajadas": 8,
             "netas": 4
           },
           "zip": {
-            "bajadas": 6,
-            "netas": 4
+            "bajadas": 7,
+            "netas": 5
           },
           "extension": {
             "bajadas": 0,
@@ -374,30 +374,335 @@
   "interes": {
     "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
     "vistas": {
-      "porQueNo": "legiosai/quartermaster/traffic/views → HTTP 403"
+      "total": 73,
+      "unicos": 29,
+      "dias": [
+        {
+          "dia": "2026-09-03",
+          "vistas": 0,
+          "unicos": 0
+        },
+        {
+          "dia": "2026-09-04",
+          "vistas": 0,
+          "unicos": 0
+        },
+        {
+          "dia": "2026-09-05",
+          "vistas": 0,
+          "unicos": 0
+        },
+        {
+          "dia": "2026-09-06",
+          "vistas": 0,
+          "unicos": 0
+        },
+        {
+          "dia": "2026-09-07",
+          "vistas": 0,
+          "unicos": 0
+        },
+        {
+          "dia": "2026-09-08",
+          "vistas": 0,
+          "unicos": 0
+        },
+        {
+          "dia": "2026-09-09",
+          "vistas": 4,
+          "unicos": 3
+        },
+        {
+          "dia": "2026-09-10",
+          "vistas": 3,
+          "unicos": 2
+        },
+        {
+          "dia": "2026-09-11",
+          "vistas": 6,
+          "unicos": 1
+        },
+        {
+          "dia": "2026-09-12",
+          "vistas": 0,
+          "unicos": 0
+        },
+        {
+          "dia": "2026-09-13",
+          "vistas": 1,
+          "unicos": 1
+        },
+        {
+          "dia": "2026-09-14",
+          "vistas": 5,
+          "unicos": 2
+        },
+        {
+          "dia": "2026-09-15",
+          "vistas": 12,
+          "unicos": 2
+        },
+        {
+          "dia": "2026-09-16",
+          "vistas": 42,
+          "unicos": 21
+        }
+      ]
     },
-    "referentes": {
-      "porQueNo": "legiosai/quartermaster/traffic/popular/referrers → HTTP 403"
-    },
+    "referentes": [
+      {
+        "sitio": "github.com",
+        "vistas": 23,
+        "unicos": 14
+      },
+      {
+        "sitio": "linkedin.com",
+        "vistas": 9,
+        "unicos": 7
+      },
+      {
+        "sitio": "quartermaster.legios.com.ar",
+        "vistas": 3,
+        "unicos": 3
+      },
+      {
+        "sitio": "com.linkedin.android",
+        "vistas": 1,
+        "unicos": 1
+      },
+      {
+        "sitio": "youtube.com",
+        "vistas": 1,
+        "unicos": 1
+      }
+    ],
     "estrellas": {
-      "total": 4,
+      "total": 5,
       "dias": [
         {
           "dia": "2026-09-16",
           "estrellas": 4
+        },
+        {
+          "dia": "2026-09-17",
+          "estrellas": 1
         }
       ]
     },
     "canalesSinContador": {
       "brew": {
         "repo": "legiosai/homebrew-tap",
-        "porQueNo": "legiosai/homebrew-tap/traffic/clones → HTTP 403",
-        "nota": "la API de tráfico pide permiso de push: hace falta un PAT en TOKEN_PAQUETES"
+        "total": 118,
+        "unicos": 70,
+        "enDiasSinRelease": 2,
+        "diasSinRelease": 8,
+        "dias": [
+          {
+            "dia": "2026-09-03",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-04",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-05",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-06",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-07",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-08",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-09",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-10",
+            "clones": 15,
+            "unicos": 9,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-11",
+            "clones": 9,
+            "unicos": 7,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-12",
+            "clones": 2,
+            "unicos": 2,
+            "huboRelease": false,
+            "quietos": 2
+          },
+          {
+            "dia": "2026-09-13",
+            "clones": 8,
+            "unicos": 6,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-14",
+            "clones": 27,
+            "unicos": 13,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-15",
+            "clones": 51,
+            "unicos": 29,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-16",
+            "clones": 6,
+            "unicos": 4,
+            "huboRelease": true,
+            "quietos": null
+          }
+        ]
       },
       "scoop": {
         "repo": "legiosai/scoop-bucket",
-        "porQueNo": "legiosai/scoop-bucket/traffic/clones → HTTP 403",
-        "nota": "la API de tráfico pide permiso de push: hace falta un PAT en TOKEN_PAQUETES"
+        "total": 108,
+        "unicos": 75,
+        "enDiasSinRelease": 0,
+        "diasSinRelease": 8,
+        "dias": [
+          {
+            "dia": "2026-09-03",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-04",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-05",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-06",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-07",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-08",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-09",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-10",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-11",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-12",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
+          },
+          {
+            "dia": "2026-09-13",
+            "clones": 24,
+            "unicos": 18,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-14",
+            "clones": 44,
+            "unicos": 29,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-15",
+            "clones": 20,
+            "unicos": 14,
+            "huboRelease": true,
+            "quietos": null
+          },
+          {
+            "dia": "2026-09-16",
+            "clones": 20,
+            "unicos": 14,
+            "huboRelease": true,
+            "quietos": null
+          }
+        ]
       }
     }
   },
@@ -420,7 +725,7 @@
     {
       "fecha": "2026-09-17",
       "npm": 0,
-      "github": 36
+      "github": 39
     }
   ]
 }
