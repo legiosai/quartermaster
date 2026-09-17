@@ -136,4 +136,17 @@ PY
 #     menú, y un menú rueda item por item.
 python3 scripts/gate-tarjetas.py || exit 1
 
+# 5 · que el nombre de cada dibujo no se repita NUNCA.
+#
+#     GNOME Shell cachea la textura por ruta y sólo suelta la entrada vieja
+#     cuando su GFileMonitor le avisa, que llega después de que la extensión ya
+#     leyó estado.json y pintó. Un nombre repetido deja el item mostrando el
+#     dibujo de antes hasta que algo lo obliga a releer —pasarle el mouse por
+#     arriba, por ejemplo—, y desde afuera se ve como que los números cambian
+#     solos cuando movés el mouse por la barra. Acá vivió una rotación de DOS
+#     nombres que parecía alcanzar: no alcanzaba, uno de cada dos refrescos
+#     volvía a caer sobre una ruta que el cache ya tenía. Un sello que se pisa
+#     bajo carga, o un reloj que salta para atrás, traen el mismo bug de vuelta.
+python3 scripts/gate-sellos.py || fallar "el nombre de los dibujos se puede repetir"
+
 echo "gate de dibujo: verde"
