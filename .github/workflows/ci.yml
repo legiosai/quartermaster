@@ -31,7 +31,13 @@
 name: ci
 on:
   push:
-    tags-ignore: ['**']   # el tag lo comprueba release.yml, con estos mismos gates
+    # `branches: ['**']` es TODAS las ramas y NINGÚN tag: al nombrar `branches`
+    # sin `tags`, un tag deja de disparar. Acá estuvo escrito `tags-ignore:
+    # ['**']`, que parece lo mismo y es lo contrario — nombrar sólo `tags-ignore`
+    # hace que el push dispare SÓLO con tags, y después los ignora a todos: el
+    # workflow no corría nunca. Se vio porque el PR que lo traía se quedó sin un
+    # solo gate, que es peor que las dos tandas que venía a arreglar.
+    branches: ['**']
   pull_request:
 
 concurrency:
