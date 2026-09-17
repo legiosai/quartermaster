@@ -323,6 +323,11 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2 id="v0.1.16">v0.1.16 — 2026-09-17</h2>
+<h3>Fixed</h3>
+<ul>
+<li><strong>The GNOME top-bar item showed the real numbers only while the mouse was over it.</strong> Half of every refresh left a stale drawing on the bar, and hovering was what made the true figure appear — so the quota looked like it changed on its own as you moved the mouse across the panel. Measured on one machine (GNOME Shell 48.7): the item read <code>15 | 15 | 37 | 0</code> while <code>estado.json</code> at that same moment said main 43, teams 21, codex 66, glm 0; seven frames into the hover it flipped to <code>43 | 21 | 66 | 0</code> and stayed. The old drawing was in no file on disk — it was the texture the shell had cached for that path. The item alternated its PNG between two names to dodge that cache, which does not dodge it: one refresh in two lands back on a path the cache already holds, and the shell only drops the old entry once its file monitor reports the change, which arrives after the extension has already painted. Each drawing now gets a name that is never reused, so every refresh is a path the shell has never seen. The panel behind the item had the same bug — the one you opened could be minutes old — and got the same fix.</li>
+</ul>
 <h2 id="v0.1.15">v0.1.15 — 2026-09-16</h2>
 <h3>Fixed</h3>
 <ul>

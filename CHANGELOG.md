@@ -14,6 +14,26 @@ out unless they changed what you see.
 
 ---
 
+## v0.1.16 — 2026-09-17
+
+### Fixed
+
+- **The GNOME top-bar item showed the real numbers only while the mouse was
+  over it.** Half of every refresh left a stale drawing on the bar, and hovering
+  was what made the true figure appear — so the quota looked like it changed on
+  its own as you moved the mouse across the panel. Measured on one machine
+  (GNOME Shell 48.7): the item read `15 | 15 | 37 | 0` while `estado.json` at
+  that same moment said main 43, teams 21, codex 66, glm 0; seven frames into
+  the hover it flipped to `43 | 21 | 66 | 0` and stayed. The old drawing was in
+  no file on disk — it was the texture the shell had cached for that path. The
+  item alternated its PNG between two names to dodge that cache, which does not
+  dodge it: one refresh in two lands back on a path the cache already holds, and
+  the shell only drops the old entry once its file monitor reports the change,
+  which arrives after the extension has already painted. Each drawing now gets a
+  name that is never reused, so every refresh is a path the shell has never
+  seen. The panel behind the item had the same bug — the one you opened could be
+  minutes old — and got the same fix.
+
 ## v0.1.15 — 2026-09-16
 
 ### Fixed
