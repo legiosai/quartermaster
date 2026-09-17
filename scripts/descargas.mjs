@@ -291,6 +291,25 @@ async function principal() {
     piso: PISO,
     historial,
   };
+  // Una sección en null es un dato, pero adentro de un JSON de 400 líneas no la
+  // ve nadie —que es exactamente cómo el AUR pasó diez releases sin publicar—.
+  // Así que sale por el log del workflow, donde se mira. Va ACÁ arriba y no
+  // junto a la escritura porque los dos `return` de abajo se la saltearían, y
+  // el día sin cambios es justo el día en que nadie abre el archivo.
+  const enNull = [
+    ['vistas', salida.interes.vistas?.porQueNo],
+    ['referentes', salida.interes.referentes?.porQueNo],
+    ['estrellas', salida.interes.estrellas?.porQueNo],
+    ...Object.entries(salida.interes.canalesSinContador).map(([c, v]) => [c, v.porQueNo]),
+  ].filter(([, porQue]) => porQue);
+  // Con --seco no: lo único que sale por stdout ahí es el JSON.
+  if (enNull.length > 0 && !seco) {
+    for (const [que, porQue] of enNull) console.log(`::warning::${que}: sin número — ${porQue}`);
+    console.log('::warning::La API de tráfico pide permiso de ADMIN sobre el repo, no sólo push.' +
+      ' Hace falta un PAT con ese permiso en TOKEN_PAQUETES (fine-grained: Administration=read,' +
+      ' sobre quartermaster, homebrew-tap y scoop-bucket). Sin eso el tablero mide descargas y no mide interés.');
+  }
+
   const texto = `${JSON.stringify(salida, null, 2)}\n`;
   if (seco) {
     process.stdout.write(texto);
@@ -306,6 +325,7 @@ async function principal() {
     return;
   }
   writeFileSync(SALIDA, texto);
+
   const s = salida.resumen;
   console.log(`docs/descargas.json escrito · humanas hasta hoy: npm ${s.humanasHastaHoy.npm} · github ${s.humanasHastaHoy.github}` +
     (s.estaSemana ? ` · esta semana (desde ${s.estaSemana.desde}): npm ${s.estaSemana.npm} · github ${s.estaSemana.github}` : ''));
