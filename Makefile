@@ -307,7 +307,7 @@ gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
 
 .PHONY: gate-dibujo-rojo
-gate-dibujo-rojo:  ## los dos rojos de la cabecera: sin frenaPrimero, y encabezada por una dormida
+gate-dibujo-rojo:  ## los cuatro rojos: la cabecera (sin frenaPrimero y encabezada por una dormida) y el sello (la rotación de dos nombres y el reloj pelado)
 	@cp test/fixtures/panel.json .panel.gate
 	@python3 -c "import json;d=json.load(open('test/fixtures/panel.json'));d.pop('frenaPrimero',None);json.dump(d,open('test/fixtures/panel.json','w'),indent=4)"
 	@if python3 scripts/gate-tarjetas.py >/dev/null 2>&1; then \
@@ -325,6 +325,24 @@ gate-dibujo-rojo:  ## los dos rojos de la cabecera: sin frenaPrimero, y encabeza
 	else \
 	  mv .dormida.gate test/fixtures/panel-dormida.json; \
 	  echo "✓ el gate falla en rojo cuando encabeza una cuenta dormida"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('_ULTIMO_SELLO = max(time.time_ns(), _ULTIMO_SELLO + 1)','_ULTIMO_SELLO = 1 - _ULTIMO_SELLO'))"
+	@if python3 scripts/gate-sellos.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con la rotación de DOS nombres. Es el bug que el cambio vino a arreglar: uno de cada dos refrescos caía sobre una ruta que el shell ya tenía cacheada, y el item mostraba el dibujo viejo hasta que le pasabas el mouse por arriba."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con la rotación de dos nombres"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('    _ULTIMO_SELLO = max(time.time_ns(), _ULTIMO_SELLO + 1)\n    return _ULTIMO_SELLO','    return time.time_ns()'))"
+	@if python3 scripts/gate-sellos.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con el reloj pelado: un ajuste de NTP para atrás devuelve un sello ya usado y el nombre del dibujo se repite."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con el reloj pelado, sin guardia contra el salto de NTP"; \
 	fi
 
 .PHONY: construir

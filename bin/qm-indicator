@@ -89,6 +89,12 @@ ESTADO = CACHE / "estado.json"
 EXTENSION_VIVA = CACHE / "extension-viva"
 # Donde la extensión deja el click.
 PEDIDO = CACHE / "pedido"
+# Cuántos dibujos viejos quedan sin borrar. El nombre de cada dibujo no se
+# repite nunca (ver `pintar`), así que hay que barrerlos o el cache crece sin
+# techo. Tres y no uno: uno es el que estado.json está señalando, y los otros
+# cubren la lectura asíncrona del shell, que puede seguir cargando el anterior
+# cuando éste ya se escribió. Borrar de más se ve como un item sin icono.
+DIBUJOS_QUE_QUEDAN = 3
 # El panel, dibujado a un PNG para que lo muestre la extensión.
 #
 # Por qué un PNG y no la ventana: un menú de GTK sobre XWayland no logra
@@ -110,6 +116,24 @@ YO = pathlib.Path(__file__).resolve()
 ICONO_OK = "utilities-system-monitor-symbolic"
 ICONO_AVISO = "dialog-warning-symbolic"
 ICONO_GRAVE = "dialog-error-symbolic"
+
+
+_ULTIMO_SELLO = 0
+
+
+def sello_nuevo() -> int:
+    """Un número que no se repite NUNCA. De esto cuelga el nombre de cada dibujo.
+
+    No alcanza con leer el reloj. `time_ns()` promete nanosegundos pero no
+    promete resolución, y dos refrescos seguidos pueden caer en la misma
+    lectura; y un ajuste de NTP mueve el reloj para atrás, que devolvería un
+    sello ya usado. Las dos cosas terminan en el mismo lugar: dos dibujos
+    distintos con el mismo nombre, que es exactamente lo que el sello existe
+    para evitar (ver `pintar`). El máximo contra el anterior lo cierra.
+    """
+    global _ULTIMO_SELLO
+    _ULTIMO_SELLO = max(time.time_ns(), _ULTIMO_SELLO + 1)
+    return _ULTIMO_SELLO
 
 
 # ── formato ──────────────────────────────────────────────────────────────
@@ -1745,7 +1769,6 @@ class Indicador:
         self._vigia_avisado = False
         self.reloj: int | None = None
         self.proxima_lectura: int | None = None
-        self.turno = 0
         self.iconos = CACHE
         self.panel = Panel(self.refrescar, self.falta_para_lectura)
         self.monitores: list[Gio.FileMonitor] = []
@@ -2417,11 +2440,24 @@ class Indicador:
             self.ind.set_icon_full(ICONO_AVISO, "sin cuota")
             return
 
-        # Se alterna el nombre del archivo porque el shell cachea la textura por
-        # ruta: reescribiendo siempre la misma, el item se queda con el dibujo
-        # viejo y parece que la cuota no se mueve.
-        self.turno = 1 - self.turno
-        destino = self.iconos / f"barra-{self.turno}.png"
+        # Cada refresco estrena nombre de archivo, con un sello del reloj.
+        #
+        # El shell cachea la textura por ruta y sólo suelta la entrada vieja
+        # cuando su propio GFileMonitor le avisa que el archivo cambió: ese
+        # aviso llega DESPUÉS de que la extensión ya leyó estado.json y pintó,
+        # y no vuelve a pintar solo. Reescribir siempre la misma ruta dejaba el
+        # item clavado en el dibujo viejo —parecía que la cuota no se mueve—,
+        # pero turnarse entre DOS nombres tampoco alcanza: uno de cada dos
+        # refrescos vuelve a caer sobre una ruta que el cache ya tiene.
+        #
+        # Del lado del usuario eso se veía como que los números cambian cuando
+        # le pasás el mouse por arriba. No los cambia el hover: el hover
+        # recalcula el estilo, obliga a releer el archivo y recién ahí aparece
+        # la cifra de verdad, que estuvo tapada todo el tiempo por el dibujo
+        # cacheado. Una ruta que el shell nunca vio no puede tener una entrada
+        # vieja en el cache, así que el sello va en el nombre.
+        sello = sello_nuevo()
+        destino = self.iconos / f"barra-{sello}.png"
         try:
             self.iconos.mkdir(parents=True, exist_ok=True)
             ancho, alto, descripcion = dibujar_item(piezas, str(destino))
@@ -2432,15 +2468,16 @@ class Indicador:
         # el mismo número en dos idiomas y ocupar el doble de barra.
         self.ind.set_label("", "")
         self.ind.set_icon_full(str(destino), descripcion)
-        self.publicar(destino, ancho, alto, descripcion)
+        self.publicar(destino, ancho, alto, descripcion, sello)
 
-    def publicar(self, ruta: Path, ancho: int, alto: int, descripcion: str) -> None:
+    def publicar(self, ruta: Path, ancho: int, alto: int, descripcion: str,
+                 sello: int) -> None:
         """Deja escrito qué dibujó, para la extensión de GNOME Shell."""
         panel = {}
         try:
-            # El nombre alterna igual que el del item: el shell cachea la
-            # textura por ruta y si no, muestra el panel de hace un rato.
-            destino = self.iconos / f"panel-{self.turno}.png"
+            # Mismo sello que el item, y por lo mismo: sin un nombre que el
+            # shell nunca haya visto, el panel que se abre es el de hace un rato.
+            destino = self.iconos / f"panel-{sello}.png"
             # Un nombre propio, y no `alto` otra vez: pisar el parámetro dejaba
             # escrito que el ICONO de la barra medía lo que mide el PANEL —
             # 576 px de alto para un dibujo de 22. La extensión le cree al
@@ -2456,6 +2493,29 @@ class Indicador:
             }))
         except OSError:
             pass  # sin extensión instalada esto no le importa a nadie
+        self.barrer()
+
+    def barrer(self) -> None:
+        """Borra los dibujos que ya nadie mira.
+
+        Como el nombre lleva un sello y no se repite nunca, sin esto el
+        directorio de cache junta un PNG por refresco para siempre. El panel
+        pesa ~100 kB, así que no es una molestia teórica.
+        """
+        for prefijo in ("barra", "panel"):
+            try:
+                # Por (largo, texto) y no alfabético a secas: el sufijo es un
+                # número, y así `barra-0.png` de una versión vieja queda
+                # primero en vez de colarse entre los sellos.
+                viejos = sorted(self.iconos.glob(f"{prefijo}-*.png"),
+                                key=lambda p: (len(p.stem), p.stem))
+            except OSError:
+                continue
+            for viejo in viejos[:-DIBUJOS_QUE_QUEDAN]:
+                try:
+                    viejo.unlink()
+                except OSError:
+                    pass  # el próximo barrido lo vuelve a intentar
 
     def revisar_avisos(self, perfil: str, ventanas: list, frena: dict | None,
                        proy: dict | None, chocas: bool) -> None:
