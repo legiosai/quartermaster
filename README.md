@@ -26,6 +26,13 @@ MIT
 
 </div>
 
+```sh
+brew install legiosai/tap/quartermaster        # macOS and Linux
+npm install -g @legios/quartermaster           # anywhere
+```
+
+<div align="center"><sub>Then run <code>qm</code>. Details, the bar item and Windows: <a href="#install">Install</a>.</sub></div>
+
 > **Mission.** Nobody should find out their quota is gone by hitting the wall.
 
 ## The problem
