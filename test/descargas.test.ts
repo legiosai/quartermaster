@@ -6,7 +6,7 @@
 
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { PISO, REPOS_CANAL, agregarAlHistorial, estaSemana, separarAdjuntos, separarClones, separarEstrellas, separarNpm, tipoAdjunto } from '../scripts/descargas.mjs';
+import { PISO, REPOS_CANAL, agregarAlHistorial, estaSemana, separarAdjuntos, separarClones, huecosDelHistorial, separarEstrellas, separarNpm, tipoAdjunto } from '../scripts/descargas.mjs';
 
 describe('npm', () => {
   it('un día con publicación no cuenta como humano; uno sin publicación sí', () => {
@@ -145,5 +145,46 @@ describe('las estrellas', () => {
 
   it('sin estrellas, no rompe', () => {
     deepStrictEqual(separarEstrellas(undefined), { total: 0, dias: [] });
+  });
+});
+
+// El historial es la única serie de tiempo del proyecto y la escribe el cron
+// diario. Si el cron no corre —y el de GitHub se atrasa y a veces se saltea una
+// corrida— `estaSemana` no falla: devuelve un número que cubre menos días de
+// los que parece. Por eso el hueco se cuenta.
+describe('los huecos del historial', () => {
+  it('cuenta los días que faltan entre el primero y hoy', () => {
+    const h = huecosDelHistorial(
+      [{ fecha: '2026-09-14', npm: 0, github: 10 }, { fecha: '2026-09-17', npm: 0, github: 36 }],
+      '2026-09-17',
+    );
+    strictEqual(h.desde, '2026-09-14');
+    strictEqual(h.esperados, 4);   // 14, 15, 16, 17
+    strictEqual(h.anotados, 2);
+    deepStrictEqual(h.faltan, ['2026-09-15', '2026-09-16']);
+  });
+
+  it('un historial al día no tiene huecos', () => {
+    const h = huecosDelHistorial(
+      [{ fecha: '2026-09-16', npm: 0, github: 30 }, { fecha: '2026-09-17', npm: 0, github: 36 }],
+      '2026-09-17',
+    );
+    deepStrictEqual(h.faltan, []);
+    strictEqual(h.esperados, 2);
+  });
+
+  it('un historial vacío no rompe y no inventa huecos', () => {
+    deepStrictEqual(huecosDelHistorial([], '2026-09-17'), { desde: null, esperados: 0, anotados: 0, faltan: [] });
+    deepStrictEqual(huecosDelHistorial(undefined, '2026-09-17'), { desde: null, esperados: 0, anotados: 0, faltan: [] });
+  });
+
+  it('el hueco NO hace fallar a estaSemana: ése es justo el problema', () => {
+    // Con dos días y cinco de hueco en el medio, estaSemana devuelve un número
+    // y lo etiqueta `desde`. No miente — pero se lee igual que una semana.
+    const historial = [{ fecha: '2026-09-11', npm: 0, github: 10 }, { fecha: '2026-09-17', npm: 0, github: 36 }];
+    const s = estaSemana(historial, '2026-09-17');
+    strictEqual(s!.github, 26);
+    strictEqual(s!.desde, '2026-09-11');
+    strictEqual(huecosDelHistorial(historial, '2026-09-17').faltan.length, 5);
   });
 });

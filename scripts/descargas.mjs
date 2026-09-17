@@ -175,6 +175,41 @@ export function agregarAlHistorial(historial, hoy, npmHumanas, githubHumanas) {
   return [...sinHoy, { fecha: hoy, npm: npmHumanas, github: githubHumanas }].sort((a, b) => a.fecha.localeCompare(b.fecha));
 }
 
+/**
+ * Los días que le FALTAN al historial entre el primero que tiene y hoy.
+ *
+ * El historial es la única serie de tiempo del proyecto, y existe sólo porque
+ * los adjuntos de GitHub son acumulados: «esta semana» es restar contra la
+ * línea de hace siete días, y esa línea la escribe la corrida diaria. Si la
+ * corrida no ocurre, no se rompe nada visible — `estaSemana` sigue devolviendo
+ * un número, con un `desde` más cercano, y se lee igual que una semana entera.
+ *
+ * Y no ocurrir es el caso probable, no el raro: el cron de GitHub se atrasa y a
+ * veces directamente se saltea una corrida. Medido el 2026-09-17, con
+ * `0 12 * * *` configurado desde el día anterior, a las 14:44 UTC no había
+ * corrido NI UNA vez por `schedule` — las tres corridas del historial eran
+ * todas a mano.
+ *
+ * Así que el número que falta se cuenta y se dice. Es el mismo criterio que el
+ * resto del archivo: un dato que no se pudo tomar no puede parecerse a un cero.
+ */
+export function huecosDelHistorial(historial, hoy) {
+  if (!historial || historial.length === 0) return { desde: null, esperados: 0, anotados: 0, faltan: [] };
+  const desde = historial[0].fecha;
+  const tiene = new Set(historial.map((h) => h.fecha));
+  const faltan = [];
+  let esperados = 0;
+  const d = new Date(`${desde}T00:00:00Z`);
+  const fin = new Date(`${hoy}T00:00:00Z`);
+  while (d <= fin) {
+    const iso = d.toISOString().slice(0, 10);
+    esperados += 1;
+    if (!tiene.has(iso)) faltan.push(iso);
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return { desde, esperados, anotados: historial.length, faltan };
+}
+
 export function estaSemana(historial, hoy) {
   const ultima = historial.find((h) => h.fecha === hoy);
   if (!ultima) return null;
@@ -270,6 +305,7 @@ async function principal() {
 
   const previo = existsSync(SALIDA) ? JSON.parse(readFileSync(SALIDA, 'utf8')) : {};
   const historial = agregarAlHistorial(previo.historial ?? [], hoy, npm.enDiasSinPublicar, github.humanas);
+  const huecos = huecosDelHistorial(historial, hoy);
 
   const salida = {
     generado: new Date().toISOString(),
@@ -283,12 +319,17 @@ async function principal() {
         .map(([c, v]) => [c, v.enDiasSinRelease ?? null])),
       llegaron: interes.vistas?.unicos ?? null,
       estrellas: interes.estrellas?.total ?? null,
+      // Cuántos días de los que debería tener, tiene. `estaSemana` devuelve un
+      // número igual con el historial lleno de huecos, sólo que ese número
+      // cubre menos días de los que parece.
+      cobertura: huecos.faltan.length === 0 ? 'completa' : `faltan ${huecos.faltan.length} de ${huecos.esperados} días`,
       nota: 'npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos.',
     },
     npm,
     github,
     interes,
     piso: PISO,
+    huecos,
     historial,
   };
   // Una sección en null es un dato, pero adentro de un JSON de 400 líneas no la
@@ -302,6 +343,14 @@ async function principal() {
     ['estrellas', salida.interes.estrellas?.porQueNo],
     ...Object.entries(salida.interes.canalesSinContador).map(([c, v]) => [c, v.porQueNo]),
   ].filter(([, porQue]) => porQue);
+  if (huecos.faltan.length > 0 && !seco) {
+    console.log(`::warning::al historial le faltan ${huecos.faltan.length} de ${huecos.esperados} días` +
+      ` (${huecos.faltan.slice(0, 5).join(', ')}${huecos.faltan.length > 5 ? '…' : ''}).` +
+      ' «esta semana» se calcula contra el día más viejo que haya, así que sigue dando un número:' +
+      ' uno que cubre menos días de los que dice. El cron de GitHub se atrasa y a veces se saltea' +
+      ' una corrida — si faltan varios seguidos, conviene despacharlo a mano.');
+  }
+
   // Con --seco no: lo único que sale por stdout ahí es el JSON.
   if (enNull.length > 0 && !seco) {
     for (const [que, porQue] of enNull) console.log(`::warning::${que}: sin número — ${porQue}`);
