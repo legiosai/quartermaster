@@ -102,6 +102,71 @@ export function separarAdjuntos(releases) {
 }
 
 /**
+ * Los repos que SIRVEN un canal. `brew install legiosai/tap/…` y `scoop update`
+ * son un git fetch contra estos, y GitHub los cuenta como clones.
+ *
+ * Existe porque el CTA principal —la landing y el README arrancan con
+ * `brew install legiosai/tap/quartermaster`— es justo el canal SIN contador:
+ * un tap de Homebrew no reporta instalaciones a nadie. Medido el 2026-09-17,
+ * con la 0.1.15 publicada y un anuncio en LinkedIn el día anterior, el tablero
+ * decía «npm 0» y de brew y scoop no decía NADA. Eso no es cero: es que no se
+ * estaba mirando, y la diferencia importa cuando lo que se concluye es «nadie
+ * lo instaló».
+ *
+ * No reemplaza a un contador: son clones, y ahí adentro hay CI y escáneres.
+ * Por eso se cuentan igual que los días de npm —sólo los días sin release—,
+ * que es el mismo truco que hace confiable `enDiasSinPublicar`.
+ */
+export const REPOS_CANAL = {
+  brew: 'legiosai/homebrew-tap',
+  scoop: 'legiosai/scoop-bucket',
+};
+
+/**
+ * Los clones de un repo de canal, separando los días con release de los que no.
+ *
+ * Un día con release tiene los checkouts de release.yml y la ronda de mirrors;
+ * un día sin release no tiene ninguno de los dos, así que lo que quede ahí es
+ * lo más cerca de «alguien corrió brew install» que se puede medir sin
+ * telemetría. Mismo criterio que `separarNpm`, y por la misma razón.
+ *
+ * `dias`: [{timestamp, count, uniques}] tal como los da la API de tráfico.
+ * `fechasDeRelease`: los ISO de publicación de las releases.
+ */
+export function separarClones(dias, fechasDeRelease) {
+  const conRelease = new Set(fechasDeRelease.map((f) => f.slice(0, 10)));
+  const filas = (dias ?? []).map((d) => {
+    const dia = d.timestamp.slice(0, 10);
+    const hubo = conRelease.has(dia);
+    return { dia, clones: d.count, unicos: d.uniques, huboRelease: hubo, quietos: hubo ? null : d.uniques };
+  });
+  return {
+    total: filas.reduce((s, f) => s + f.clones, 0),
+    unicos: filas.reduce((s, f) => s + f.unicos, 0),
+    enDiasSinRelease: filas.reduce((s, f) => s + (f.quietos ?? 0), 0),
+    // Cuántos días quietos hubo, que es lo que le da peso al número de arriba.
+    // Cortando una release por día quedan cero, y entonces `enDiasSinRelease`
+    // vale 0 por falta de ventana y no por falta de gente. Sin este contador
+    // las dos cosas se leen igual.
+    diasSinRelease: filas.filter((f) => !f.huboRelease).length,
+    dias: filas,
+  };
+}
+
+/** Las estrellas por día, que es lo único que viene con una persona atrás. */
+export function separarEstrellas(stargazers) {
+  const porDia = new Map();
+  for (const s of stargazers ?? []) {
+    const d = (s.starred_at ?? '').slice(0, 10);
+    if (d) porDia.set(d, (porDia.get(d) ?? 0) + 1);
+  }
+  return {
+    total: (stargazers ?? []).length,
+    dias: [...porDia.entries()].sort().map(([dia, estrellas]) => ({ dia, estrellas })),
+  };
+}
+
+/**
  * Una línea por día: reemplaza la de hoy si ya está, y con eso «esta semana»
  * es restar contra la línea de hace siete días o más.
  */
@@ -128,6 +193,22 @@ async function json(url, cabeceras = {}) {
   return r.json();
 }
 
+/**
+ * Lo mismo, pero devolviendo el porqué en vez de tumbar la corrida.
+ *
+ * La API de tráfico pide permiso de push, y el token de un canal no es el mismo
+ * que el del repo. Un 403 ahí no puede llevarse puesto el conteo de npm — pero
+ * tampoco puede desaparecer: el JSON dice `null` Y dice por qué, que es la
+ * diferencia entre «nadie lo clonó» y «no lo miramos».
+ */
+async function jsonOpcional(url, cabeceras = {}) {
+  try {
+    return { datos: await json(url, cabeceras), porQueNo: null };
+  } catch (e) {
+    return { datos: null, porQueNo: e.message.replace(/^https:\/\/api\.github\.com\/repos\//, '') };
+  }
+}
+
 async function principal() {
   const seco = process.argv.includes('--seco');
   const hoy = new Date().toISOString().slice(0, 10);
@@ -144,6 +225,45 @@ async function principal() {
   const releases = await json(`https://api.github.com/repos/${REPO}/releases?per_page=100`, token ? { authorization: `Bearer ${token}` } : {});
   const github = separarAdjuntos(releases);
 
+  // ── el interés, que es la otra mitad y faltaba entera ────────────────
+  // El tablero medía descargas y nada más, así que el día del anuncio —21
+  // visitantes únicos y tres estrellas de gente que no conocemos— se veía
+  // igual que un martes cualquiera: npm 0. Lo que sigue no son instalaciones,
+  // y por eso va en otra sección: es cuánta gente llegó, de dónde, y qué pasó
+  // en los dos canales que no tienen contador.
+  const auth = token ? { authorization: `Bearer ${token}` } : {};
+  const fechasDeRelease = releases.map((r) => r.published_at).filter(Boolean);
+
+  const vistas = await jsonOpcional(`https://api.github.com/repos/${REPO}/traffic/views`, auth);
+  const referentes = await jsonOpcional(`https://api.github.com/repos/${REPO}/traffic/popular/referrers`, auth);
+  const estrellas = await jsonOpcional(`https://api.github.com/repos/${REPO}/stargazers?per_page=100`, {
+    ...auth, accept: 'application/vnd.github.star+json',
+  });
+
+  // El token del repo no llega al tap ni al bucket: ésos son TOKEN_PAQUETES.
+  // Sin él la sección queda en null con el motivo escrito, no en cero.
+  const tokenCanales = process.env.TOKEN_PAQUETES || token;
+  const authCanales = tokenCanales ? { authorization: `Bearer ${tokenCanales}` } : {};
+  const canales = {};
+  for (const [canal, repo] of Object.entries(REPOS_CANAL)) {
+    const r = await jsonOpcional(`https://api.github.com/repos/${repo}/traffic/clones`, authCanales);
+    canales[canal] = r.datos
+      ? { repo, ...separarClones(r.datos.clones, fechasDeRelease) }
+      : { repo, porQueNo: r.porQueNo, nota: 'la API de tráfico pide permiso de push: hace falta TOKEN_PAQUETES' };
+  }
+
+  const interes = {
+    nota: 'Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.',
+    vistas: vistas.datos
+      ? { total: vistas.datos.count, unicos: vistas.datos.uniques, dias: (vistas.datos.views ?? []).map((v) => ({ dia: v.timestamp.slice(0, 10), vistas: v.count, unicos: v.uniques })) }
+      : { porQueNo: vistas.porQueNo },
+    referentes: referentes.datos
+      ? referentes.datos.map((r) => ({ sitio: r.referrer, vistas: r.count, unicos: r.uniques }))
+      : { porQueNo: referentes.porQueNo },
+    estrellas: estrellas.datos ? separarEstrellas(estrellas.datos) : { porQueNo: estrellas.porQueNo },
+    canalesSinContador: canales,
+  };
+
   const previo = existsSync(SALIDA) ? JSON.parse(readFileSync(SALIDA, 'utf8')) : {};
   const historial = agregarAlHistorial(previo.historial ?? [], hoy, npm.enDiasSinPublicar, github.humanas);
 
@@ -153,10 +273,17 @@ async function principal() {
     resumen: {
       humanasHastaHoy: { npm: npm.enDiasSinPublicar, github: github.humanas },
       estaSemana: estaSemana(historial, hoy),
+      // Los dos canales sin contador, arriba y no enterrados: el CTA principal
+      // es `brew install` y durante quince versiones no se miró ni una vez.
+      sinContador: Object.fromEntries(Object.entries(interes.canalesSinContador)
+        .map(([c, v]) => [c, v.enDiasSinRelease ?? null])),
+      llegaron: interes.vistas?.unicos ?? null,
+      estrellas: interes.estrellas?.total ?? null,
       nota: 'npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos.',
     },
     npm,
     github,
+    interes,
     piso: PISO,
     historial,
   };

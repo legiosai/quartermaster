@@ -6,7 +6,7 @@
 
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { PISO, agregarAlHistorial, estaSemana, separarAdjuntos, separarNpm, tipoAdjunto } from '../scripts/descargas.mjs';
+import { PISO, REPOS_CANAL, agregarAlHistorial, estaSemana, separarAdjuntos, separarClones, separarEstrellas, separarNpm, tipoAdjunto } from '../scripts/descargas.mjs';
 
 describe('npm', () => {
   it('un día con publicación no cuenta como humano; uno sin publicación sí', () => {
@@ -76,5 +76,74 @@ describe('historial y «esta semana»', () => {
   it('con menos de una semana de historial, resta contra la primera línea', () => {
     const h = [{ fecha: '2026-09-15', npm: 0, github: 5 }, { fecha: '2026-09-16', npm: 1, github: 6 }];
     deepStrictEqual(estaSemana(h, '2026-09-16'), { desde: '2026-09-15', npm: 1, github: 1 });
+  });
+});
+
+// Los dos canales que no tienen contador —un tap de Homebrew y un bucket de
+// scoop no reportan instalaciones a nadie— y que además son el CTA principal.
+// Lo único que dejan es el git fetch del cliente, mezclado con los checkouts
+// del CI. Separarlos es el mismo truco que con npm: mirar los días quietos.
+describe('los canales sin contador', () => {
+  it('un día con release no cuenta; uno sin release sí, y por únicos', () => {
+    const r = separarClones(
+      [
+        { timestamp: '2026-09-14T00:00:00Z', count: 27, uniques: 13 }, // hubo release
+        { timestamp: '2026-09-15T00:00:00Z', count: 51, uniques: 29 }, // hubo release
+        { timestamp: '2026-09-12T00:00:00Z', count: 2, uniques: 2 },   // día quieto
+      ],
+      ['2026-09-14T13:08:32Z', '2026-09-15T14:33:38Z'],
+    );
+    strictEqual(r.total, 80);
+    strictEqual(r.unicos, 44);
+    // Sólo el día sin release, y por únicos: dos fetches de una misma máquina
+    // son una persona, no dos.
+    strictEqual(r.enDiasSinRelease, 2);
+    strictEqual(r.dias[0]!.quietos, null);
+    strictEqual(r.dias[2]!.quietos, 2);
+  });
+
+  it('cuenta los días quietos, porque sin ventana un cero no significa nada', () => {
+    // Cortando una release por día no queda ningún día quieto. Ahí
+    // enDiasSinRelease da 0 por falta de ventana, no por falta de gente, y las
+    // dos cosas se leerían igual sin este contador.
+    const r = separarClones(
+      [{ timestamp: '2026-09-14T00:00:00Z', count: 27, uniques: 13 }],
+      ['2026-09-14T13:08:32Z'],
+    );
+    strictEqual(r.enDiasSinRelease, 0);
+    strictEqual(r.diasSinRelease, 0);
+  });
+
+  it('sin días, no rompe', () => {
+    deepStrictEqual(separarClones(undefined, []), { total: 0, unicos: 0, enDiasSinRelease: 0, diasSinRelease: 0, dias: [] });
+  });
+
+  it('los dos repos de canal son los que sirven brew y scoop', () => {
+    strictEqual(REPOS_CANAL.brew, 'legiosai/homebrew-tap');
+    strictEqual(REPOS_CANAL.scoop, 'legiosai/scoop-bucket');
+  });
+});
+
+// Una estrella es lo único del tablero que viene con una cuenta atrás: una
+// descarga es una IP, y una IP puede ser un escáner.
+describe('las estrellas', () => {
+  it('las agrupa por día y las ordena', () => {
+    const r = separarEstrellas([
+      { starred_at: '2026-09-16T19:39:00Z' },
+      { starred_at: '2026-09-16T13:10:00Z' },
+      { starred_at: '2026-09-17T09:00:00Z' },
+    ]);
+    strictEqual(r.total, 3);
+    deepStrictEqual(r.dias, [{ dia: '2026-09-16', estrellas: 2 }, { dia: '2026-09-17', estrellas: 1 }]);
+  });
+
+  it('sin la cabecera star+json no hay starred_at, y eso no cuenta como día', () => {
+    const r = separarEstrellas([{ login: 'alguien' }]);
+    strictEqual(r.total, 1);
+    deepStrictEqual(r.dias, []);
+  });
+
+  it('sin estrellas, no rompe', () => {
+    deepStrictEqual(separarEstrellas(undefined), { total: 0, dias: [] });
   });
 });

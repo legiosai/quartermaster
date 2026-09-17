@@ -3,7 +3,13 @@
 # Los contadores públicos —npm y los adjuntos de cada release— cuentan sobre
 # todo lo nuestro: los mirrors bajan cada versión nueva y release.yml baja el
 # instalador para el hash de winget. scripts/descargas.mjs resta eso y deja
-# un número. Como los adjuntos de GitHub son acumulados, «esta semana» sólo
+# un número.
+#
+# Y mide el INTERÉS, que es la otra mitad: visitas, de dónde vienen, estrellas,
+# y los clones del tap y del bucket. Hizo falta porque el tablero medía sólo
+# descargas y con eso el día del anuncio —21 visitantes únicos, tres estrellas
+# de gente desconocida— se leía «npm 0», igual que un día sin nada. Y porque el
+# CTA principal es `brew install`, que es justo el canal que no tiene contador. Como los adjuntos de GitHub son acumulados, «esta semana» sólo
 # existe si alguien anota lo que decían ayer: eso es esta corrida diaria.
 #
 # Comitea a main sólo si el JSON cambió. Es el mismo permiso con el que
@@ -18,6 +24,11 @@ on:
 
 permissions:
   contents: write
+  # La API de tráfico —visitas, referentes, clones— pide permiso de push, y el
+  # GITHUB_TOKEN no lo tiene por defecto. Sin esto el tablero pierde justo la
+  # mitad que muestra un anuncio: el día de LinkedIn se veía igual que un
+  # martes cualquiera.
+  administration: read
 
 jobs:
   contar:
@@ -30,6 +41,10 @@ jobs:
       - name: bajar los números
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # El tap de Homebrew y el bucket de scoop son OTROS repos: el token
+          # del workflow no llega. Sin esto los dos canales sin contador quedan
+          # en null con el motivo escrito, que es correcto pero es menos.
+          TOKEN_PAQUETES: ${{ secrets.TOKEN_PAQUETES }}
         run: node scripts/descargas.mjs
       - name: comitear si cambió
         run: |
