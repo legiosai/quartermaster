@@ -37,3 +37,9 @@ export interface Estrella { readonly starred_at?: string; readonly login?: strin
 export declare function separarEstrellas(stargazers: readonly Estrella[] | undefined): {
   readonly total: number; readonly dias: { readonly dia: string; readonly estrellas: number }[];
 };
+
+// Los días que le faltan al historial: el cron de GitHub se atrasa y a veces se
+// saltea una corrida, y «esta semana» sigue dando un número igual.
+export declare function huecosDelHistorial(historial: readonly LineaHistorial[] | undefined, hoy: string): {
+  readonly desde: string | null; readonly esperados: number; readonly anotados: number; readonly faltan: string[];
+};
