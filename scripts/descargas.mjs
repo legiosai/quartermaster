@@ -234,22 +234,26 @@ async function principal() {
   const auth = token ? { authorization: `Bearer ${token}` } : {};
   const fechasDeRelease = releases.map((r) => r.published_at).filter(Boolean);
 
-  const vistas = await jsonOpcional(`https://api.github.com/repos/${REPO}/traffic/views`, auth);
-  const referentes = await jsonOpcional(`https://api.github.com/repos/${REPO}/traffic/popular/referrers`, auth);
+  // La API de TRÁFICO pide permiso de push, y el GITHUB_TOKEN de un workflow no
+  // lo da: `administration` ni siquiera es una clave válida en `permissions:`.
+  // Así que las visitas, los referentes y los clones van con un PAT. El tap y
+  // el bucket, además, son otros repos, donde el token del job no llega nunca.
+  const tokenTrafico = process.env.TOKEN_PAQUETES || token;
+  const authTrafico = tokenTrafico ? { authorization: `Bearer ${tokenTrafico}` } : {};
+
+  const vistas = await jsonOpcional(`https://api.github.com/repos/${REPO}/traffic/views`, authTrafico);
+  const referentes = await jsonOpcional(`https://api.github.com/repos/${REPO}/traffic/popular/referrers`, authTrafico);
+  // Las estrellas son públicas: ésas sí con el token del job.
   const estrellas = await jsonOpcional(`https://api.github.com/repos/${REPO}/stargazers?per_page=100`, {
     ...auth, accept: 'application/vnd.github.star+json',
   });
 
-  // El token del repo no llega al tap ni al bucket: ésos son TOKEN_PAQUETES.
-  // Sin él la sección queda en null con el motivo escrito, no en cero.
-  const tokenCanales = process.env.TOKEN_PAQUETES || token;
-  const authCanales = tokenCanales ? { authorization: `Bearer ${tokenCanales}` } : {};
   const canales = {};
   for (const [canal, repo] of Object.entries(REPOS_CANAL)) {
-    const r = await jsonOpcional(`https://api.github.com/repos/${repo}/traffic/clones`, authCanales);
+    const r = await jsonOpcional(`https://api.github.com/repos/${repo}/traffic/clones`, authTrafico);
     canales[canal] = r.datos
       ? { repo, ...separarClones(r.datos.clones, fechasDeRelease) }
-      : { repo, porQueNo: r.porQueNo, nota: 'la API de tráfico pide permiso de push: hace falta TOKEN_PAQUETES' };
+      : { repo, porQueNo: r.porQueNo, nota: 'la API de tráfico pide permiso de push: hace falta un PAT en TOKEN_PAQUETES' };
   }
 
   const interes = {

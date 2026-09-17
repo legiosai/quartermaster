@@ -24,11 +24,6 @@ on:
 
 permissions:
   contents: write
-  # La API de tráfico —visitas, referentes, clones— pide permiso de push, y el
-  # GITHUB_TOKEN no lo tiene por defecto. Sin esto el tablero pierde justo la
-  # mitad que muestra un anuncio: el día de LinkedIn se veía igual que un
-  # martes cualquiera.
-  administration: read
 
 jobs:
   contar:
@@ -41,9 +36,18 @@ jobs:
       - name: bajar los números
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # El tap de Homebrew y el bucket de scoop son OTROS repos: el token
-          # del workflow no llega. Sin esto los dos canales sin contador quedan
-          # en null con el motivo escrito, que es correcto pero es menos.
+          # La API de tráfico —visitas, referentes, clones— pide permiso de
+          # PUSH, y eso el GITHUB_TOKEN del workflow no lo da: `administration`
+          # ni siquiera es una clave válida en `permissions:` (se intentó, y el
+          # workflow entero quedó inválido con un run de 0 s). O sea que las dos
+          # mitades nuevas necesitan un PAT, no el token del job.
+          #
+          # Y el tap de Homebrew y el bucket de scoop son OTROS repos, donde el
+          # token del workflow no llega de ninguna manera.
+          #
+          # Sin el PAT, esas secciones quedan en null CON EL MOTIVO escrito y el
+          # conteo de npm y de los adjuntos sigue igual: lo que no se pudo leer
+          # no puede parecerse a un cero.
           TOKEN_PAQUETES: ${{ secrets.TOKEN_PAQUETES }}
         run: node scripts/descargas.mjs
       - name: comitear si cambió
