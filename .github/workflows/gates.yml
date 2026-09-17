@@ -93,6 +93,15 @@ jobs:
         env:
           QM_GATE_EXIGE_PWSH: '1'   # el runner de Ubuntu lo trae; saltearlo acá sería un adorno
           QM_GATE_EXIGE_SWIFT: '1'  # y Swift también: la barra de macOS se parsea acá
+
+      # Y que ese gate sepa fallar. Era el ÚNICO `-rojo` que no corría acá: los
+      # otros ocho sí, y CONTRIBUTING pide que todo gate esté probado en rojo
+      # («a test that has never failed proves nothing»). O sea que gate-dibujo
+      # podía dejar de comprobar lo que dice comprobar y el CI seguía verde.
+      # Se notó agregándole el quinto chequeo, el del sello: su rojo existía
+      # sólo en la máquina de quien lo escribió.
+      - name: y ese gate falla en rojo
+        run: make gate-dibujo-rojo
       # El runner de Ubuntu trae Swift Y PowerShell, así que las cuatro
       # implementaciones se comprueban acá. Se llegó a agregar un job de macOS
       # para Swift antes de mirar qué había en el de Ubuntu: sobraba, y encima
