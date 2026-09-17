@@ -1,5 +1,5 @@
 {
-  "generado": "2026-09-17T13:21:54.744Z",
+  "generado": "2026-09-17T16:12:12.876Z",
   "resumen": {
     "humanasHastaHoy": {
       "npm": 0,
@@ -16,12 +16,13 @@
     },
     "llegaron": null,
     "estrellas": 4,
+    "cobertura": "completa",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
     "total": 1542,
     "enDiasSinPublicar": 0,
-    "porPublicacion": 119,
+    "porPublicacion": 110,
     "dias": [
       {
         "dia": "2026-09-11",
@@ -62,14 +63,37 @@
       {
         "dia": "2026-09-17",
         "descargas": 0,
-        "publicaciones": 0,
-        "humanas": 0
+        "publicaciones": 1,
+        "humanas": null
       }
     ]
   },
   "github": {
     "humanas": 36,
     "porVersion": [
+      {
+        "version": "v0.1.16",
+        "publicada": "2026-09-17",
+        "humanas": 0,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 0,
+            "netas": 0
+          },
+          "deb": {
+            "bajadas": 0,
+            "netas": 0
+          }
+        }
+      },
       {
         "version": "v0.1.15",
         "publicada": "2026-09-16",
@@ -380,6 +404,12 @@
   "piso": {
     "exe": 4,
     "zip": 2
+  },
+  "huecos": {
+    "desde": "2026-09-16",
+    "esperados": 2,
+    "anotados": 2,
+    "faltan": []
   },
   "historial": [
     {
