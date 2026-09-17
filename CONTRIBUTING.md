@@ -67,6 +67,8 @@ Useful gates, all runnable locally:
 | `make gate-presupuesto-rojo` | …and that the gate above actually goes red | — |
 | `make gate-bandeja` | the Windows tray draws 340 px in both themes | Windows |
 | `make gate-windows` | `qm.cmd` runs and the npm package **starts** on Windows | Windows |
+| `make gate-copias` | the gates live in **one** file, and both `ci.yml` and `release.yml` delegate to it | — |
+| `make gate-copias-rojo` | …and that it catches a second copy coming back | — |
 
 ## Language
 

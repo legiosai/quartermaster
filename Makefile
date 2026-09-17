@@ -221,6 +221,35 @@ gate-paquetes-rojo:  ## el rojo de gate-paquetes: el pie de una landing con la v
 	  echo "✓ gate-paquetes falla en rojo con el pie de una landing en una versión vieja"; \
 	fi
 
+.PHONY: gate-copias
+gate-copias:  ## que los gates estén en un solo lugar y los dos workflows deleguen
+	@./scripts/gate-copias.sh
+
+.PHONY: gate-copias-rojo
+gate-copias-rojo:  ## los tres rojos de gate-copias: sin delegar, con un gate suelto, y con gates.yml incompleto
+	@cp .github/workflows/release.yml .release.gate
+	@cp .github/workflows/gates.yml .gates.gate
+	@fallo=0; \
+	: "1. la release deja de delegar: la copia recortada de siempre"; \
+	sed -i 's|uses: ./.github/workflows/gates.yml|runs-on: ubuntu-latest|' .github/workflows/release.yml; \
+	if ./scripts/gate-copias.sh >/dev/null 2>&1; then \
+	  echo "✗ gate-copias NO falló con la release sin delegar"; fallo=1; fi; \
+	cp .release.gate .github/workflows/release.yml; \
+	: "2. vuelve un gate suelto al job de la release"; \
+	sed -i 's|      - run: choco install innosetup -y --no-progress|      - run: make gate-calentado\n      - run: choco install innosetup -y --no-progress|' .github/workflows/release.yml; \
+	if ./scripts/gate-copias.sh >/dev/null 2>&1; then \
+	  echo "✗ gate-copias NO falló con un 'make gate-' suelto en la release"; fallo=1; fi; \
+	cp .release.gate .github/workflows/release.yml; \
+	: "3. se delega, pero en un gates.yml al que le falta un job"; \
+	sed -i 's|^  bandeja:|  bandeja-desactivado:|' .github/workflows/gates.yml; \
+	if ./scripts/gate-copias.sh >/dev/null 2>&1; then \
+	  echo "✗ gate-copias NO falló con gates.yml sin el job bandeja"; fallo=1; fi; \
+	cp .gates.gate .github/workflows/gates.yml; \
+	rm -f .release.gate .gates.gate; \
+	if [ $$fallo -ne 0 ]; then \
+	  echo "  La copia de los gates puede volver sin que nada se ponga rojo."; exit 1; fi; \
+	echo "✓ gate-copias falla en rojo sin delegar, con un gate suelto y con gates.yml incompleto"
+
 .PHONY: gate-calentado
 gate-calentado:  ## que la cuenta frenada vuelva a preguntar apenas pasa su reinicio
 	@python3 scripts/gate-calentado.py

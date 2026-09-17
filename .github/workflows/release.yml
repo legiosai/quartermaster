@@ -110,20 +110,15 @@ jobs:
           fi
 
   # ── los mismos gates del CI ───────────────────────────────────────────
+  # Los MISMOS, y ahora es verdad: el mismo archivo que llama ci.yml. Esto era
+  # una copia recortada, así que un tag estaba MENOS comprobado que un push:
+  # gate-dibujo, gate-cambios, gate-duraciones, gate-lazo, gate-presupuesto,
+  # gate-calentado, gate-winget-rojo y gate-paquetes-rojo no lo miraban, y la
+  # cabecera de arriba decía lo contrario. Un gate nuevo entra a los dos
+  # caminos porque ya no hay dos lugares donde agregarlo.
   gates:
     needs: version
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - run: npm install
-      - run: npm run typecheck
-      - run: npm test
-      - run: ./scripts/el-paquete-de-npm-corre.sh
-      - run: make gate-npm-rojo
-      - run: ./scripts/gate-paquetes.sh
+    uses: ./.github/workflows/gates.yml
 
   # ── el .deb y el zip de la extensión ──────────────────────────────────
   linux:
@@ -160,10 +155,12 @@ jobs:
         with:
           node-version: '22'
       - run: npm install
-      # Los gates de Windows también corren acá: el instalador que se publica
-      # no puede salir de un árbol que no se comprobó en esta plataforma.
-      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-bandeja.ps1
-      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-windows.ps1
+      # gate-bandeja y gate-windows corrían acá, con este comentario: «el
+      # instalador que se publica no puede salir de un árbol que no se comprobó
+      # en esta plataforma». Sigue siendo cierto y sigue cumpliéndose — los
+      # corre el job `bandeja` de gates.yml, del que este job depende por
+      # `needs: gates`, sobre el mismo commit y la misma imagen. Repetirlos acá
+      # era la otra copia: la que gate-copias encontró.
       - run: choco install innosetup -y --no-progress
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/hacer-setup.ps1
       - name: sha256
