@@ -26,6 +26,13 @@ MIT
 
 </div>
 
+```sh
+brew install legiosai/tap/quartermaster        # macOS y Linux
+npm install -g @legios/quartermaster           # en cualquier lado
+```
+
+<div align="center"><sub>Después, <code>qm</code>. El detalle, la barra y Windows: <a href="#instalar">Instalar</a>.</sub></div>
+
 > **Misión.** Que nadie se entere de que se quedó sin cuota chocándose contra el
 > límite.
 
