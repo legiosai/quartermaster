@@ -13,13 +13,22 @@
 #
 # `--en-seco` comprueba las dos y para ANTES de tocar nada de Microsoft: no
 # crea ramas, no abre PR. Se puede correr cuantas veces haga falta.
+#
+# Y UNA TERCERA, que es la que hacía falta de verdad: ¿el PR sigue esperando?
+# El canal de winget no se rompe, se ESTANCA. El PR #434699 pasó la validación
+# de Microsoft el 2026-09-14 y desde entonces espera a un moderador voluntario;
+# tres días después seguía abierto y nadie lo estaba mirando desde acá, porque
+# lo único que miraba winget corría el día 1 de cada mes. Un PR trabado no
+# avisa: hay que ir a verlo, y por eso esto ahora corre los lunes.
 name: comprobar winget
 on:
   workflow_dispatch:
-  # El primer día de cada mes: un token con vencimiento avisa acá y no el día
-  # de la release.
+  # Los lunes: un token con vencimiento avisa acá y no el día de la release, y
+  # un PR estancado se ve la semana que se estanca y no la próxima vez que
+  # alguien se acuerde. Era el día 1 de cada mes, que para un PR que espera a
+  # un moderador es tarde y para un token que vence también.
   schedule:
-    - cron: '0 9 1 * *'
+    - cron: '0 9 * * 1'
 
 jobs:
   token:
@@ -39,3 +48,37 @@ jobs:
             exit 0
           fi
           node scripts/mandar-pr-winget.mjs --en-seco
+
+  # ── ¿el PR de winget sigue esperando? ───────────────────────────────
+  # Microsoft valida en minutos y después el PR queda a la espera de un
+  # moderador de la comunidad, sin plazo. Eso no es un error y no hay nada que
+  # arreglar del lado de acá — pero sí hay algo que saber, porque mientras
+  # tanto `winget install Legios.Quartermaster` no existe y el README no lo
+  # promete por eso. El número que interesa es cuántos días lleva.
+  pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: los días que lleva abierto
+        env:
+          GH_TOKEN: ${{ secrets.TOKEN_WINGET }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::warning::TOKEN_WINGET no está configurado: no puedo mirar el PR."
+            exit 0
+          fi
+          pr=$(gh pr list --repo microsoft/winget-pkgs --state open \
+                 --search 'Legios.Quartermaster in:title' \
+                 --json number,title,createdAt,labels --limit 5)
+          if [ "$(echo "$pr" | jq 'length')" -eq 0 ]; then
+            echo "no hay PR abierto de Legios.Quartermaster."
+            echo "Si la versión ya está en el catálogo, se mergeó: cada release nueva abre el suyo."
+            exit 0
+          fi
+          echo "$pr" | jq -r '.[] | "#\(.number)  \(.title)\n  abierto: \(.createdAt)\n  labels:  \([.labels[].name] | join(", "))"'
+          dias=$(( ( $(date -u +%s) - $(date -u -d "$(echo "$pr" | jq -r '.[0].createdAt')" +%s) ) / 86400 ))
+          echo "días abierto: $dias"
+          # 14 días es el umbral porque hasta ahí es la cola normal de winget.
+          # Más que eso ya no es «esperá»: es ir a preguntar al PR.
+          if [ "$dias" -ge 14 ]; then
+            echo "::warning::el PR de winget lleva $dias días esperando a un moderador. Vale la pena comentar en el PR."
+          fi
