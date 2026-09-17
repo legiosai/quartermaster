@@ -21,3 +21,19 @@ export declare function separarAdjuntos(releases: readonly Release[]): {
 export interface LineaHistorial { readonly fecha: string; readonly npm: number; readonly github: number }
 export declare function agregarAlHistorial(historial: readonly LineaHistorial[], hoy: string, npmHumanas: number, githubHumanas: number): LineaHistorial[];
 export declare function estaSemana(historial: readonly LineaHistorial[], hoy: string): { desde: string; npm: number; github: number } | null;
+
+// Los dos canales sin contador: un tap de Homebrew y un bucket de scoop no
+// reportan instalaciones, y lo único que dejan es el git fetch del cliente.
+export declare const REPOS_CANAL: { readonly brew: string; readonly scoop: string };
+export interface DiaClones { readonly timestamp: string; readonly count: number; readonly uniques: number }
+export interface FilaClones { readonly dia: string; readonly clones: number; readonly unicos: number; readonly huboRelease: boolean; readonly quietos: number | null }
+export declare function separarClones(dias: readonly DiaClones[] | undefined, fechasDeRelease: readonly string[]): {
+  readonly total: number; readonly unicos: number; readonly enDiasSinRelease: number; readonly diasSinRelease: number; readonly dias: FilaClones[];
+};
+
+// Sin la cabecera `star+json` la API devuelve el usuario pelado, sin fecha:
+// ése es justo el caso que el test cubre.
+export interface Estrella { readonly starred_at?: string; readonly login?: string }
+export declare function separarEstrellas(stargazers: readonly Estrella[] | undefined): {
+  readonly total: number; readonly dias: { readonly dia: string; readonly estrellas: number }[];
+};
