@@ -32,8 +32,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'   # >= 22.6: scripts/nodo.cjs lo verifica igual
       - run: npm install
@@ -78,8 +78,8 @@ jobs:
   dibujo:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - name: dependencias de dibujo
@@ -148,7 +148,7 @@ jobs:
       # ellas la causa de rechazo más común del sitio. Acá lo corre el gate.
       - run: pipx install shexli || pip install --user -U shexli
       - run: ./scripts/hacer-extension-zip.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: extension-gnome
           path: dist/*.shell-extension.zip
@@ -166,8 +166,8 @@ jobs:
   bandeja:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - run: npm install
@@ -190,7 +190,7 @@ jobs:
       # release, que es el peor día para enterarse.
       - run: choco install innosetup -y --no-progress
       - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/hacer-setup.ps1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: instalador-windows
           path: dist/*-setup.exe
