@@ -1,21 +1,27 @@
 {
-  "generado": "2026-09-16T14:38:08.227Z",
+  "generado": "2026-09-17T13:21:54.744Z",
   "resumen": {
     "humanasHastaHoy": {
       "npm": 0,
-      "github": 30
+      "github": 36
     },
     "estaSemana": {
       "desde": "2026-09-16",
       "npm": 0,
-      "github": 0
+      "github": 6
     },
+    "sinContador": {
+      "brew": null,
+      "scoop": null
+    },
+    "llegaron": null,
+    "estrellas": 4,
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 1302,
+    "total": 1542,
     "enDiasSinPublicar": 0,
-    "porPublicacion": 100,
+    "porPublicacion": 119,
     "dias": [
       {
         "dia": "2026-09-11",
@@ -49,27 +55,33 @@
       },
       {
         "dia": "2026-09-16",
-        "descargas": 0,
+        "descargas": 240,
         "publicaciones": 1,
         "humanas": null
+      },
+      {
+        "dia": "2026-09-17",
+        "descargas": 0,
+        "publicaciones": 0,
+        "humanas": 0
       }
     ]
   },
   "github": {
-    "humanas": 30,
+    "humanas": 36,
     "porVersion": [
       {
         "version": "v0.1.15",
         "publicada": "2026-09-16",
-        "humanas": 2,
+        "humanas": 8,
         "adjuntos": {
           "exe": {
-            "bajadas": 6,
-            "netas": 2
+            "bajadas": 8,
+            "netas": 4
           },
           "zip": {
-            "bajadas": 2,
-            "netas": 0
+            "bajadas": 6,
+            "netas": 4
           },
           "extension": {
             "bajadas": 0,
@@ -335,6 +347,36 @@
       }
     ]
   },
+  "interes": {
+    "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
+    "vistas": {
+      "porQueNo": "legiosai/quartermaster/traffic/views → HTTP 403"
+    },
+    "referentes": {
+      "porQueNo": "legiosai/quartermaster/traffic/popular/referrers → HTTP 403"
+    },
+    "estrellas": {
+      "total": 4,
+      "dias": [
+        {
+          "dia": "2026-09-16",
+          "estrellas": 4
+        }
+      ]
+    },
+    "canalesSinContador": {
+      "brew": {
+        "repo": "legiosai/homebrew-tap",
+        "porQueNo": "legiosai/homebrew-tap/traffic/clones → HTTP 403",
+        "nota": "la API de tráfico pide permiso de push: hace falta un PAT en TOKEN_PAQUETES"
+      },
+      "scoop": {
+        "repo": "legiosai/scoop-bucket",
+        "porQueNo": "legiosai/scoop-bucket/traffic/clones → HTTP 403",
+        "nota": "la API de tráfico pide permiso de push: hace falta un PAT en TOKEN_PAQUETES"
+      }
+    }
+  },
   "piso": {
     "exe": 4,
     "zip": 2
@@ -344,6 +386,11 @@
       "fecha": "2026-09-16",
       "npm": 0,
       "github": 30
+    },
+    {
+      "fecha": "2026-09-17",
+      "npm": 0,
+      "github": 36
     }
   ]
 }
