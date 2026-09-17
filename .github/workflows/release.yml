@@ -92,7 +92,7 @@ jobs:
     outputs:
       version: ${{ steps.leer.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - id: leer
         shell: bash
         run: |
@@ -125,8 +125,8 @@ jobs:
     needs: [version, gates]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - run: npm install
@@ -136,7 +136,7 @@ jobs:
         run: |
           cd dist
           sha256sum *.deb *.shell-extension.zip | tee SHA256-linux.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: linux
           path: |
@@ -150,8 +150,8 @@ jobs:
     needs: [version, gates]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - run: npm install
@@ -169,7 +169,7 @@ jobs:
           Get-ChildItem dist\*-setup.exe, dist\*-win.zip |
             ForEach-Object { "$((Get-FileHash $_ -Algorithm SHA256).Hash.ToLower())  $($_.Name)" } |
             Tee-Object dist\SHA256-windows.txt
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows
           path: |
@@ -184,8 +184,8 @@ jobs:
     if: (github.ref_type == 'tag' || inputs.publicar) && needs.canales.outputs.npm == 'si'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
@@ -203,8 +203,8 @@ jobs:
     if: github.ref_type == 'tag' || inputs.publicar
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v7
         with:
           path: artefactos
       - name: juntar y listar
@@ -236,7 +236,7 @@ jobs:
             echo '```'
             echo FIN
           } >> "$GITHUB_OUTPUT"
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: publicar/*
           body: ${{ steps.juntar.outputs.notas }}
@@ -291,10 +291,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           ref: main
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - run: sudo apt-get update && sudo apt-get install -y dpkg-dev apt-utils
@@ -352,8 +352,8 @@ jobs:
     outputs:
       publicado: ${{ steps.empujar.outputs.publicado }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - name: generar y empujar
@@ -407,8 +407,8 @@ jobs:
     if: needs.canales.outputs.winget == 'si'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - name: armar los manifests y mandarlos
@@ -462,7 +462,7 @@ jobs:
     outputs:
       publicado: ${{ steps.empujar.outputs.publicado }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: empujar al AUR
         id: empujar
         env:
