@@ -521,7 +521,6 @@ jobs:
         env:
           V: ${{ needs.version.outputs.version }}
         run: |
-          fila() { printf '  %-10s %s\n' "$1" "$2"; }
           echo "quartermaster $V"
           echo ""
           # OJO con leer sólo el result del job: un canal a medio configurar
@@ -529,18 +528,67 @@ jobs:
           # publicado nada. Los que pueden quedar a medias informan aparte.
           scoop='${{ needs.scoop.outputs.publicado }}'
           aur='${{ needs.aur.outputs.publicado }}'
-          detalle() { # $1 = result del job, $2 = publicado (si/no/vacío)
-            if [ "$1" != "success" ]; then echo "$1"
-            elif [ "$2" = "no" ]; then echo "success, pero NO publicó — mirá el warning"
-            else echo "publicado"; fi
+
+          # Y ESTO SALE EN ROJO. Hasta la 0.1.15 el resumen decía «aur success,
+          # pero NO publicó — mirá el warning» y el run quedaba verde: la línea
+          # estaba escrita y nadie la leyó nunca. El AUR pasó DIEZ releases sin
+          # publicar así, con la clave cargada en el secreto y el clone siendo
+          # rechazado en cada una. Un canal con su secreto puesto que no publica
+          # es un canal roto, y un canal roto tiene que verse desde la lista de
+          # runs, no desde el log de un job en verde.
+          #
+          # El escape es explícito y es el correcto: si un canal no se va a
+          # sostener, se le saca el secreto y vuelve a ser «se saltea», que es
+          # una decisión y no un olvido.
+          malos=0
+          estado() { # $1=result  $2=configurado(si/no)  $3=publicado(si/no/vacío)
+            if [ "$2" != si ]; then echo "sin secreto — se saltea"; return; fi
+            case "$1" in
+              success)
+                if [ "$3" = no ]; then
+                  malos=$((malos + 1)); echo "NO PUBLICÓ — el secreto está puesto"
+                else echo "publicado"; fi ;;
+              skipped)
+                malos=$((malos + 1)); echo "no corrió, con el secreto puesto" ;;
+              *)
+                malos=$((malos + 1)); echo "$1" ;;
+            esac
           }
-          fila npm    "${{ needs.npm.result || 'sin correr' }}"
-          fila brew   "${{ needs.brew.result }}"
-          fila apt    "${{ needs.apt.result }}"
-          fila scoop  "$(detalle '${{ needs.scoop.result }}' "$scoop")"
-          fila winget "${{ needs.winget.result }}"
-          fila aur    "$(detalle '${{ needs.aur.result }}' "$aur")"
+          fila() { printf '  %-10s %s\n' "$1" "$2"; }
+
+          fila npm    "$(estado '${{ needs.npm.result }}'    '${{ needs.canales.outputs.npm }}'    '')"
+          fila brew   "$(estado '${{ needs.brew.result }}'   '${{ needs.canales.outputs.brew }}'   '')"
+          fila apt    "$(estado '${{ needs.apt.result }}'    '${{ needs.canales.outputs.apt }}'    '')"
+          fila scoop  "$(estado '${{ needs.scoop.result }}'  '${{ needs.canales.outputs.scoop }}'  "$scoop")"
+          fila winget "$(estado '${{ needs.winget.result }}' '${{ needs.canales.outputs.winget }}' '')"
+          fila aur    "$(estado '${{ needs.aur.result }}'    '${{ needs.canales.outputs.aur }}'    "$aur")"
           fila gnome  "a mano — no hay API de subida"
           echo ""
           echo "::notice::Falta subir el .shell-extension.zip de la release a https://extensions.gnome.org/upload/"
-          echo "::notice::Los canales en 'skipped' no tienen su secreto configurado (ver paquetes/README.md)."
+          echo "::notice::Los canales en 'se saltea' no tienen su secreto configurado (ver paquetes/README.md)."
+
+          # `estado` corre en un $( ), o sea en un subshell: el malos++ de ahí
+          # adentro no se ve acá. Se vuelve a contar sobre los mismos valores.
+          for par in \
+            'npm|${{ needs.npm.result }}|${{ needs.canales.outputs.npm }}|' \
+            'brew|${{ needs.brew.result }}|${{ needs.canales.outputs.brew }}|' \
+            'apt|${{ needs.apt.result }}|${{ needs.canales.outputs.apt }}|' \
+            "scoop|${{ needs.scoop.result }}|${{ needs.canales.outputs.scoop }}|$scoop" \
+            'winget|${{ needs.winget.result }}|${{ needs.canales.outputs.winget }}|' \
+            "aur|${{ needs.aur.result }}|${{ needs.canales.outputs.aur }}|$aur"
+          do
+            IFS='|' read -r canal res conf pub <<< "$par"
+            [ "$conf" = si ] || continue
+            if [ "$res" != success ] || [ "$pub" = no ]; then
+              echo "::error::$canal tiene su secreto configurado y NO publicó $V."
+              malos=$((malos + 1))
+            fi
+          done
+
+          if [ "$malos" -ne 0 ]; then
+            echo ""
+            echo "  $malos canal(es) con secreto puesto no publicaron. La release de los"
+            echo "  otros ya salió: esto no la deshace, la SEÑALA. Arreglá el canal y"
+            echo "  volvé a correr el job, o sacale el secreto si no se va a sostener."
+            exit 1
+          fi
