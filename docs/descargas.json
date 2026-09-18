@@ -1,27 +1,27 @@
 {
-  "generado": "2026-09-17T18:43:26.537Z",
+  "generado": "2026-09-18T15:47:21.831Z",
   "resumen": {
     "humanasHastaHoy": {
-      "npm": 0,
-      "github": 39
+      "npm": 79,
+      "github": 41
     },
     "estaSemana": {
       "desde": "2026-09-16",
-      "npm": 0,
-      "github": 9
+      "npm": 79,
+      "github": 11
     },
     "sinContador": {
       "brew": 2,
       "scoop": 0
     },
-    "llegaron": 29,
-    "estrellas": 5,
+    "llegaron": 40,
+    "estrellas": 6,
     "cobertura": "completa",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 1542,
-    "enDiasSinPublicar": 0,
+    "total": 1621,
+    "enDiasSinPublicar": 79,
     "porPublicacion": 110,
     "dias": [
       {
@@ -32,9 +32,9 @@
       },
       {
         "dia": "2026-09-12",
-        "descargas": 0,
+        "descargas": 79,
         "publicaciones": 0,
-        "humanas": 0
+        "humanas": 79
       },
       {
         "dia": "2026-09-13",
@@ -65,11 +65,17 @@
         "descargas": 0,
         "publicaciones": 1,
         "humanas": null
+      },
+      {
+        "dia": "2026-09-18",
+        "descargas": 0,
+        "publicaciones": 0,
+        "humanas": 0
       }
     ]
   },
   "github": {
-    "humanas": 39,
+    "humanas": 41,
     "porVersion": [
       {
         "version": "v0.1.16",
@@ -97,15 +103,15 @@
       {
         "version": "v0.1.15",
         "publicada": "2026-09-16",
-        "humanas": 9,
+        "humanas": 11,
         "adjuntos": {
           "exe": {
             "bajadas": 8,
             "netas": 4
           },
           "zip": {
-            "bajadas": 7,
-            "netas": 5
+            "bajadas": 9,
+            "netas": 7
           },
           "extension": {
             "bajadas": 0,
@@ -374,14 +380,9 @@
   "interes": {
     "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
     "vistas": {
-      "total": 73,
-      "unicos": 29,
+      "total": 98,
+      "unicos": 40,
       "dias": [
-        {
-          "dia": "2026-09-03",
-          "vistas": 0,
-          "unicos": 0
-        },
         {
           "dia": "2026-09-04",
           "vistas": 0,
@@ -446,38 +447,43 @@
           "dia": "2026-09-16",
           "vistas": 42,
           "unicos": 21
+        },
+        {
+          "dia": "2026-09-17",
+          "vistas": 25,
+          "unicos": 12
         }
       ]
     },
     "referentes": [
       {
         "sitio": "github.com",
-        "vistas": 23,
-        "unicos": 14
+        "vistas": 27,
+        "unicos": 18
       },
       {
         "sitio": "linkedin.com",
-        "vistas": 9,
-        "unicos": 7
-      },
-      {
-        "sitio": "quartermaster.legios.com.ar",
-        "vistas": 3,
-        "unicos": 3
-      },
-      {
-        "sitio": "com.linkedin.android",
-        "vistas": 1,
-        "unicos": 1
+        "vistas": 11,
+        "unicos": 9
       },
       {
         "sitio": "youtube.com",
-        "vistas": 1,
-        "unicos": 1
+        "vistas": 5,
+        "unicos": 5
+      },
+      {
+        "sitio": "quartermaster.legios.com.ar",
+        "vistas": 4,
+        "unicos": 4
+      },
+      {
+        "sitio": "com.linkedin.android",
+        "vistas": 2,
+        "unicos": 2
       }
     ],
     "estrellas": {
-      "total": 5,
+      "total": 6,
       "dias": [
         {
           "dia": "2026-09-16",
@@ -485,25 +491,18 @@
         },
         {
           "dia": "2026-09-17",
-          "estrellas": 1
+          "estrellas": 2
         }
       ]
     },
     "canalesSinContador": {
       "brew": {
         "repo": "legiosai/homebrew-tap",
-        "total": 118,
-        "unicos": 70,
+        "total": 124,
+        "unicos": 74,
         "enDiasSinRelease": 2,
-        "diasSinRelease": 8,
+        "diasSinRelease": 7,
         "dias": [
-          {
-            "dia": "2026-09-03",
-            "clones": 0,
-            "unicos": 0,
-            "huboRelease": false,
-            "quietos": 0
-          },
           {
             "dia": "2026-09-04",
             "clones": 0,
@@ -594,23 +593,23 @@
             "unicos": 4,
             "huboRelease": true,
             "quietos": null
+          },
+          {
+            "dia": "2026-09-17",
+            "clones": 6,
+            "unicos": 4,
+            "huboRelease": true,
+            "quietos": null
           }
         ]
       },
       "scoop": {
         "repo": "legiosai/scoop-bucket",
-        "total": 108,
-        "unicos": 75,
+        "total": 119,
+        "unicos": 84,
         "enDiasSinRelease": 0,
-        "diasSinRelease": 8,
+        "diasSinRelease": 7,
         "dias": [
-          {
-            "dia": "2026-09-03",
-            "clones": 0,
-            "unicos": 0,
-            "huboRelease": false,
-            "quietos": 0
-          },
           {
             "dia": "2026-09-04",
             "clones": 0,
@@ -701,6 +700,13 @@
             "unicos": 14,
             "huboRelease": true,
             "quietos": null
+          },
+          {
+            "dia": "2026-09-17",
+            "clones": 11,
+            "unicos": 9,
+            "huboRelease": true,
+            "quietos": null
           }
         ]
       }
@@ -712,8 +718,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 2,
-    "anotados": 2,
+    "esperados": 3,
+    "anotados": 3,
     "faltan": []
   },
   "historial": [
@@ -726,6 +732,11 @@
       "fecha": "2026-09-17",
       "npm": 0,
       "github": 39
+    },
+    {
+      "fecha": "2026-09-18",
+      "npm": 79,
+      "github": 41
     }
   ]
 }
