@@ -323,6 +323,14 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2 id="v0.1.19">v0.1.19 — 2026-09-22</h2>
+<h3>Changed</h3>
+<ul>
+<li><strong>The Antigravity row now names your actual plan: <code>Google AI Pro</code>, not a generic phrase.</strong> It is read from the IDE's own <code>state.vscdb</code> — Antigravity is a VS Code fork and keeps state where VS Code does. The line went from "plan de Google: el porcentaje no está en esta máquina" to "Google AI Pro: Antigravity no deja el porcentaje en disco", which is the difference between <em>not knowing</em> and <em>not having looked</em>.</li>
+<p><strong>There is still no percentage, and that is not for lack of looking.</strong> Searched: all 120 keys in the state database, the Local Storage leveldb, <code>antigravity_state.pbtxt</code>, and the IDE logs, where the only mention is literally <code>quota undefined</code>. The closest thing is a <code>modelCredits</code> entry holding two sentinels — <code>availableCredits</code> at 0 and a minimum of 50 — that do not move with use. Google does not publish a remaining-quota figure locally, so the account keeps reporting <code>sin-cuota-legible</code> and keeps showing the one thing that is knowable: what it spent.</p>
+<p>The adapter never reads <code>antigravityAuthStatus</code>, which holds the OAuth access token in plain text. It is not needed for any of this.</p>
+</ul>
+<hr>
 <h2 id="v0.1.18">v0.1.18 — 2026-09-22</h2>
 <h3>Changed</h3>
 <ul>

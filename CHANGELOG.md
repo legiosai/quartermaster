@@ -14,6 +14,31 @@ out unless they changed what you see.
 
 ---
 
+## v0.1.19 — 2026-09-22
+
+### Changed
+
+- **The Antigravity row now names your actual plan: `Google AI Pro`, not a
+  generic phrase.** It is read from the IDE's own `state.vscdb` — Antigravity
+  is a VS Code fork and keeps state where VS Code does. The line went from
+  "plan de Google: el porcentaje no está en esta máquina" to "Google AI Pro:
+  Antigravity no deja el porcentaje en disco", which is the difference between
+  *not knowing* and *not having looked*.
+
+  **There is still no percentage, and that is not for lack of looking.**
+  Searched: all 120 keys in the state database, the Local Storage leveldb,
+  `antigravity_state.pbtxt`, and the IDE logs, where the only mention is
+  literally `quota undefined`. The closest thing is a `modelCredits` entry
+  holding two sentinels — `availableCredits` at 0 and a minimum of 50 — that do
+  not move with use. Google does not publish a remaining-quota figure locally,
+  so the account keeps reporting `sin-cuota-legible` and keeps showing the one
+  thing that is knowable: what it spent.
+
+  The adapter never reads `antigravityAuthStatus`, which holds the OAuth access
+  token in plain text. It is not needed for any of this.
+
+---
+
 ## v0.1.18 — 2026-09-22
 
 ### Changed

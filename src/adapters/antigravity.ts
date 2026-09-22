@@ -43,6 +43,19 @@ import { CONSUMO_VACIO, type Consumo, type EstadoCredencial, type Perfil } from 
 export const DIRECTORIO_GEMINI = join(homedir(), '.gemini');
 export const DIRECTORIO_ANTIGRAVITY = join(DIRECTORIO_GEMINI, 'antigravity');
 
+/** El `state.vscdb` del IDE, que es un fork de VS Code y guarda donde ellos. */
+export const RUTA_ESTADO = ((): string => {
+  const casa = homedir();
+  if (process.platform === 'darwin') {
+    return join(casa, 'Library', 'Application Support', 'Antigravity', 'User', 'globalStorage', 'state.vscdb');
+  }
+  if (process.platform === 'win32') {
+    const appdata = process.env['APPDATA'] ?? join(casa, 'AppData', 'Roaming');
+    return join(appdata, 'Antigravity', 'User', 'globalStorage', 'state.vscdb');
+  }
+  return join(casa, '.config', 'Antigravity', 'User', 'globalStorage', 'state.vscdb');
+})();
+
 /** Las ventanas de contexto que un modelo de esta familia puede declarar. */
 const VENTANAS_CONOCIDAS = new Set([32_768, 65_536, 128_000, 200_000, 256_000, 1_000_000, 2_000_000]);
 
@@ -72,7 +85,7 @@ export function duenoAntigravity(dirGemini = DIRECTORIO_GEMINI): DuenoAntigravit
   } catch {
     // archivo a medio escribir: el monitor no puede morir por eso
   }
-  return { email, plan: 'antigravity' };
+  return { email, plan: planAntigravity() ?? 'antigravity' };
 }
 
 /**
@@ -193,6 +206,45 @@ export function camposVarint(b: Uint8Array, prof = 0, salida = new Map<string, n
   return salida;
 }
 
+/** Las cadenas del mensaje, indexadas por su ruta de campo. */
+export function camposTexto(b: Uint8Array, prof = 0, salida = new Map<string, string>(), ruta = ''): Map<string, string> {
+  let i = 0;
+  while (i < b.length) {
+    const clave = leerVarint(b, i);
+    if (!clave) return salida;
+    const [k, siguiente] = clave;
+    i = siguiente;
+    const campo = Math.floor(k / 8);
+    const tipo = k & 7;
+    if (tipo === 0) {
+      const v = leerVarint(b, i);
+      if (!v) return salida;
+      i = v[1];
+    } else if (tipo === 2) {
+      const largo = leerVarint(b, i);
+      if (!largo) return salida;
+      const [n, desde] = largo;
+      if (desde + n > b.length) return salida;
+      const cuerpo = b.subarray(desde, desde + n);
+      const nombre = `${ruta}${campo}`;
+      // Un submensaje y una cadena se ven igual en el alambre. Se guarda como
+      // texto cuando es imprimible, y ADEMÁS se baja, porque el mismo campo
+      // puede ser las dos cosas en mensajes distintos.
+      const t = Buffer.from(cuerpo).toString('utf8');
+      if (n > 0 && !/[\u0000-\u0008\u000e-\u001f]/.test(t) && !salida.has(nombre)) salida.set(nombre, t);
+      if (prof < 6) camposTexto(cuerpo, prof + 1, salida, `${nombre}.`);
+      i = desde + n;
+    } else if (tipo === 5) {
+      i += 4;
+    } else if (tipo === 1) {
+      i += 8;
+    } else {
+      return salida;
+    }
+  }
+  return salida;
+}
+
 /**
  * ¿El protobuf sigue teniendo la forma sobre la que se infirieron los campos?
  *
@@ -214,6 +266,59 @@ export function formaConocida(campos: Map<string, number>): boolean {
   }
   const ventana = campos.get('1.9.10.4');
   return ventana === undefined || VENTANAS_CONOCIDAS.has(ventana);
+}
+
+/**
+ * El plan de Google, leído del estado del IDE.
+ *
+ * Antigravity es un fork de VS Code y guarda su estado en el `state.vscdb` de
+ * siempre. La clave `antigravityUnifiedStateSync.userStatus` trae un base64 que
+ * envuelve OTRO base64 (el sobre tiene `userStatusSentinelKey` y el contenido
+ * va en `1.2.1`), y adentro, en el campo 36, está la suscripción: `36.1` el id
+ * del tier (`g1-pro-tier`) y `36.2` el nombre para mostrar (`Google AI Pro`).
+ *
+ * POR QUÉ ESTO Y NO LA CUOTA. Se buscó la cuota en serio y NO ESTÁ: las 120
+ * claves del estado, el leveldb del Local Storage, `antigravity_state.pbtxt` y
+ * los logs del IDE, donde el único rastro es `quota undefined`. Lo más cercano
+ * es `modelCredits`, que guarda dos centinelas —`availableCredits` en 0 y un
+ * mínimo de 50— que no se mueven con el uso. Así que el porcentaje sigue sin
+ * existir en disco, pero el PLAN sí, y decir «Google AI Pro» en vez de un
+ * genérico es la diferencia entre no saber y no haber mirado.
+ *
+ * NUNCA se lee `antigravityAuthStatus`: esa clave guarda el access token en
+ * texto plano. Acá no hace falta y no se toca.
+ */
+export function planAntigravity(rutaEstado = RUTA_ESTADO): string | null {
+  if (!existsSync(rutaEstado)) return null;
+  let db: DatabaseSync;
+  try {
+    db = new DatabaseSync(rutaEstado, { readOnly: true });
+  } catch {
+    return null;
+  }
+  try {
+    const fila = db
+      .prepare('select value from ItemTable where key = ?')
+      .get('antigravityUnifiedStateSync.userStatus') as { value?: unknown } | undefined;
+    const v = fila?.value;
+    const texto = typeof v === 'string' ? v : v instanceof Uint8Array ? Buffer.from(v).toString('utf8') : null;
+    if (!texto) return null;
+
+    const sobre = camposTexto(new Uint8Array(Buffer.from(texto, 'base64')));
+    const dentro = sobre.get('1.2.1');
+    if (!dentro) return null;
+
+    const campos = camposTexto(new Uint8Array(Buffer.from(dentro, 'base64')));
+    return campos.get('36.2') ?? campos.get('36.1') ?? null;
+  } catch {
+    return null;
+  } finally {
+    try {
+      db.close();
+    } catch {
+      /* ya cerrada */
+    }
+  }
 }
 
 interface Acumulador {

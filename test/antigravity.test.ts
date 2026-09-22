@@ -16,8 +16,10 @@ import {
   conversacionesAntigravity,
   consumoAntigravity,
   estadoCredencialAntigravity,
+  camposTexto,
   formaConocida,
   hayAntigravity,
+  planAntigravity,
   ultimaActividadAntigravity,
 } from '../src/adapters/antigravity.ts';
 import { totalTokens } from '../src/core/tipos.ts';
@@ -280,6 +282,34 @@ describe('antigravity · credencial', () => {
       assert.equal(c.vencida, true);
     } finally {
       e.limpiar();
+    }
+  });
+});
+
+describe('antigravity · el plan', () => {
+  test('camposTexto saca las cadenas por ruta', () => {
+    const cuerpo = [...sub(2, [...Buffer.from('Google AI Pro')])];
+    const m = camposTexto(new Uint8Array(sub(36, cuerpo)));
+    assert.equal(m.get('36.2'), 'Google AI Pro');
+  });
+
+  test('sin state.vscdb no se inventa un plan', () => {
+    // Windows sin Antigravity, o una instalación que nunca abrió el IDE. El
+    // adaptador cae al genérico en vez de tirar.
+    assert.equal(planAntigravity(join(tmpdir(), 'no-existe-qm-ag', 'state.vscdb')), null);
+  });
+
+  test('un state.vscdb sin la clave tampoco', () => {
+    const raiz = mkdtempSync(join(tmpdir(), 'qm-ag-estado-'));
+    try {
+      const ruta = join(raiz, 'state.vscdb');
+      const db = new DatabaseSync(ruta);
+      db.exec('create table ItemTable (key text, value blob)');
+      db.prepare('insert into ItemTable values (?, ?)').run('otra.cosa', 'x');
+      db.close();
+      assert.equal(planAntigravity(ruta), null);
+    } finally {
+      rmSync(raiz, { recursive: true, force: true });
     }
   });
 });

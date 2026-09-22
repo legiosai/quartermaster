@@ -371,7 +371,11 @@ function filaAntigravity(o: Opciones): FilaPerfil | null {
       }
     : {
         estado: 'sin-cuota-legible',
-        detalle: 'plan de Google: el porcentaje no está en esta máquina',
+        // El plan sale del estado del IDE; el porcentaje NO existe en disco.
+        // Decirlo con el nombre del plan adelante es la diferencia entre «no
+        // se sabe» y «no se miró»: en `adapters/antigravity.ts` está dónde se
+        // buscó —las 120 claves del estado, el leveldb, el .pbtxt y los logs.
+        detalle: `${perfil.cuenta?.plan ?? 'plan de Google'}: Antigravity no deja el porcentaje en disco`,
       };
 
   return {
