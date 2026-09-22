@@ -5,8 +5,8 @@
 # quartermaster
 
 **How much quota you have left — in every agent account on the machine.**
-Every Claude Code profile, not just the default one, plus Codex and the
-providers stored by opencode.
+Every Claude Code profile, not just the default one, plus Codex, Gemini CLI,
+and the providers stored by opencode.
 
 [Landing](https://quartermaster.legios.com.ar/) ·
 [Install](#install) ·
@@ -293,8 +293,8 @@ What each channel needs configured is in
 src/core/         profiles, types. Knows nothing about keychains or HTTP.
 src/adapters/     credentials (keychain / file), transcripts (JSONL), quota
                   from the cache (.claude.json) and from the endpoint (HTTP),
-                  Codex (JSON-RPC), opencode (SQLite) and z.ai (HTTP — the
-                  only file that opens opencode's auth.json).
+                  Codex (JSON-RPC), opencode (SQLite), z.ai (HTTP — the
+                  only file that opens opencode's auth.json) and Gemini CLI.
 src/cli/          qm, and one demo per milestone.
 src/render/       bars and formatting for the terminal, and the dashboard.
 bin/              the launchers — qm (POSIX), qm.cmd + buscar-node.cmd

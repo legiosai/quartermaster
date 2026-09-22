@@ -587,13 +587,19 @@ consulta la cuota para los dos `providerID`, así que la barra aparece igual.
 
 Lo que encontré en esta máquina para la que falta:
 
-- **Gemini CLI 0.59.0** — instalado, autenticado (`oauth-personal`). Pero en
-  `~/.gemini` **no hay ningún número de cuota ni de uso**: hay credenciales,
-  cuentas, `installation_id` y estado de UI, y nada más. Su límite además no es
-  un porcentaje sino requests por día, así que ni siquiera encaja en la forma
-  `VentanaCuota` sin decidir antes qué significa «80 %» ahí. Da para el punto 1
-  hoy; el 2 necesita encontrarle una fuente, y el 3 un lugar donde cuente
-  tokens, que tampoco aparece.
+- **Gemini CLI (0.59.0 / 0.60.0)** — instalado, autenticado (`oauth-personal`).
+  *Corrección:* la primera revisión decía que en `~/.gemini` no había ningún lugar
+  donde contara tokens. Se había mirado sólo la raíz y `~/.gemini/history` (que sólo
+  guarda `.project_root`), pero los transcripts reales viven en
+  `~/.gemini/tmp/<proyecto>/chats/session-*.jsonl`.
+  Cada turno de asistente (`"type": "gemini"`) guarda `tokens` con `input`,
+  `output`, `cached`, `thoughts`, `tool`, `total`, el modelo, timestamp e `id`.
+  O sea: **el piso (punto 3) está y es completo** (10,7M tokens medidos en esta
+  máquina en 15 archivos). El punto 1 (descubrimiento de cuenta y estado de
+  credencial) sale de `google_accounts.json`, `settings.json` y `oauth_creds.json`.
+  Y para el punto 2 (cuota), al no haber porcentaje ni ventana en disco ni por
+  endpoint, se reporta `sin-cuota-legible` ("plan por OAuth: el porcentaje no
+  está en esta máquina"), idéntico a los planes por API key de opencode.
 El molde está y la selección de arriba ya prevé que sobren cuentas: con siete,
 `--ocultar` deja de ser un lujo.
 

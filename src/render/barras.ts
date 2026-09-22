@@ -1,4 +1,8 @@
 // Todo lo que se imprime pasa por acá. Sin dependencias: una barra es texto.
+// (El `import type` de abajo se borra al compilar: no agrega una dependencia
+// en runtime, sólo nombra la forma de lo que se rinde.)
+
+import type { EstadoCredencial } from '../core/tipos.ts';
 
 const COLOR = process.stdout.isTTY === true && process.env['NO_COLOR'] === undefined;
 
@@ -58,6 +62,30 @@ export function duracion(ms: number): string {
   if (h > 0) return `${h}h${String(m).padStart(2, '0')}m`;
   if (m > 0) return `${m}m`;
   return `${s}s`;
+}
+
+/**
+ * El estado de una credencial, en una línea.
+ *
+ * Existe porque el mismo ternario estaba escrito dos veces en `qm.ts` y se
+ * estaba por escribir una tercera, y porque tenía dos bordes mal:
+ *
+ *   · `error` se miraba ANTES que `presente`, así que un adaptador que marcara
+ *     «falta el archivo» como error imprimía «ilegible», que afirma algo
+ *     distinto y falso: que el archivo está pero no se puede leer.
+ *   · `(expiraEn?.getTime() ?? 0) - Date.now()` con `expiraEn` nulo da un
+ *     negativo enorme, y `duracion()` lo rinde como «vencido». La línea
+ *     resultante era «vigente (vencido)», que se contradice sola. Una
+ *     credencial presente y sin fecha es, simplemente, «vigente».
+ *
+ * `preflight.ts` ya lo hacía bien; esto es esa versión, sin color.
+ */
+export function veredictoCredencial(cred: EstadoCredencial): string {
+  if (cred.error !== null) return `ilegible · ${cred.error}`;
+  if (!cred.presente) return 'sin credencial';
+  if (cred.vencida) return 'vencida';
+  if (cred.expiraEn === null) return 'vigente';
+  return `vigente (${duracion(cred.expiraEn.getTime() - Date.now())})`;
 }
 
 /**
