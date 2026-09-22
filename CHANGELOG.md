@@ -16,6 +16,18 @@ out unless they changed what you see.
 
 ## v0.1.19 — 2026-09-22
 
+### Fixed
+
+- **The consumption figure 0.1.18 added to the panel never actually appeared.**
+  The change was real and the rendering was right — the data never got there.
+  The GNOME indicator asked `qm` for `--json --breve`, and `--breve` is the
+  mode that skips reading transcripts: it is what makes it instant, which is
+  why it belongs in a statusline that redraws on every prompt. It also means
+  the local figure is absent, so the panel drew every no-quota account without
+  one, exactly as before. It now asks for the full JSON. Measured cost: 2.3 s
+  against 0.58 s, paid once every 300 s, with burst redraws already coalesced
+  by the debounce — 0.8 % duty cycle so the panel stops lying by omission.
+
 ### Changed
 
 - **The Antigravity row now names your actual plan: `Google AI Pro`, not a

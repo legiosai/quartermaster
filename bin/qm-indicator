@@ -1693,10 +1693,23 @@ class Avisos:
 
 # ── leer a qm ────────────────────────────────────────────────────────────
 def leer_qm(qm: str) -> dict | str:
-    """El JSON de qm, o la frase que explica por qué no hay JSON."""
+    """El JSON de qm, o la frase que explica por qué no hay JSON.
+
+    SIN `--breve`, y eso es deliberado. `--breve` no lee transcripciones: es lo
+    que lo hace instantáneo y por eso es lo que va en una statusline, que se
+    redibuja en cada prompt. Pero el panel muestra el consumo local de las
+    cuentas sin cuota —para varias es lo ÚNICO que se puede afirmar— y con
+    `--breve` ese campo no viene. 0.1.18 agregó el número al panel y no se veía
+    nunca: el dato no llegaba hasta acá.
+
+    El costo, medido: 2,3 s contra 0,58 s. Se paga una vez cada
+    SEGUNDOS_SONDEO —300— y los redibujos por evento van con DEBOUNCE_MS, que
+    junta las ráfagas. Un 0,8 % de ciclo a cambio de que el panel no mienta por
+    omisión.
+    """
     try:
         r = subprocess.run(
-            [qm, "--json", "--breve"],
+            [qm, "--json"],
             capture_output=True,
             text=True,
             timeout=20,
@@ -2046,7 +2059,7 @@ class Indicador:
         self.pendiente = GLib.timeout_add(DEBOUNCE_MS, self.disparar)
 
     # Calentado -------------------------------------------------------------
-    # `qm --breve` lee del disco y no habla con nadie, que es lo que lo hace
+    # `qm --json` lee del disco y no habla con nadie, que es lo que lo hace
     # instantáneo — pero entonces el número es tan fresco como la última vez que
     # ALGUIEN preguntó. Y Claude Code refresca su propio cache cuando quiere:
     # medido acá, 1 día y 11 horas sin tocarlo, con la semanal 14 puntos abajo

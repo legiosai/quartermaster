@@ -324,6 +324,10 @@ footer a:hover{color:var(--texto)}
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
 <h2 id="v0.1.19">v0.1.19 — 2026-09-22</h2>
+<h3>Fixed</h3>
+<ul>
+<li><strong>The consumption figure 0.1.18 added to the panel never actually appeared.</strong> The change was real and the rendering was right — the data never got there. The GNOME indicator asked <code>qm</code> for <code>--json --breve</code>, and <code>--breve</code> is the mode that skips reading transcripts: it is what makes it instant, which is why it belongs in a statusline that redraws on every prompt. It also means the local figure is absent, so the panel drew every no-quota account without one, exactly as before. It now asks for the full JSON. Measured cost: 2.3 s against 0.58 s, paid once every 300 s, with burst redraws already coalesced by the debounce — 0.8 % duty cycle so the panel stops lying by omission.</li>
+</ul>
 <h3>Changed</h3>
 <ul>
 <li><strong>The Antigravity row now names your actual plan: <code>Google AI Pro</code>, not a generic phrase.</strong> It is read from the IDE's own <code>state.vscdb</code> — Antigravity is a VS Code fork and keeps state where VS Code does. The line went from "plan de Google: el porcentaje no está en esta máquina" to "Google AI Pro: Antigravity no deja el porcentaje en disco", which is the difference between <em>not knowing</em> and <em>not having looked</em>.</li>
