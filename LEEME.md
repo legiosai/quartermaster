@@ -5,7 +5,7 @@
 # quartermaster
 
 **Cuánta cuota te queda, en todas tus cuentas de agentes.**
-Cada perfil de Claude Code —no sólo el de por defecto— más Codex, Gemini CLI y
+Cada perfil de Claude Code —no sólo el de por defecto— más Codex, Antigravity y
 los proveedores que guarda opencode.
 
 [Landing](https://quartermaster.legios.com.ar/) ·

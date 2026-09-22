@@ -14,6 +14,39 @@ out unless they changed what you see.
 
 ---
 
+## v0.1.18 — 2026-09-22
+
+### Changed
+
+- **The Gemini account is now Antigravity, because that is the one being
+  used.** 0.1.17 read Gemini CLI's transcripts. It worked — and it measured the
+  wrong tool: on the machine this was written on, the last Gemini CLI turn that
+  spent a token is from **14 June**, while Antigravity had spent **6.1M tokens
+  across 560 requests** that same week. The panel said `0 en 7d` the whole time.
+  Measuring the tool you don't use is worse than measuring nothing: it answers,
+  and the answer is false. Antigravity shares `~/.gemini` but does not write to
+  `tmp/` — it keeps one SQLite database per conversation under
+  `~/.gemini/antigravity/conversations/`, with one protobuf per request.
+  `--sin-antigravity` leaves the row out; `--sin-gemini` is gone with the
+  adapter it belonged to.
+- **Accounts without a quota now show what they did spend.** A no-quota account
+  used to look identical whether it had burned six million tokens this week or
+  had not been touched since June — the terminal always printed the local
+  figure and the panel threw it away. Not having a percentage is not the same
+  as not having data, and the local floor is read off the disk with no network
+  and no credential. The number sits next to the name, and only when there is
+  something to count: a `0` beside every dormant account is noise shaped like
+  data. Still **no meter**, in the top bar or anywhere else — there is no
+  percentage to draw, and an empty meter would read as "0%, all good".
+
+### Fixed
+
+- **A credential file that does not exist was reported as "unreadable".** Same
+  bug as the one 0.1.17 fixed for the Claude rows, in the adapter that replaced
+  it; it is now written once and shared.
+
+---
+
 ## v0.1.17 — 2026-09-22
 
 ### Added

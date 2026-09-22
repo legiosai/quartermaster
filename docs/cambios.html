@@ -323,6 +323,17 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2 id="v0.1.18">v0.1.18 — 2026-09-22</h2>
+<h3>Changed</h3>
+<ul>
+<li><strong>The Gemini account is now Antigravity, because that is the one being used.</strong> 0.1.17 read Gemini CLI's transcripts. It worked — and it measured the wrong tool: on the machine this was written on, the last Gemini CLI turn that spent a token is from <strong>14 June</strong>, while Antigravity had spent <strong>6.1M tokens across 560 requests</strong> that same week. The panel said <code>0 en 7d</code> the whole time. Measuring the tool you don't use is worse than measuring nothing: it answers, and the answer is false. Antigravity shares <code>~/.gemini</code> but does not write to <code>tmp/</code> — it keeps one SQLite database per conversation under <code>~/.gemini/antigravity/conversations/</code>, with one protobuf per request. <code>--sin-antigravity</code> leaves the row out; <code>--sin-gemini</code> is gone with the adapter it belonged to.</li>
+<li><strong>Accounts without a quota now show what they did spend.</strong> A no-quota account used to look identical whether it had burned six million tokens this week or had not been touched since June — the terminal always printed the local figure and the panel threw it away. Not having a percentage is not the same as not having data, and the local floor is read off the disk with no network and no credential. The number sits next to the name, and only when there is something to count: a <code>0</code> beside every dormant account is noise shaped like data. Still <strong>no meter</strong>, in the top bar or anywhere else — there is no percentage to draw, and an empty meter would read as "0%, all good".</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li><strong>A credential file that does not exist was reported as "unreadable".</strong> Same bug as the one 0.1.17 fixed for the Claude rows, in the adapter that replaced it; it is now written once and shared.</li>
+</ul>
+<hr>
 <h2 id="v0.1.17">v0.1.17 — 2026-09-22</h2>
 <h3>Added</h3>
 <ul>

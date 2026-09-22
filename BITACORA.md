@@ -587,7 +587,34 @@ consulta la cuota para los dos `providerID`, así que la barra aparece igual.
 
 Lo que encontré en esta máquina para la que falta:
 
-- **Gemini CLI (0.59.0 / 0.60.0)** — instalado, autenticado (`oauth-personal`).
+- **Antigravity** — *segunda corrección, 2026-09-22, y la que importa.* El
+  adaptador de Gemini CLI de 0.1.17 medía bien, pero medía la herramienta que
+  esta máquina **no usa**: el último turno con tokens de Gemini CLI acá es del
+  14 de junio. Lo que se usa hoy es Antigravity, que **comparte `~/.gemini`
+  pero no escribe en `tmp/`**: guarda una base SQLite por conversación en
+  `~/.gemini/antigravity/conversations/<uuid>.db`, con una tabla `gen_metadata`
+  y un protobuf por request. El panel decía «0 en 7d» mientras se gastaban
+  **6,1M tokens en 560 requests** esa misma semana. Medir la herramienta
+  equivocada es peor que no medir: da una respuesta, y es falsa.
+
+  Los nombres de campo no viajan en el protobuf, así que el significado está
+  **inferido**: `1.4.2` entrada, `1.4.3` salida, `1.4.9` pensamiento, `1.4.10`
+  herramientas, `1.4.1` constante (el prompt de sistema), `1.9.10.4` la ventana
+  de contexto. Eso es una apuesta y se defiende con un gate de forma — si los
+  campos dejan de estar, el adaptador dice `formaRota` en vez de un cero
+  tranquilizador. **Cuota: no hay.** `antigravity_state.pbtxt` no la trae y el
+  único rastro en los logs del IDE es `quota undefined`.
+
+  Un error propio al construirlo, que vale anotar: la primera versión exigía
+  `1.9.10.4` para creerle a un request. **152 de 566 requests reales no la
+  traen**, así que el gate tiraba el 27 % del consumo y lo mostraba como si no
+  hubiera existido — el mismo fallo en silencio que el gate existe para
+  prevenir, sólo que hacia el otro lado. Ahora el grupo `1.4.*` es la evidencia
+  obligatoria y la ventana sólo corrobora cuando está.
+
+- **Gemini CLI (0.59.0 / 0.60.0)** — *reemplazado por Antigravity en 0.1.18.*
+  Se deja el relevamiento porque explica dónde mirar si alguien vuelve a usarlo.
+  Instalado, autenticado (`oauth-personal`).
   *Corrección:* la primera revisión decía que en `~/.gemini` no había ningún lugar
   donde contara tokens. Se había mirado sólo la raíz y `~/.gemini/history` (que sólo
   guarda `.project_root`), pero los transcripts reales viven en

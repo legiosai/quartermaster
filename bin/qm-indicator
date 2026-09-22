@@ -137,6 +137,19 @@ def sello_nuevo() -> int:
 
 
 # ── formato ──────────────────────────────────────────────────────────────
+def tokens_corto(n: int) -> str:
+    """1_234_567 -> «1,2M». Las mismas unidades y la misma coma decimal que usa
+    el CLI en `render/barras.ts`: el panel y la terminal dicen el mismo número
+    de la misma forma, o son dos implementaciones que se parecen."""
+    if n >= 1_000_000_000:
+        return f"{n / 1_000_000_000:.1f}".replace(".", ",") + "G"
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}".replace(".", ",") + "M"
+    if n >= 1_000:
+        return f"{n / 1_000:.1f}".replace(".", ",") + "k"
+    return str(n)
+
+
 def corto(nombre: str) -> str:
     """`.claude-teams` -> `teams`; el perfil por defecto -> `main`."""
     return nombre.removeprefix(".claude").lstrip("-") or "main"
@@ -879,25 +892,34 @@ class VistaCuenta:
 
 
 class VistaSinCuota:
-    """Las cuentas que todavía no tienen número, juntas en una tarjeta.
+    """Las cuentas que todavía no tienen número DE CUOTA, juntas en una tarjeta.
 
     Cada una ocupaba una tarjeta entera para decir la misma frase, y el panel
     —que en una pantalla de 768 px ya no entra— gastaba doscientos píxeles en
     repetirla. Juntas además se leen mejor: no son tres misterios distintos,
     es un hecho con varios nombres.
+
+    Sin cuota NO es sin dato. El consumo local se sabe —se lee del disco, sin
+    red y sin credencial— y la terminal siempre lo dijo; el panel lo tiraba.
+    Una cuenta que gastó seis millones de tokens esta semana aparecía acá
+    exactamente igual que una que no se tocó desde junio, y eso no es «no hay
+    porcentaje»: es borrar lo único que sí se puede afirmar. El número va
+    pegado al nombre, y sólo cuando hay algo que contar: un «0» al lado de cada
+    cuenta dormida sería ruido con la misma forma que un dato.
     """
 
-    def __init__(self, cuentas: list[tuple[str, str]]) -> None:
+    def __init__(self, cuentas: list[tuple[str, str, int]]) -> None:
         # Agrupadas por frase y en el orden en que aparecieron: dos cuentas
         # pueden estar calladas por motivos distintos, y ahí la frase importa.
         self.grupos: list[tuple[str, list[str]]] = []
-        for nombre, frase in cuentas:
+        for nombre, frase, tokens in cuentas:
+            etiqueta = f"{nombre} {tokens_corto(tokens)}" if tokens > 0 else nombre
             for f, nombres in self.grupos:
                 if f == frase:
-                    nombres.append(nombre)
+                    nombres.append(etiqueta)
                     break
             else:
-                self.grupos.append((frase, [nombre]))
+                self.grupos.append((frase, [etiqueta]))
 
     @staticmethod
     def _ancho_contenido() -> float:
@@ -1225,7 +1247,9 @@ def modelo_panel(datos):
     for p in perfiles:
         cuota = p.get("cuota") or {}
         if cuota.get("estado") != "ok":
-            calladas.append((corto(p.get("perfil") or "?"), cuota.get("frase") or "sin cuota"))
+            calladas.append((corto(p.get("perfil") or "?"),
+                             cuota.get("frase") or "sin cuota",
+                             int((p.get("local") or {}).get("tokens") or 0)))
             continue
         vistas.append(VistaCuenta(p, i))
         # El índice de color sólo avanza con las cuentas que tienen número, para
