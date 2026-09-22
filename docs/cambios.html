@@ -323,6 +323,16 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2 id="v0.1.17">v0.1.17 — 2026-09-22</h2>
+<h3>Added</h3>
+<ul>
+<li><strong>Gemini CLI is now one more account, with the tokens it actually spent.</strong> It had been ruled out on the grounds that nothing under <code>~/.gemini</code> counted tokens — but that was a search error: only the root and <code>~/.gemini/history</code> (which holds just <code>.project_root</code>) had been looked at. The real transcripts live in <code>~/.gemini/tmp/&lt;project&gt;/chats/session-*.jsonl</code>, and every assistant turn records the exact breakdown. Measured on one machine: <strong>10.7M tokens across 271 requests</strong>, matching an independent count of the same files exactly. Each turn is written to the file twice, so turns are deduplicated by id; both copies carry identical counts, checked against every turn on disk. <strong>No percentage, on purpose.</strong> Google's personal OAuth plan publishes no quota and no reset — not on disk, not from an endpoint — so the account reads <code>sin-cuota-legible</code>, the same as opencode's API-key plans. That means it shows in the panel's no-quota block and <strong>not</strong> as a meter in the top bar: an empty meter would read as "0%, all good", which is a different claim and a false one. <code>--sin-gemini</code> leaves the row out.</li>
+</ul>
+<h3>Fixed</h3>
+<ul>
+<li><strong>A credential file that does not exist was reported as "unreadable", and one with no expiry date as "valid (expired)".</strong> The first said the file is there and corrupt, sending you to look for a broken file that was never written. The second contradicts itself in four words. Both came from one line that had been copied twice and was about to be copied a third time: it checked <em>why it failed</em> before checking <em>whether it is there</em>, and turned a missing expiry date into a negative duration that renders as "expired". The Claude rows had the second bug already; they are fixed too.</li>
+</ul>
+<hr>
 <h2 id="v0.1.16">v0.1.16 — 2026-09-17</h2>
 <h3>Fixed</h3>
 <ul>
