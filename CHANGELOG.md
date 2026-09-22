@@ -14,6 +14,39 @@ out unless they changed what you see.
 
 ---
 
+## v0.1.17 — 2026-09-22
+
+### Added
+
+- **Gemini CLI is now one more account, with the tokens it actually spent.** It
+  had been ruled out on the grounds that nothing under `~/.gemini` counted
+  tokens — but that was a search error: only the root and `~/.gemini/history`
+  (which holds just `.project_root`) had been looked at. The real transcripts
+  live in `~/.gemini/tmp/<project>/chats/session-*.jsonl`, and every assistant
+  turn records the exact breakdown. Measured on one machine: **10.7M tokens
+  across 271 requests**, matching an independent count of the same files
+  exactly. Each turn is written to the file twice, so turns are deduplicated by
+  id; both copies carry identical counts, checked against every turn on disk.
+  **No percentage, on purpose.** Google's personal OAuth plan publishes no quota
+  and no reset — not on disk, not from an endpoint — so the account reads
+  `sin-cuota-legible`, the same as opencode's API-key plans. That means it shows
+  in the panel's no-quota block and **not** as a meter in the top bar: an empty
+  meter would read as "0%, all good", which is a different claim and a false
+  one. `--sin-gemini` leaves the row out.
+
+### Fixed
+
+- **A credential file that does not exist was reported as "unreadable", and one
+  with no expiry date as "valid (expired)".** The first said the file is there
+  and corrupt, sending you to look for a broken file that was never written. The
+  second contradicts itself in four words. Both came from one line that had been
+  copied twice and was about to be copied a third time: it checked *why it
+  failed* before checking *whether it is there*, and turned a missing expiry
+  date into a negative duration that renders as "expired". The Claude rows had
+  the second bug already; they are fixed too.
+
+---
+
 ## v0.1.16 — 2026-09-17
 
 ### Fixed
