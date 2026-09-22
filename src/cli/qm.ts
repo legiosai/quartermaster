@@ -35,6 +35,14 @@ import {
   DIRECTORIO_CODEX,
   ultimaActividadCodex,
 } from '../adapters/codex.ts';
+import {
+  consumoGemini,
+  duenoGemini,
+  estadoCredencialGemini,
+  hayGemini,
+  perfilGemini,
+  ultimaActividadGemini,
+} from '../adapters/gemini.ts';
 import { endpointEnCache, frenadoHasta, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import * as entorno from '../adapters/entorno.ts';
@@ -92,6 +100,7 @@ interface Opciones {
   redactado: boolean;
   breve: boolean;
   codex: boolean;
+  gemini: boolean;
 }
 
 /**
@@ -136,6 +145,7 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
+  qm --sin-gemini     no mira la cuenta de Gemini
   qm --version        la versión, y nada más
   qm --calentar       refresca el endpoint de cada perfil, el de Codex y el de
                       z.ai (si hay una cuenta en opencode), guarda
@@ -160,6 +170,7 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     redactado: false,
     breve: false,
     codex: true,
+    gemini: true,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]!;
@@ -167,6 +178,7 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     else if (a === '--redactado') o.redactado = true;
     else if (a === '--breve') o.breve = true;
     else if (a === '--sin-codex') o.codex = false;
+    else if (a === '--sin-gemini') o.gemini = false;
     // La selección la lee configEfectiva() de process.argv; acá sólo se
     // aceptan para que el parser no las rechace.
     else if (a.startsWith('--solo=') || a.startsWith('--ocultar=')) continue;
@@ -199,7 +211,7 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
 
 interface FilaPerfil {
   /** De qué producto es esta fila. Lo único que distingue una cuenta de otra. */
-  producto: 'claude' | 'codex' | 'opencode';
+  producto: 'claude' | 'codex' | 'opencode' | 'gemini';
   perfil: Perfil;
   veredicto: string;
   cuota: ResultadoCuota;
@@ -324,6 +336,59 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     // parseo, así que también vale en --breve — que es donde más hace falta,
     // porque es el modo que corren todas las barras.
     ultimoUso: ultimaActividadCodex(),
+  };
+}
+
+// La cuenta de Gemini CLI como una fila más.
+//
+// El piso local sale de las sesiones en ~/.gemini/tmp/<proyecto>/chats/session-*.jsonl,
+// donde cada turno de asistente ("type": "gemini") guarda los tokens usados.
+//
+// Gemini no reporta cuota porcentual ni reinicios (los límites de Google OAuth
+// personal son por requests/día y no dejan barras en disco ni por endpoint):
+// se reporta `sin-cuota-legible`, exactamente igual que los planes de API key
+// de opencode.
+async function filaGemini(o: Opciones): Promise<FilaPerfil | null> {
+  if (!hayGemini()) return null;
+
+  const perfil = perfilGemini();
+  const cred = estadoCredencialGemini();
+
+  const veredicto =
+    cred.error !== null
+      ? `ilegible · ${cred.error}`
+      : !cred.presente
+        ? 'sin credencial'
+        : cred.vencida
+          ? 'vencida'
+          : `vigente (${duracion((cred.expiraEn?.getTime() ?? 0) - Date.now())})`;
+
+  const cuota: ResultadoCuota = {
+    estado: 'sin-cuota-legible',
+    detalle: 'plan por OAuth: el porcentaje no está en esta máquina',
+  };
+
+  const corteDias = new Date(Date.now() - o.dias * 24 * 3600_000);
+  const corteVentana = new Date(Date.now() - o.ventanaH * 3600_000);
+
+  const local = o.breve ? null : await consumoGemini(corteDias);
+  const ventana = o.breve ? null : await consumoGemini(corteVentana);
+
+  return {
+    producto: 'gemini',
+    localMedido: local !== null,
+    credencialVencida: cred.vencida,
+    perfil,
+    veredicto,
+    cuota,
+    notaRefresco: null,
+    proyeccion: null,
+    archivos: local?.archivos ?? 0,
+    requests: local?.consumo.requests ?? 0,
+    tokens: local ? totalTokens(local.consumo) : 0,
+    tokensVentana: ventana ? totalTokens(ventana.consumo) : 0,
+    porModelo: local ? [...local.consumo.porModelo.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3) : [],
+    ultimoUso: ultimaActividadGemini(),
   };
 }
 
@@ -610,7 +675,13 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
   );
 
   const codex = o.codex ? await filaCodex(o) : null;
-  const todas = [...claude, ...(codex === null ? [] : [codex]), ...(await filasOpencode(o))];
+  const gemini = o.gemini ? await filaGemini(o) : null;
+  const todas = [
+    ...claude,
+    ...(codex === null ? [] : [codex]),
+    ...(gemini === null ? [] : [gemini]),
+    ...(await filasOpencode(o)),
+  ];
   // Descubrir todo y mostrar todo no son lo mismo: lo primero es la misión,
   // lo segundo es una preferencia.
   const { filas, nota } = seleccionar(todas, configEfectiva());
