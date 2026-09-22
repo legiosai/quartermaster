@@ -78,6 +78,7 @@ import {
 } from '../core/tipos.ts';
 import {
   barra,
+  veredictoCredencial,
   barraSinColor,
   duracion,
   negrita,
@@ -354,14 +355,7 @@ async function filaGemini(o: Opciones): Promise<FilaPerfil | null> {
   const perfil = perfilGemini();
   const cred = estadoCredencialGemini();
 
-  const veredicto =
-    cred.error !== null
-      ? `ilegible · ${cred.error}`
-      : !cred.presente
-        ? 'sin credencial'
-        : cred.vencida
-          ? 'vencida'
-          : `vigente (${duracion((cred.expiraEn?.getTime() ?? 0) - Date.now())})`;
+  const veredicto = veredictoCredencial(cred);
 
   const cuota: ResultadoCuota = {
     estado: 'sin-cuota-legible',
@@ -575,14 +569,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
   const claude = await Promise.all(
     perfiles.map(async (perfil): Promise<FilaPerfil> => {
       const cred = estadoCredencial(perfil);
-      const veredicto =
-        cred.error !== null
-          ? `ilegible · ${cred.error}`
-          : !cred.presente
-            ? 'sin credencial'
-            : cred.vencida
-              ? 'vencida'
-              : `vigente (${duracion((cred.expiraEn?.getTime() ?? 0) - Date.now())})`;
+      const veredicto = veredictoCredencial(cred);
 
       // El cache primero: es gratis y no necesita credencial. Se toma la más
       // nueva entre la que dejó Claude Code y la que dejamos nosotros la última

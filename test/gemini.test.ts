@@ -102,10 +102,22 @@ describe('gemini · descubrimiento y credenciales', () => {
   test('estadoCredencialGemini evalúa vigencia por expiry_date', () => {
     const { raiz, limpiar } = entornoGeminiDePrueba();
     try {
-      // Sin archivo
+      // Sin archivo. `vencida` es FALSE y `error` es null a propósito: que el
+      // archivo no esté no es ni una fecha que pasó ni un error de lectura, y
+      // confundirlos hace que la pantalla diga «ilegible» sobre algo que no
+      // existe. Misma convención que `credenciales.ts`.
       const sin = estadoCredencialGemini(raiz);
       assert.equal(sin.presente, false);
-      assert.equal(sin.vencida, true);
+      assert.equal(sin.vencida, false);
+      assert.equal(sin.error, null);
+
+      // Ilegible: presente en disco pero roto. ACÁ sí hay `error`, y eso es lo
+      // único que distingue este caso del de arriba.
+      writeFileSync(join(raiz, 'oauth_creds.json'), '{ no es json');
+      const roto = estadoCredencialGemini(raiz);
+      assert.equal(roto.presente, false);
+      assert.equal(roto.vencida, false);
+      assert.notEqual(roto.error, null);
 
       // Con fecha futura
       const futuro = Date.now() + 3600_000;
@@ -121,6 +133,13 @@ describe('gemini · descubrimiento y credenciales', () => {
       const vencida = estadoCredencialGemini(raiz);
       assert.equal(vencida.presente, true);
       assert.equal(vencida.vencida, true);
+
+      // Presente pero sin `expiry_date`: no se puede afirmar que venció.
+      writeFileSync(join(raiz, 'oauth_creds.json'), JSON.stringify({ access_token: 'x' }));
+      const sinFecha = estadoCredencialGemini(raiz);
+      assert.equal(sinFecha.presente, true);
+      assert.equal(sinFecha.vencida, false);
+      assert.equal(sinFecha.expiraEn, null);
     } finally {
       limpiar();
     }

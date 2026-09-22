@@ -101,12 +101,17 @@ export function duenoGemini(dirGemini = DIRECTORIO_GEMINI): DuenoGemini {
 export function estadoCredencialGemini(dirGemini = DIRECTORIO_GEMINI): EstadoCredencial {
   const ruta = join(dirGemini, 'oauth_creds.json');
   if (!existsSync(ruta)) {
+    // Que el archivo NO ESTE no es un error de lectura, y la diferencia se ve
+    // en pantalla: con `error` puesto, quien muestra esto dice «ilegible», que
+    // afirma que el archivo esta corrupto cuando en realidad no existe. Misma
+    // convencion que `credenciales.ts`: ausente es `error: null`, y `vencida`
+    // en false porque no hay ninguna fecha que haya pasado.
     return {
       presente: false,
       ubicacion: '~/.gemini/oauth_creds.json',
       expiraEn: null,
-      vencida: true,
-      error: 'sin credencial',
+      vencida: false,
+      error: null,
     };
   }
 
@@ -123,11 +128,13 @@ export function estadoCredencialGemini(dirGemini = DIRECTORIO_GEMINI): EstadoCre
       error: null,
     };
   } catch (e) {
+    // Ilegible tampoco es vencida: no se pudo leer la fecha, no se leyo una
+    // fecha pasada. `error` es lo que distingue este caso del de arriba.
     return {
       presente: false,
       ubicacion: '~/.gemini/oauth_creds.json',
       expiraEn: null,
-      vencida: true,
+      vencida: false,
       error: e instanceof Error ? e.message : 'credencial ilegible',
     };
   }
