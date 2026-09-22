@@ -2,7 +2,7 @@
   "uuid": "quartermaster@legios",
   "name": "quartermaster",
   "description": "Shows the quartermaster meter in the top bar: at a glance, how much quota is left in every agent account on the machine — each Claude Code profile, Codex, and the providers stored by opencode. One click opens the full panel.\n\nThis extension only displays and forwards the click: the numbers, the icon and the panel are drawn by the quartermaster CLI (https://github.com/legiosai/quartermaster), which has to be installed and running. It knows nothing about credentials or HTTP; it reads the PNGs the CLI leaves in the user cache directory and writes a one-line request file back when you click.\n\nIt exists because the AppIndicator extension keeps the left click for its own menu, so seeing the panel took two clicks. With an item of our own, the first click opens it.\n\nThis is the GNOME 43/44 build of the same extension: identical behaviour, written against the pre-45 extension API. It exists for Debian 12 and other distributions still on GNOME 43.",
-  "version-name": "0.1.16",
+  "version-name": "0.1.17",
   "shell-version": [
     "43",
     "44"
