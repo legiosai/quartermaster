@@ -32,7 +32,7 @@ on:
 
 jobs:
   token:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -56,7 +56,7 @@ jobs:
   # tanto `winget install Legios.Quartermaster` no existe y el README no lo
   # promete por eso. El número que interesa es cuántos días lleva.
   pr:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: los días que lleva abierto
         env:
