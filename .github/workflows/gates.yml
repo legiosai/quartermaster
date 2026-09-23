@@ -30,7 +30,7 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -76,7 +76,7 @@ jobs:
   # nada de eso lo toca `npm test`. Sin este job, borrar medio bin/qm-indicator
   # deja el CI en verde — ya pasó.
   dibujo:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5

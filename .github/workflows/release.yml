@@ -58,7 +58,7 @@ jobs:
   # acá y se pasa por `needs`. De paso queda escrito en el log cuáles van a
   # correr, que es lo primero que uno quiere saber mirando una release.
   canales:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       npm: ${{ steps.hay.outputs.npm }}
       brew: ${{ steps.hay.outputs.brew }}
@@ -88,7 +88,7 @@ jobs:
 
   # ── que la versión sea una sola ───────────────────────────────────────
   version:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.leer.outputs.version }}
     steps:
@@ -123,7 +123,7 @@ jobs:
   # ── el .deb y el zip de la extensión ──────────────────────────────────
   linux:
     needs: [version, gates]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -182,7 +182,7 @@ jobs:
   npm:
     needs: [canales, version, gates]
     if: (github.ref_type == 'tag' || inputs.publicar) && needs.canales.outputs.npm == 'si'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -201,7 +201,7 @@ jobs:
   release:
     needs: [version, linux, windows]
     if: github.ref_type == 'tag' || inputs.publicar
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
       - uses: actions/download-artifact@v7
@@ -247,7 +247,7 @@ jobs:
   brew:
     needs: [canales, version, release]
     if: needs.canales.outputs.brew == 'si'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: actualizar la fórmula
         env:
@@ -287,7 +287,7 @@ jobs:
   apt:
     needs: [canales, version, release]
     if: needs.canales.outputs.apt == 'si'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -348,7 +348,7 @@ jobs:
   scoop:
     needs: [canales, version, release]
     if: needs.canales.outputs.scoop == 'si'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       publicado: ${{ steps.empujar.outputs.publicado }}
     steps:
@@ -458,7 +458,7 @@ jobs:
   aur:
     needs: [canales, version, release]
     if: needs.canales.outputs.aur == 'si'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       publicado: ${{ steps.empujar.outputs.publicado }}
     steps:
@@ -515,7 +515,7 @@ jobs:
   resumen:
     needs: [canales, version, release, npm, brew, apt, scoop, winget, aur]
     if: always() && needs.release.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: el estado de cada canal
         env:
