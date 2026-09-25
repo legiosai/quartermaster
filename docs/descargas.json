@@ -1,14 +1,14 @@
 {
-  "generado": "2026-09-24T16:28:07.713Z",
+  "generado": "2026-09-25T16:29:01.952Z",
   "resumen": {
     "humanasHastaHoy": {
       "npm": 199,
       "github": 48
     },
     "estaSemana": {
-      "desde": "2026-09-17",
-      "npm": 199,
-      "github": 9
+      "desde": "2026-09-18",
+      "npm": 120,
+      "github": 7
     },
     "sinContador": {
       "brew": 15,
@@ -104,6 +104,12 @@
       },
       {
         "dia": "2026-09-24",
+        "descargas": 0,
+        "publicaciones": 0,
+        "humanas": 0
+      },
+      {
+        "dia": "2026-09-25",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
@@ -839,8 +845,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 9,
-    "anotados": 9,
+    "esperados": 10,
+    "anotados": 10,
     "faltan": []
   },
   "historial": [
@@ -886,6 +892,11 @@
     },
     {
       "fecha": "2026-09-24",
+      "npm": 199,
+      "github": 48
+    },
+    {
+      "fecha": "2026-09-25",
       "npm": 199,
       "github": 48
     }
