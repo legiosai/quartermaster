@@ -1,14 +1,14 @@
 {
-  "generado": "2026-09-25T16:29:01.952Z",
+  "generado": "2026-09-26T15:44:00.453Z",
   "resumen": {
     "humanasHastaHoy": {
-      "npm": 199,
-      "github": 48
+      "npm": 303,
+      "github": 49
     },
     "estaSemana": {
-      "desde": "2026-09-18",
-      "npm": 120,
-      "github": 7
+      "desde": "2026-09-19",
+      "npm": 157,
+      "github": 8
     },
     "sinContador": {
       "brew": 15,
@@ -20,9 +20,9 @@
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 1741,
-    "enDiasSinPublicar": 199,
-    "porPublicacion": 91,
+    "total": 2267,
+    "enDiasSinPublicar": 303,
+    "porPublicacion": 116,
     "dias": [
       {
         "dia": "2026-09-11",
@@ -92,24 +92,30 @@
       },
       {
         "dia": "2026-09-22",
-        "descargas": 0,
+        "descargas": 422,
         "publicaciones": 3,
         "humanas": null
       },
       {
         "dia": "2026-09-23",
-        "descargas": 0,
+        "descargas": 89,
         "publicaciones": 0,
-        "humanas": 0
+        "humanas": 89
       },
       {
         "dia": "2026-09-24",
+        "descargas": 15,
+        "publicaciones": 0,
+        "humanas": 15
+      },
+      {
+        "dia": "2026-09-25",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
       },
       {
-        "dia": "2026-09-25",
+        "dia": "2026-09-26",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
@@ -117,7 +123,7 @@
     ]
   },
   "github": {
-    "humanas": 48,
+    "humanas": 49,
     "porVersion": [
       {
         "version": "v0.1.19",
@@ -214,15 +220,15 @@
       {
         "version": "v0.1.15",
         "publicada": "2026-09-16",
-        "humanas": 14,
+        "humanas": 15,
         "adjuntos": {
           "exe": {
             "bajadas": 8,
             "netas": 4
           },
           "zip": {
-            "bajadas": 12,
-            "netas": 10
+            "bajadas": 13,
+            "netas": 11
           },
           "extension": {
             "bajadas": 0,
@@ -845,8 +851,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 10,
-    "anotados": 10,
+    "esperados": 11,
+    "anotados": 11,
     "faltan": []
   },
   "historial": [
@@ -899,6 +905,11 @@
       "fecha": "2026-09-25",
       "npm": 199,
       "github": 48
+    },
+    {
+      "fecha": "2026-09-26",
+      "npm": 303,
+      "github": 49
     }
   ]
 }
