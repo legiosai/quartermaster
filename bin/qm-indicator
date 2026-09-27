@@ -1044,7 +1044,7 @@ class VistaResumen:
 
 # ── el item de la barra, dibujado ────────────────────────────────────────
 # Un medidor vertical por cuenta, en el orden del menú, lleno hasta la SESIÓN de
-# 5 h y pintado por severidad. Es el mismo dibujo que el item de la barra de
+# 5 h —o la semanal, si el plan no tiene sesión— y pintado por severidad. Es el mismo dibujo que el item de la barra de
 # macOS (bin/qm-barra.swift, medidores()) y con las mismas medidas: tres cuentas
 # entran en el ancho de una palabra.
 #
@@ -1067,17 +1067,17 @@ PROPORCION_ANCHA = 1.6
 
 
 def _numero_de(t: dict) -> str | None:
-    """El número de cada cuenta es el de la SESIÓN de 5 h: es el que contesta
-    «¿puedo seguir trabajando ahora?». La semanal se sigue viendo —es el
-    medidor, con su color— sin gastar dígitos.
+    """El número de cada cuenta es el de su ventana CORTA —la sesión de 5 h, o
+    la semanal si el plan no tiene sesión—: es el que contesta «¿puedo seguir
+    trabajando ahora?». El resto se lee en el panel.
 
     Sin marca de cache viejo: un `~` pegado al número obliga a saber qué
     significa para poder leer el número, y la edad del cache ya está escrita con
     todas las letras en el panel, que es donde se la va a buscar.
     """
-    if t["sesion"] is None:
+    if t["corta"] is None:
         return None
-    return f"{t['sesion']:.0f}"
+    return f"{t['corta']:.0f}"
 
 
 def piezas_de(datos, avisar=None) -> list[dict]:
@@ -1110,6 +1110,12 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             return bool(v.get("preocupa")) or (_chocas and v.get("clave") == _frena.get("clave"))
 
         ses, sem = cuota.get("sesion"), cuota.get("semanal")
+        # La ventana que va en la barra: la más corta que tenga la cuenta. Casi
+        # siempre es la sesión de 5 h, pero hay planes sin sesión —Codex Pro,
+        # medido el 2026-09-27: `sesion: null` y sólo `weekly_all`— y ahí la
+        # semanal ES la que te frena ahora. Dejar la pista vacía hacía que la
+        # cuenta se viera sin número ni medidor, como si no tuviera cuota.
+        corta = ses or sem
         diario = pct_diario(p.get("presupuesto"))
         nombre = corto(p["perfil"])
         piezas.append({
@@ -1121,6 +1127,8 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             "sesion_alerta": alerta(ses),
             "semanal": sem.get("porcentaje") if sem else None,
             "semanal_alerta": alerta(sem),
+            "corta": corta.get("porcentaje") if corta else None,
+            "corta_alerta": alerta(corta),
             # Cuánto del presupuesto de HOY ya se gastó: es lo que llena el
             # medidor. None deja la pista vacía.
             "diario": diario,
@@ -1201,20 +1209,18 @@ def dibujar_item(piezas: list[dict], destino: str, escala: float = 1.0) -> tuple
         glifo_producto(cr, t["producto"], TEMA.color_cuenta(t["indice"]),
                        x, (ALTO_ITEM - LADO_GLIFO) / 2, LADO_GLIFO)
         xb = x + LADO_GLIFO + AIRE_GLIFO
-        # El medidor es la SESIÓN: es la ventana que te frena AHORA, la única
-        # que se mueve dentro del rato que estás mirando la barra. La semanal se
-        # mueve dos píxeles por día —a media semana está siempre por la mitad—
-        # y el presupuesto del día tiene su frase entera en el panel. Si la
-        # cuenta no informa sesión queda la pista vacía: mejor un hueco honesto
-        # que dibujar otra cosa.
-        medidor(xb, t["sesion"],
-                TEMA.nivel(nivel_de(t["sesion"], t["sesion_alerta"])) if t["sesion"] is not None else None)
+        # El medidor es la ventana CORTA: la que te frena AHORA, la única que se
+        # mueve dentro del rato que estás mirando la barra. Con sesión de 5 h es
+        # la sesión —la semanal se mueve dos píxeles por día y a media semana
+        # está siempre por la mitad—; sin sesión, la semanal es la corta.
+        medidor(xb, t["corta"],
+                TEMA.nivel(nivel_de(t["corta"], t["corta_alerta"])) if t["corta"] is not None else None)
         n = _numero_de(t)
         if n is not None:
-            # El número es la sesión, así que lleva el estado DE LA SESIÓN. Se
-            # tiñe recién cuando aprieta: si se pintara siempre, el color
-            # dejaría de querer decir algo.
-            nivel = nivel_de(t["sesion"], t["sesion_alerta"])
+            # El número es la ventana corta, así que lleva SU estado. Se tiñe
+            # recién cuando aprieta: si se pintara siempre, el color dejaría de
+            # querer decir algo.
+            nivel = nivel_de(t["corta"], t["corta_alerta"])
             color = TEMA.nivel(nivel) if nivel in ("aviso", "critico") else TEMA.etiqueta
             alto_n = pluma.alto(n, 10, Pango.Weight.MEDIUM, tabular=True)
             pluma.escribir(xb + ANCHO_MEDIDOR + AIRE_NUMERO, (ALTO_ITEM - alto_n) / 2,

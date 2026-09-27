@@ -323,6 +323,11 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2 id="v0.1.20">v0.1.20 — 2026-09-27</h2>
+<h3>Fixed</h3>
+<ul>
+<li><strong>An account with no 5-hour session showed nothing in the bar.</strong> The number and the meter of each account in the top bar were the 5-hour session, read as-is. Some plans don't have one — Codex Pro reports only a weekly window — so that account was drawn with an empty track and no number, as if it had no quota, while its weekly was the one about to stop it. The bar now shows each account's <em>shortest</em> window: the session when there is one, the weekly when there isn't. Same fix in the GNOME item, the macOS menu bar and the Windows tray.</li>
+</ul>
 <h2 id="v0.1.19">v0.1.19 — 2026-09-22</h2>
 <h3>Fixed</h3>
 <ul>

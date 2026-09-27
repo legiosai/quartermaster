@@ -14,6 +14,19 @@ out unless they changed what you see.
 
 ---
 
+## v0.1.20 — 2026-09-27
+
+### Fixed
+
+- **An account with no 5-hour session showed nothing in the bar.** The number
+  and the meter of each account in the top bar were the 5-hour session, read
+  as-is. Some plans don't have one — Codex Pro reports only a weekly window —
+  so that account was drawn with an empty track and no number, as if it had no
+  quota, while its weekly was the one about to stop it. The bar now shows each
+  account's *shortest* window: the session when there is one, the weekly when
+  there isn't. Same fix in the GNOME item, the macOS menu bar and the Windows
+  tray.
+
 ## v0.1.19 — 2026-09-22
 
 ### Fixed

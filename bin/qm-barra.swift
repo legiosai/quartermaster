@@ -305,7 +305,7 @@ struct Trozo {
     let nombre: String
     let producto: String
     let indice: Int
-    /// La ventana corta: «¿puedo seguir ahora?». Va como medidor y como número.
+    /// La sesión de 5 h, si el plan la tiene.
     let sesion: Int?
     let sesionAlerta: Bool
     /// La peor de las semanales: «¿llego al final?». Ya no va como medidor —se
@@ -313,6 +313,12 @@ struct Trozo {
     /// mitad— pero sigue contando para el aviso.
     let semanal: Int?
     let semanalAlerta: Bool
+    /// La ventana corta: «¿puedo seguir ahora?». Va como medidor y como número.
+    /// Es la sesión o, si el plan no tiene sesión —Codex Pro, medido el
+    /// 2026-09-27: `sesion: null` y sólo `weekly_all`—, la semanal: ahí ES la
+    /// que te frena ahora, y sin ella la cuenta quedaba sin número ni medidor.
+    var corta: Int? { sesion ?? semanal }
+    var cortaAlerta: Bool { sesion != nil ? sesionAlerta : semanalAlerta }
     /// Cuánto del presupuesto de HOY ya se gastó. No se dibuja: va en la
     /// descripción accesible, donde sí hay lugar para los tres números.
     let diario: Int?
@@ -1392,15 +1398,16 @@ final class Barra: NSObject, NSApplicationDelegate {
         let par = ancho
 
         let fuente = NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium)
-        // El número de cada cuenta es el de la SESIÓN de 5 h: es el que
-        // contesta «¿puedo seguir trabajando ahora?». La semanal y el
-        // presupuesto del día se leen en el panel, que es donde hay lugar.
+        // El número de cada cuenta es el de su ventana CORTA —la sesión de
+        // 5 h, o la semanal si el plan no tiene sesión—: es el que contesta
+        // «¿puedo seguir trabajando ahora?». El resto se lee en el panel, que
+        // es donde hay lugar.
         func texto(_ t: Trozo) -> NSAttributedString? {
-            guard numeros, let s = t.sesion else { return nil }
-            // El número es la sesión, así que lleva el estado DE LA SESIÓN. Se
-            // tiñe recién cuando aprieta: si se pintara siempre, el color
-            // dejaría de querer decir algo.
-            let n = nivelDe(s, preocupa: t.sesionAlerta)
+            guard numeros, let s = t.corta else { return nil }
+            // El número es la ventana corta, así que lleva SU estado. Se tiñe
+            // recién cuando aprieta: si se pintara siempre, el color dejaría
+            // de querer decir algo.
+            let n = nivelDe(s, preocupa: t.cortaAlerta)
             let color: NSColor = (n == .aviso || n == .critico) ? n.color : .labelColor
             return NSAttributedString(string: "\(t.viejo ? "~" : "")\(s)", attributes: [
                 .font: fuente, .foregroundColor: color,
@@ -1438,15 +1445,13 @@ final class Barra: NSObject, NSApplicationDelegate {
                         .draw(in: NSRect(x: x, y: (alto - ladoGlifo) / 2, width: ladoGlifo, height: ladoGlifo))
                 }
                 let xb = x + ladoGlifo + aireGlifo
-                // El medidor es la SESIÓN: es la ventana que te frena AHORA, la
+                // El medidor es la ventana CORTA: la que te frena AHORA, la
                 // única que se mueve dentro del rato que estás mirando la
-                // barra. La semanal se mueve dos píxeles por día y el
-                // presupuesto del día tiene su frase entera en el panel. Si la
-                // cuenta no informa sesión, queda la pista vacía: mejor un
-                // hueco honesto que dibujar ahí otra cosa.
-                barra(xb, t.sesion ?? 0,
-                      t.sesion == nil ? NSColor.labelColor.withAlphaComponent(0.16)
-                                      : nivelDe(t.sesion!, preocupa: t.sesionAlerta).color)
+                // barra. Con sesión de 5 h es la sesión —la semanal se mueve
+                // dos píxeles por día—; sin sesión, la semanal es la corta.
+                barra(xb, t.corta ?? 0,
+                      t.corta == nil ? NSColor.labelColor.withAlphaComponent(0.16)
+                                     : nivelDe(t.corta!, preocupa: t.cortaAlerta).color)
                 if let n = texto(t) {
                     n.draw(at: NSPoint(x: xb + par + aireNumero, y: (alto - n.size().height) / 2))
                 }

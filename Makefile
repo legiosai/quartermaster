@@ -307,7 +307,7 @@ gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
 
 .PHONY: gate-dibujo-rojo
-gate-dibujo-rojo:  ## los cuatro rojos: la cabecera (sin frenaPrimero y encabezada por una dormida) y el sello (la rotación de dos nombres y el reloj pelado)
+gate-dibujo-rojo:  ## los cinco rojos: la cabecera (sin frenaPrimero y encabezada por una dormida), el sello (la rotación de dos nombres y el reloj pelado) y la cuenta sin sesión
 	@cp test/fixtures/panel.json .panel.gate
 	@python3 -c "import json;d=json.load(open('test/fixtures/panel.json'));d.pop('frenaPrimero',None);json.dump(d,open('test/fixtures/panel.json','w'),indent=4)"
 	@if python3 scripts/gate-tarjetas.py >/dev/null 2>&1; then \
@@ -343,6 +343,15 @@ gate-dibujo-rojo:  ## los cuatro rojos: la cabecera (sin frenaPrimero y encabeza
 	else \
 	  mv .indicador.gate bin/qm-indicator; \
 	  echo "✓ el gate falla en rojo con el reloj pelado, sin guardia contra el salto de NTP"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('corta = ses or sem','corta = ses'))"
+	@if python3 scripts/gate-corta.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con la barra leyendo la sesión a secas. Es el bug que el cambio vino a arreglar: una cuenta de Codex Pro, sin sesión de 5 h, quedaba sin número ni medidor."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con la barra leyendo la sesión a secas"; \
 	fi
 
 .PHONY: construir

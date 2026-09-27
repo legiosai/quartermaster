@@ -1469,7 +1469,7 @@ function IconoGeneral([double]$pct, [string]$nivel) {
 }
 
 # Un trozo de la tira de macOS, hecho ícono: el glifo del producto y, al lado,
-# el medidor vertical de la sesión de 5 h.
+# el medidor vertical de la sesión de 5 h (o de la semanal, si no hay sesión).
 #
 # El glifo dice QUÉ suscripción es —la forma, el producto; el color, cuál de
 # ellas— y el medidor dice cómo va. La identidad va en el glifo y nunca en el
@@ -1478,7 +1478,7 @@ function IconoGeneral([double]$pct, [string]$nivel) {
 #
 # Se dibuja a 32 px, que es lo que pide la bandeja al 200 %, y Windows lo baja
 # a 16 cuando hace falta. Por eso el trazo del glifo va explícito y grueso.
-function IconoCuenta([string]$producto, $colorCuenta, $sesion, [string]$nivelSesion) {
+function IconoCuenta([string]$producto, $colorCuenta, $corta, [string]$nivelCorta) {
   $lado = 32
   $bmp = Lienzo $lado $lado
   $g = [System.Drawing.Graphics]::FromImage($bmp)
@@ -1487,11 +1487,11 @@ function IconoCuenta([string]$producto, $colorCuenta, $sesion, [string]$nivelSes
 
   GlifoProducto $g $producto $colorCuenta 0 6 20 2.4
 
-  # El medidor es la SESIÓN de 5 h: es la ventana que te frena AHORA y la única
-  # que se mueve dentro del rato que mirás la bandeja. Acá no hay número al lado
-  # —16 px no dan para uno legible— así que esta barra es TODO lo que se ve de
-  # un vistazo, y tiene que ser la que aprieta. Si la cuenta no informa sesión
-  # queda la pista vacía: mejor un hueco honesto que dibujar ahí otra cosa.
+  # El medidor es la ventana CORTA —la sesión de 5 h, o la semanal si el plan no
+  # tiene sesión—: es la que te frena AHORA y la única que se mueve dentro del
+  # rato que mirás la bandeja. Acá no hay número al lado —16 px no dan para uno
+  # legible— así que esta barra es TODO lo que se ve de un vistazo, y tiene que
+  # ser la que aprieta.
   # 22 de 32 es la misma proporción que altoBarra/alto en medidores() de Swift
   # (15 de 22). A 26 el medidor le ganaba al glifo y el ícono dejaba de decir
   # de qué cuenta era.
@@ -1500,10 +1500,10 @@ function IconoCuenta([string]$producto, $colorCuenta, $sesion, [string]$nivelSes
   $brPista = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(105, 128, 128, 128))
   RectRedondeado $g (New-Object System.Drawing.RectangleF($x, $y0, $ancho, $altoBarra)) $r $brPista
   $brPista.Dispose()
-  if ($null -ne $sesion) {
-    $frac = [math]::Max(0, [math]::Min(100, $sesion)) / 100
+  if ($null -ne $corta) {
+    $frac = [math]::Max(0, [math]::Min(100, $corta)) / 100
     $h = [math]::Max($ancho, $altoBarra * $frac)
-    $br = New-Object System.Drawing.SolidBrush($PALETA[$nivelSesion])
+    $br = New-Object System.Drawing.SolidBrush($PALETA[$nivelCorta])
     # Se llena desde ABAJO, como el medidor vertical de la barra de macOS.
     RectRedondeado $g (New-Object System.Drawing.RectangleF($x, ($y0 + $altoBarra - $h), $ancho, $h)) $r $br
     $br.Dispose()
@@ -2405,15 +2405,19 @@ function ModeloPaneles($datos, [bool]$avisar) {
     $chocas = [bool]($proy -and $proy.estado -eq 'sube' -and $proy.chocasAntesDelReinicio)
     $viejo = if ($cuota.edadSegundos -gt $VIEJO_SEGUNDOS) { '~' } else { '' }
 
-    # El medidor es la SESIÓN, que es la que frena ahora. El resto —la semanal y
-    # cuánto va del presupuesto de hoy— se va al tooltip entero: en un cuadrado
-    # de 16 px no tiene dónde ir, y en el panel está completo.
+    # El medidor es la ventana CORTA, que es la que frena ahora: la sesión o, si
+    # el plan no tiene —Codex Pro, medido el 2026-09-27: `sesion: null` y sólo
+    # `weekly_all`—, la semanal. Sin eso la cuenta quedaba con la pista vacía,
+    # como si no tuviera cuota. El resto —la semanal y cuánto va del
+    # presupuesto de hoy— se va al tooltip entero: en un cuadrado de 16 px no
+    # tiene dónde ir, y en el panel está completo.
     $ses = $cuota.sesion
     $sem = $cuota.semanal
+    $corta = if ($null -ne $ses) { $ses } else { $sem }
     $diario = PctDiario $p.presupuesto
-    $nivelSes = if ($null -ne $ses) {
-      NivelDe ([int]$ses.porcentaje) `
-        ([bool]($ses.preocupa -or ($chocas -and $null -ne $peor -and $ses.clave -eq $peor.clave)))
+    $nivelCorta = if ($null -ne $corta) {
+      NivelDe ([int]$corta.porcentaje) `
+        ([bool]($corta.preocupa -or ($chocas -and $null -ne $peor -and $corta.clave -eq $peor.clave)))
     } else { 'ok' }
     $partes = @($nombre)
     if ($null -ne $diario) {
@@ -2424,7 +2428,7 @@ function ModeloPaneles($datos, [bool]$avisar) {
     $tira += @{
       clave = $nombre
       icono = (IconoCuenta $p.producto $colorCuenta `
-          $(if ($null -ne $ses) { [int]$ses.porcentaje } else { $null }) $nivelSes)
+          $(if ($null -ne $corta) { [int]$corta.porcentaje } else { $null }) $nivelCorta)
       texto = ($partes -join ' · ')
     }
 

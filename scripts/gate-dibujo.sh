@@ -149,4 +149,8 @@ python3 scripts/gate-tarjetas.py || exit 1
 #     bajo carga, o un reloj que salta para atrás, traen el mismo bug de vuelta.
 python3 scripts/gate-sellos.py || fallar "el nombre de los dibujos se puede repetir"
 
+# 6 · que una cuenta sin sesión de 5 h igual tenga número y medidor: la ventana
+#     corta de un plan sin sesión es la semanal, no un hueco.
+python3 scripts/gate-corta.py || fallar "una cuenta sin sesión queda sin número ni medidor en la barra"
+
 echo "gate de dibujo: verde"
