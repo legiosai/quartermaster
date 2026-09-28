@@ -1,13 +1,13 @@
 {
-  "generado": "2026-09-27T16:21:56.390Z",
+  "generado": "2026-09-28T19:12:55.250Z",
   "resumen": {
     "humanasHastaHoy": {
       "npm": 334,
-      "github": 51
+      "github": 52
     },
     "estaSemana": {
-      "desde": "2026-09-20",
-      "npm": 156,
+      "desde": "2026-09-21",
+      "npm": 143,
       "github": 9
     },
     "sinContador": {
@@ -20,9 +20,9 @@
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 2298,
+    "total": 2471,
     "enDiasSinPublicar": 334,
-    "porPublicacion": 109,
+    "porPublicacion": 119,
     "dias": [
       {
         "dia": "2026-09-11",
@@ -122,14 +122,20 @@
       },
       {
         "dia": "2026-09-27",
-        "descargas": 0,
+        "descargas": 173,
         "publicaciones": 1,
         "humanas": null
+      },
+      {
+        "dia": "2026-09-28",
+        "descargas": 0,
+        "publicaciones": 0,
+        "humanas": 0
       }
     ]
   },
   "github": {
-    "humanas": 51,
+    "humanas": 52,
     "porVersion": [
       {
         "version": "v0.1.20",
@@ -249,15 +255,15 @@
       {
         "version": "v0.1.15",
         "publicada": "2026-09-16",
-        "humanas": 15,
+        "humanas": 16,
         "adjuntos": {
           "exe": {
             "bajadas": 8,
             "netas": 4
           },
           "zip": {
-            "bajadas": 13,
-            "netas": 11
+            "bajadas": 14,
+            "netas": 12
           },
           "extension": {
             "bajadas": 0,
@@ -880,8 +886,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 12,
-    "anotados": 12,
+    "esperados": 13,
+    "anotados": 13,
     "faltan": []
   },
   "historial": [
@@ -944,6 +950,11 @@
       "fecha": "2026-09-27",
       "npm": 334,
       "github": 51
+    },
+    {
+      "fecha": "2026-09-28",
+      "npm": 334,
+      "github": 52
     }
   ]
 }
