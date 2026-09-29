@@ -1,14 +1,14 @@
 {
-  "generado": "2026-09-28T19:12:55.250Z",
+  "generado": "2026-09-29T17:35:24.571Z",
   "resumen": {
     "humanasHastaHoy": {
       "npm": 334,
-      "github": 52
+      "github": 53
     },
     "estaSemana": {
-      "desde": "2026-09-21",
-      "npm": 143,
-      "github": 9
+      "desde": "2026-09-22",
+      "npm": 135,
+      "github": 10
     },
     "sinContador": {
       "brew": 15,
@@ -20,9 +20,9 @@
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 2471,
+    "total": 2676,
     "enDiasSinPublicar": 334,
-    "porPublicacion": 119,
+    "porPublicacion": 130,
     "dias": [
       {
         "dia": "2026-09-11",
@@ -62,7 +62,7 @@
       },
       {
         "dia": "2026-09-17",
-        "descargas": 0,
+        "descargas": 205,
         "publicaciones": 1,
         "humanas": null
       },
@@ -131,20 +131,26 @@
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
+      },
+      {
+        "dia": "2026-09-29",
+        "descargas": 0,
+        "publicaciones": 0,
+        "humanas": 0
       }
     ]
   },
   "github": {
-    "humanas": 52,
+    "humanas": 53,
     "porVersion": [
       {
         "version": "v0.1.20",
         "publicada": "2026-09-27",
-        "humanas": 2,
+        "humanas": 3,
         "adjuntos": {
           "exe": {
-            "bajadas": 6,
-            "netas": 2
+            "bajadas": 7,
+            "netas": 3
           },
           "zip": {
             "bajadas": 2,
@@ -886,8 +892,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 13,
-    "anotados": 13,
+    "esperados": 14,
+    "anotados": 14,
     "faltan": []
   },
   "historial": [
@@ -955,6 +961,11 @@
       "fecha": "2026-09-28",
       "npm": 334,
       "github": 52
+    },
+    {
+      "fecha": "2026-09-29",
+      "npm": 334,
+      "github": 53
     }
   ]
 }
