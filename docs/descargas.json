@@ -1,22 +1,22 @@
 {
-  "generado": "2026-10-12T20:52:42.111Z",
+  "generado": "2026-10-13T18:50:51.586Z",
   "resumen": {
     "humanasHastaHoy": {
       "npm": 447,
-      "github": 63
+      "github": 64
     },
     "estaSemana": {
-      "desde": "2026-10-04",
-      "npm": 32,
-      "github": 8
+      "desde": "2026-10-06",
+      "npm": 24,
+      "github": 2
     },
     "sinContador": {
-      "brew": 16,
+      "brew": 13,
       "scoop": 79
     },
-    "llegaron": 17,
+    "llegaron": 13,
     "estrellas": 10,
-    "cobertura": "faltan 1 de 27 días",
+    "cobertura": "faltan 1 de 28 días",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
@@ -215,20 +215,26 @@
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
+      },
+      {
+        "dia": "2026-10-13",
+        "descargas": 0,
+        "publicaciones": 0,
+        "humanas": 0
       }
     ]
   },
   "github": {
-    "humanas": 63,
+    "humanas": 64,
     "porVersion": [
       {
         "version": "v0.1.20",
         "publicada": "2026-09-27",
-        "humanas": 5,
+        "humanas": 6,
         "adjuntos": {
           "exe": {
-            "bajadas": 7,
-            "netas": 3
+            "bajadas": 8,
+            "netas": 4
           },
           "zip": {
             "bajadas": 3,
@@ -616,14 +622,9 @@
   "interes": {
     "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
     "vistas": {
-      "total": 47,
-      "unicos": 17,
+      "total": 38,
+      "unicos": 13,
       "dias": [
-        {
-          "dia": "2026-09-28",
-          "vistas": 9,
-          "unicos": 4
-        },
         {
           "dia": "2026-09-29",
           "vistas": 3,
@@ -688,6 +689,11 @@
           "dia": "2026-10-11",
           "vistas": 0,
           "unicos": 0
+        },
+        {
+          "dia": "2026-10-12",
+          "vistas": 0,
+          "unicos": 0
         }
       ]
     },
@@ -705,11 +711,6 @@
       {
         "sitio": "quartermaster.legios.com.ar",
         "vistas": 4,
-        "unicos": 1
-      },
-      {
-        "sitio": "com.linkedin.android",
-        "vistas": 1,
         "unicos": 1
       },
       {
@@ -750,18 +751,11 @@
     "canalesSinContador": {
       "brew": {
         "repo": "legiosai/homebrew-tap",
-        "total": 21,
-        "unicos": 16,
-        "enDiasSinRelease": 16,
+        "total": 18,
+        "unicos": 13,
+        "enDiasSinRelease": 13,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-09-28",
-            "clones": 3,
-            "unicos": 3,
-            "huboRelease": false,
-            "quietos": 3
-          },
           {
             "dia": "2026-09-29",
             "clones": 2,
@@ -852,6 +846,13 @@
             "unicos": 0,
             "huboRelease": false,
             "quietos": 0
+          },
+          {
+            "dia": "2026-10-12",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
           }
         ]
       },
@@ -862,13 +863,6 @@
         "enDiasSinRelease": 79,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-09-28",
-            "clones": 4,
-            "unicos": 4,
-            "huboRelease": false,
-            "quietos": 4
-          },
           {
             "dia": "2026-09-29",
             "clones": 8,
@@ -959,6 +953,13 @@
             "unicos": 5,
             "huboRelease": false,
             "quietos": 5
+          },
+          {
+            "dia": "2026-10-12",
+            "clones": 4,
+            "unicos": 4,
+            "huboRelease": false,
+            "quietos": 4
           }
         ]
       }
@@ -970,8 +971,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 27,
-    "anotados": 26,
+    "esperados": 28,
+    "anotados": 27,
     "faltan": [
       "2026-10-05"
     ]
@@ -1106,6 +1107,11 @@
       "fecha": "2026-10-12",
       "npm": 447,
       "github": 63
+    },
+    {
+      "fecha": "2026-10-13",
+      "npm": 447,
+      "github": 64
     }
   ]
 }
