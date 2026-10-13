@@ -267,7 +267,6 @@ secret configured — and says in the log which ones it skipped and why.
 | **`.deb`** | `sudo apt install ./quartermaster_*.deb` | the same package, standalone | attached to the release |
 | **Windows installer** | `quartermaster-<v>-setup.exe` | per-user, no UAC: `qm` on `PATH`, tray in the Start menu | attached to the release |
 | **scoop** | `scoop install quartermaster` | the portable zip, no installer | the tag, automatically |
-| **winget** | `winget install Legios.Quartermaster` | the installer, declaring Node as a dependency | the tag opens the PR |
 | **AUR** | `yay -S quartermaster` | `PKGBUILD`, with a real `nodejs>=22.6` | the tag, automatically |
 | **Nix** | `nix run github:legiosai/quartermaster` | the flake, with its own Node in the closure | nothing to publish |
 | **GNOME Extensions** | from the Extensions app | the Shell extension | **by hand** — no upload API |

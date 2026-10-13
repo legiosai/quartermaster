@@ -14,7 +14,7 @@ sale una versión.
 | apt | el repo firmado | `docs/apt/` (GitHub Pages) | sí | `GPG_PRIVADA` |
 | release de GitHub | `.deb`, `setup.exe`, los dos zips | la release | sí | — |
 | scoop | el zip portable | `legiosai/scoop-bucket` | sí | `TOKEN_PAQUETES` |
-| winget | el instalador | PR a `microsoft/winget-pkgs` | sí, manda el PR | `TOKEN_WINGET` |
+| winget | el instalador | PR a `microsoft/winget-pkgs` | **apagado desde el 2026-10-13** (ver abajo) | `TOKEN_WINGET` |
 | AUR | el `PKGBUILD` | `aur.archlinux.org` | sí, cuando exista la cuenta | `AUR_SSH` |
 | extensions.gnome.org | el zip de la extensión | el sitio | **no: no tiene API** | — |
 | Nix | `flake.nix` | nada: se instala del repo | — | — |
@@ -61,6 +61,17 @@ Y dos detalles que hacen fallar la release si se pasan por alto:
 - **Un classic sólo llega a los repos de la organización si la org no los
   restringe** (Settings → Third-party Access → Personal access tokens). Eso no
   se ve por API: hay que mirarlo en la interfaz.
+
+**winget está apagado desde el 2026-10-13, y no es un canal roto.** Un moderador
+cerró la validación manual del PR #434699 con la política `noScripts`:
+winget-pkgs no acepta aplicaciones que sean scripts, y `qm` es TypeScript que
+corre Node, aunque el instalador sea un `.exe`. El PR se cerró, el fork
+`legiosai/winget-pkgs` se borró, el secreto `TOKEN_WINGET` se sacó del repo
+(la release dice «SIN SECRETO — se saltea») y el workflow «comprobar winget»
+quedó deshabilitado. No hay que volver a cargar el token: mandaría otra vez un
+paquete que ya rechazaron. Vuelve a tener sentido el día que `qm` salga como
+binario compilado. El job, el script y `gate-winget-rojo` siguen en el repo
+sin correr; lo que sigue describe cómo funcionaba.
 
 Una nota sobre winget, que es el único que le manda algo a un repo ajeno: el
 workflow valida los manifests ANTES de mandar el PR, y del otro lado igual lo
