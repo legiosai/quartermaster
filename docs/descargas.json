@@ -1,12 +1,12 @@
 {
-  "generado": "2026-10-14T16:29:28.466Z",
+  "generado": "2026-10-15T16:16:36.453Z",
   "resumen": {
     "humanasHastaHoy": {
       "npm": 452,
       "github": 65
     },
     "estaSemana": {
-      "desde": "2026-10-07",
+      "desde": "2026-10-08",
       "npm": 26,
       "github": 3
     },
@@ -14,9 +14,9 @@
       "brew": 11,
       "scoop": 75
     },
-    "llegaron": 11,
+    "llegaron": 9,
     "estrellas": 10,
-    "cobertura": "faltan 1 de 29 días",
+    "cobertura": "faltan 1 de 30 días",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
@@ -224,6 +224,12 @@
       },
       {
         "dia": "2026-10-14",
+        "descargas": 0,
+        "publicaciones": 0,
+        "humanas": 0
+      },
+      {
+        "dia": "2026-10-15",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
@@ -628,14 +634,9 @@
   "interes": {
     "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
     "vistas": {
-      "total": 35,
-      "unicos": 11,
+      "total": 18,
+      "unicos": 9,
       "dias": [
-        {
-          "dia": "2026-09-30",
-          "vistas": 17,
-          "unicos": 2
-        },
         {
           "dia": "2026-10-01",
           "vistas": 2,
@@ -700,29 +701,24 @@
           "dia": "2026-10-13",
           "vistas": 0,
           "unicos": 0
+        },
+        {
+          "dia": "2026-10-14",
+          "vistas": 0,
+          "unicos": 0
         }
       ]
     },
     "referentes": [
-      {
-        "sitio": "linkedin.com",
-        "vistas": 4,
-        "unicos": 3
-      },
-      {
-        "sitio": "quartermaster.legios.com.ar",
-        "vistas": 4,
-        "unicos": 1
-      },
       {
         "sitio": "github.com",
         "vistas": 3,
         "unicos": 3
       },
       {
-        "sitio": "youtube.com",
-        "vistas": 1,
-        "unicos": 1
+        "sitio": "linkedin.com",
+        "vistas": 3,
+        "unicos": 2
       }
     ],
     "estrellas": {
@@ -762,13 +758,6 @@
         "enDiasSinRelease": 11,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-09-30",
-            "clones": 1,
-            "unicos": 1,
-            "huboRelease": false,
-            "quietos": 1
-          },
           {
             "dia": "2026-10-01",
             "clones": 5,
@@ -859,6 +848,13 @@
             "unicos": 0,
             "huboRelease": false,
             "quietos": 0
+          },
+          {
+            "dia": "2026-10-14",
+            "clones": 1,
+            "unicos": 1,
+            "huboRelease": false,
+            "quietos": 1
           }
         ]
       },
@@ -869,13 +865,6 @@
         "enDiasSinRelease": 75,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-09-30",
-            "clones": 7,
-            "unicos": 7,
-            "huboRelease": false,
-            "quietos": 7
-          },
           {
             "dia": "2026-10-01",
             "clones": 8,
@@ -966,6 +955,13 @@
             "unicos": 4,
             "huboRelease": false,
             "quietos": 4
+          },
+          {
+            "dia": "2026-10-14",
+            "clones": 7,
+            "unicos": 7,
+            "huboRelease": false,
+            "quietos": 7
           }
         ]
       }
@@ -977,8 +973,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 29,
-    "anotados": 28,
+    "esperados": 30,
+    "anotados": 29,
     "faltan": [
       "2026-10-05"
     ]
@@ -1121,6 +1117,11 @@
     },
     {
       "fecha": "2026-10-14",
+      "npm": 452,
+      "github": 65
+    },
+    {
+      "fecha": "2026-10-15",
       "npm": 452,
       "github": 65
     }
