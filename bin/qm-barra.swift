@@ -897,7 +897,6 @@ final class Barra: NSObject, NSApplicationDelegate {
     var relojVigia: Timer?
     /// Sin esto macOS le aplica App Nap —es una app sin ventanas— y los timers
     /// se corren minutos. Medido: un sondeo de 5 min que no disparó en 7.
-    /// La actividad permite el reposo del sistema cuando la Mac está inactiva.
     var actividad: NSObjectProtocol?
     /// Lo último que se vio, para decidir cada cuánto volver a mirar.
     var ultimas: [Trozo] = []
@@ -940,7 +939,7 @@ final class Barra: NSObject, NSApplicationDelegate {
         item.button?.title = "qm…"
         item.menu = NSMenu()
         actividad = ProcessInfo.processInfo.beginActivity(
-            options: [.userInitiatedAllowingIdleSystemSleep],
+            options: [.userInitiated, .idleSystemSleepDisabled],
             reason: "mirar la cuota a tiempo")
         refrescar()
         armarVigia()
