@@ -1,27 +1,27 @@
 {
-  "generado": "2026-10-17T14:54:53.645Z",
+  "generado": "2026-10-18T15:21:20.752Z",
   "resumen": {
     "humanasHastaHoy": {
-      "npm": 452,
+      "npm": 459,
       "github": 66
     },
     "estaSemana": {
-      "desde": "2026-10-10",
-      "npm": 16,
+      "desde": "2026-10-11",
+      "npm": 18,
       "github": 3
     },
     "sinContador": {
-      "brew": 7,
-      "scoop": 75
+      "brew": 4,
+      "scoop": 76
     },
-    "llegaron": 7,
+    "llegaron": 6,
     "estrellas": 10,
-    "cobertura": "faltan 1 de 32 días",
+    "cobertura": "faltan 1 de 33 días",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 2794,
-    "enDiasSinPublicar": 452,
+    "total": 2801,
+    "enDiasSinPublicar": 459,
     "porPublicacion": 130,
     "dias": [
       {
@@ -236,12 +236,18 @@
       },
       {
         "dia": "2026-10-16",
+        "descargas": 7,
+        "publicaciones": 0,
+        "humanas": 7
+      },
+      {
+        "dia": "2026-10-17",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
       },
       {
-        "dia": "2026-10-17",
+        "dia": "2026-10-18",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
@@ -646,14 +652,9 @@
   "interes": {
     "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
     "vistas": {
-      "total": 15,
-      "unicos": 7,
+      "total": 13,
+      "unicos": 6,
       "dias": [
-        {
-          "dia": "2026-10-03",
-          "vistas": 2,
-          "unicos": 2
-        },
         {
           "dia": "2026-10-04",
           "vistas": 2,
@@ -718,6 +719,11 @@
           "dia": "2026-10-16",
           "vistas": 1,
           "unicos": 1
+        },
+        {
+          "dia": "2026-10-17",
+          "vistas": 0,
+          "unicos": 0
         }
       ]
     },
@@ -765,18 +771,11 @@
     "canalesSinContador": {
       "brew": {
         "repo": "legiosai/homebrew-tap",
-        "total": 11,
-        "unicos": 7,
-        "enDiasSinRelease": 7,
+        "total": 7,
+        "unicos": 4,
+        "enDiasSinRelease": 4,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-10-03",
-            "clones": 4,
-            "unicos": 3,
-            "huboRelease": false,
-            "quietos": 3
-          },
           {
             "dia": "2026-10-04",
             "clones": 0,
@@ -867,23 +866,23 @@
             "unicos": 0,
             "huboRelease": false,
             "quietos": 0
+          },
+          {
+            "dia": "2026-10-17",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
           }
         ]
       },
       "scoop": {
         "repo": "legiosai/scoop-bucket",
-        "total": 77,
-        "unicos": 75,
-        "enDiasSinRelease": 75,
+        "total": 78,
+        "unicos": 76,
+        "enDiasSinRelease": 76,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-10-03",
-            "clones": 6,
-            "unicos": 6,
-            "huboRelease": false,
-            "quietos": 6
-          },
           {
             "dia": "2026-10-04",
             "clones": 6,
@@ -974,6 +973,13 @@
             "unicos": 6,
             "huboRelease": false,
             "quietos": 6
+          },
+          {
+            "dia": "2026-10-17",
+            "clones": 7,
+            "unicos": 7,
+            "huboRelease": false,
+            "quietos": 7
           }
         ]
       }
@@ -985,8 +991,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 32,
-    "anotados": 31,
+    "esperados": 33,
+    "anotados": 32,
     "faltan": [
       "2026-10-05"
     ]
@@ -1145,6 +1151,11 @@
     {
       "fecha": "2026-10-17",
       "npm": 452,
+      "github": 66
+    },
+    {
+      "fecha": "2026-10-18",
+      "npm": 459,
       "github": 66
     }
   ]
