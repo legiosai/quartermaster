@@ -1,27 +1,27 @@
 {
-  "generado": "2026-10-23T16:25:29.603Z",
+  "generado": "2026-10-24T15:21:25.121Z",
   "resumen": {
     "humanasHastaHoy": {
-      "npm": 463,
+      "npm": 465,
       "github": 67
     },
     "estaSemana": {
-      "desde": "2026-10-16",
-      "npm": 11,
-      "github": 2
+      "desde": "2026-10-17",
+      "npm": 13,
+      "github": 1
     },
     "sinContador": {
       "brew": 4,
-      "scoop": 77
+      "scoop": 78
     },
     "llegaron": 1,
     "estrellas": 10,
-    "cobertura": "faltan 1 de 38 días",
+    "cobertura": "faltan 1 de 39 días",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 2805,
-    "enDiasSinPublicar": 463,
+    "total": 2807,
+    "enDiasSinPublicar": 465,
     "porPublicacion": 130,
     "dias": [
       {
@@ -272,12 +272,18 @@
       },
       {
         "dia": "2026-10-22",
+        "descargas": 2,
+        "publicaciones": 0,
+        "humanas": 2
+      },
+      {
+        "dia": "2026-10-23",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
       },
       {
-        "dia": "2026-10-23",
+        "dia": "2026-10-24",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
@@ -686,11 +692,6 @@
       "unicos": 1,
       "dias": [
         {
-          "dia": "2026-10-09",
-          "vistas": 0,
-          "unicos": 0
-        },
-        {
           "dia": "2026-10-10",
           "vistas": 0,
           "unicos": 0
@@ -754,6 +755,11 @@
           "dia": "2026-10-22",
           "vistas": 0,
           "unicos": 0
+        },
+        {
+          "dia": "2026-10-23",
+          "vistas": 0,
+          "unicos": 0
         }
       ]
     },
@@ -801,13 +807,6 @@
         "enDiasSinRelease": 4,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-10-09",
-            "clones": 0,
-            "unicos": 0,
-            "huboRelease": false,
-            "quietos": 0
-          },
           {
             "dia": "2026-10-10",
             "clones": 0,
@@ -898,23 +897,23 @@
             "unicos": 0,
             "huboRelease": false,
             "quietos": 0
+          },
+          {
+            "dia": "2026-10-23",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
           }
         ]
       },
       "scoop": {
         "repo": "legiosai/scoop-bucket",
-        "total": 77,
-        "unicos": 77,
-        "enDiasSinRelease": 77,
+        "total": 78,
+        "unicos": 78,
+        "enDiasSinRelease": 78,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-10-09",
-            "clones": 5,
-            "unicos": 5,
-            "huboRelease": false,
-            "quietos": 5
-          },
           {
             "dia": "2026-10-10",
             "clones": 5,
@@ -1005,6 +1004,13 @@
             "unicos": 3,
             "huboRelease": false,
             "quietos": 3
+          },
+          {
+            "dia": "2026-10-23",
+            "clones": 6,
+            "unicos": 6,
+            "huboRelease": false,
+            "quietos": 6
           }
         ]
       }
@@ -1016,8 +1022,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 38,
-    "anotados": 37,
+    "esperados": 39,
+    "anotados": 38,
     "faltan": [
       "2026-10-05"
     ]
@@ -1206,6 +1212,11 @@
     {
       "fecha": "2026-10-23",
       "npm": 463,
+      "github": 67
+    },
+    {
+      "fecha": "2026-10-24",
+      "npm": 465,
       "github": 67
     }
   ]
