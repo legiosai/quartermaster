@@ -305,7 +305,8 @@ the tray red and fires the "you are blocked" warning for something that ended.
 
 - Tokens, and anything derived from a token. `SECURITY.md` explains.
 - Per-project or per-conversation breakdowns. `local.porModelo` is as fine
-  as it gets.
+  as it gets here; `qm --desglose --json` (below) is a separate document that
+  has them.
 
 ## If you write a consumer
 
@@ -315,3 +316,71 @@ is the shortest worked example, and it is in the repo.
 
 Use `--breve` for anything that redraws on a timer: it skips transcripts, so it
 costs milliseconds instead of a second.
+
+## `qm --desglose --json` — a separate document
+
+Not the same contract. It answers a different question — what spent the quota,
+not how much is left — and it is meant for a weekly script, not a panel that
+redraws. It carries its own `esquema` and an `informe` field so the two can
+never be confused.
+
+```jsonc
+{
+  "esquema": 1,
+  "informe": "desglose",
+  "version": "0.1.20",
+  "generado": "2026-10-26T23:40:00.000Z",
+  "ventanaDias": 7,                          // --dias
+  "desde": "2026-10-19T23:40:00.000Z",
+  "pesos": { "entrada": 1, "escrituraCache5m": 1.25, "escrituraCache1h": 2, "lecturaCache": 0.1, "salida": 5 },
+  "nota": "Los pesos son el precio relativo …",  // prose: the weights are a proxy
+  "umbrales": { "reconstruccion": 20000, "contextoGrande": 400000 },
+  "perfiles": [ … ]
+}
+```
+
+Each entry of `perfiles`:
+
+```jsonc
+{
+  "producto": "claude",              // "claude" | "codex"
+  "perfil": ".claude-teams",
+  "directorio": "/home/…/.claude-teams",   // "~/.claude-teams" with --redactado
+  "informaEscrituras": true,         // false: no cache-write data, so `reconstrucciones` is all zeros by absence, not by measurement
+  "separaSubagentes": true,          // false: everything is main thread by absence
+  "lectura": { "archivos": 73, "ms": 937 },
+  "requests": 7157,
+  "costo": 281800000,                // weighted, in input-token equivalents
+  "porClase":     [{ "clase": "lecturaCache", "tokens": 2.0e9, "costo": …, "parte": 0.718 }, …],
+  "porContexto":  [{ "tramo": "400–700k", "desde": 400000, "hasta": 700000, "requests": …, "costo": …, "parte": … }, …],
+  "contextoGrande": { "desde": 400000, "requests": …, "costo": …, "parte": 0.478, "parteRequests": 0.26 },
+  "reconstrucciones": [{ "hueco": ">60m", "hilo": "principal", "requests": 43, "costo": …, "parte": 0.075 }, …],  // always 6 rows
+  "reconstruccionesTotal": { "requests": …, "costo": …, "parte": … },
+  "porAgente":    [{ "agente": null, … }, { "agente": "general-purpose", … }],   // null = main thread, first
+  "subagentes":   { "requests": …, "costo": …, "parte": 0.231 },
+  "porDia":       [{ "dia": "2026-10-20", … }],   // the machine's local day
+  "proyectos":    [{ "proyecto": "/home/…/repo", … }],   // top 10 by cost
+  "sesiones": [{                     // top 10 by cost, subagents included
+    "sesion": "…",                   // null with --redactado
+    "proyecto": "/home/…/repo",      // "proyecto 1" with --redactado
+    "requests": 541, "inicio": "…", "fin": "…", "duracionMin": 1932,
+    "contextoMax": 772700, "contextoMediana": 341900, "compactaciones": 2,
+    "costo": …, "costoSubagentes": …, "parte": 0.227, "parteSubagentes": 0.12
+  }]
+}
+```
+
+- **`parte` is always a fraction of that account's `costo`**, 0..1, rounded to
+  four decimals. It is 0, never NaN, when the account spent nothing.
+- **`costo` is not quota.** The weights are relative API prices, used as a
+  proxy; no vendor publishes how a subscription weighs token classes. Compare
+  `parte` within an account and week over week; do not read `costo` as a
+  percentage of anything.
+- A cache rebuild is a request that wrote more than `umbrales.reconstruccion`
+  tokens of cache and is not the first request of its transcript; its `costo`
+  is the cache-write part only. `hueco` is the idle time since the previous
+  request of the same transcript: `>60m`, `5–60m`, or `sin hueco` (5 minutes or
+  less).
+- **`--redactado`** replaces every project directory with `proyecto N`
+  (numbered by first appearance, most expensive first, and stable across
+  accounts within one run) and sets `sesion` to null.

@@ -7,10 +7,12 @@
 // deduplica por requestId porque una sesión reanudada o bifurcada reescribe
 // los mismos requests en un archivo nuevo, y contarlos dos veces infla todo.
 
-import { createReadStream, existsSync, readdirSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { join } from 'node:path';
+import { basename, dirname, join, relative, sep } from 'node:path';
 import { CONSUMO_VACIO, type Consumo, type Perfil } from '../core/tipos.ts';
+import type { Compactacion, Registros, Uso } from '../core/desglose.ts';
+import { lineasCon } from './lineas.ts';
 
 interface Acumulador {
   entrada: number;
@@ -160,4 +162,144 @@ export async function consumoDesde(perfil: Perfil, desde: Date): Promise<Consumo
 
   if (acc.requests === 0) return CONSUMO_VACIO;
   return acc;
+}
+
+// ─── el desglose ──────────────────────────────────────────────────────────
+// `consumoDesde()` suma; esto entrega cada request por separado, con lo que el
+// núcleo necesita para repartirlo: de qué hilo es, cuánto pasó desde el
+// anterior, y cuánto del cache se escribió con cada TTL.
+
+/** Las dos marcas de las líneas que importan. Las demás no se decodifican. */
+const MARCAS_DESGLOSE = ['"usage"', '"compact_boundary"'];
+
+/**
+ * De qué hilo es un archivo, leído de su ruta.
+ *
+ * Claude Code guarda el hilo principal en `<proyecto>/<sesion>.jsonl` y cada
+ * subagente en `<proyecto>/<sesion>/subagents/agent-<id>.jsonl`, con el tipo
+ * de agente al lado en `agent-<id>.meta.json`. La sesión del subagente es la
+ * del directorio que lo contiene: así su costo se le suma a quien lo lanzó.
+ */
+export function hiloDe(archivo: string): { sesion: string; agente: string | null } {
+  const dir = dirname(archivo);
+  if (basename(dir) === 'subagents' && basename(archivo).startsWith('agent-')) {
+    let agente = 'desconocido';
+    try {
+      const meta = JSON.parse(readFileSync(archivo.replace(/\.jsonl$/, '.meta.json'), 'utf8')) as Record<string, unknown>;
+      if (typeof meta['agentType'] === 'string' && meta['agentType'] !== '') agente = meta['agentType'];
+    } catch {
+      // Sin meta el request se cuenta igual, como subagente de tipo desconocido.
+    }
+    return { sesion: basename(dirname(dir)), agente };
+  }
+  return { sesion: basename(archivo, '.jsonl'), agente: null };
+}
+
+const numero = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
+
+/**
+ * Cada request de un perfil desde `desde`, listo para `desglosar()`.
+ *
+ * Tres decisiones que no se ven en el resultado:
+ *
+ *   · **Se deduplica por (message.id, requestId).** Un mensaje con varios
+ *     bloques de contenido se escribe una vez por bloque, con el MISMO usage
+ *     en cada copia: medido el 2026-10-26, 36 000 líneas con `"usage"` para
+ *     16 000 requests distintos. Y una sesión reanudada reescribe los suyos en
+ *     otro archivo, así que el set es por perfil, no por archivo.
+ *   · **El hueco se mide contra el request anterior del mismo archivo, aunque
+ *     ese esté fuera de la ventana o sea una copia.** Es el tiempo que el
+ *     cache estuvo quieto, y el cache no sabe de ventanas.
+ *   · **`<synthetic>` no es un request**: es un mensaje que Claude Code arma
+ *     sin llamar a la API (un error, una interrupción), y su usage es cero.
+ */
+export function usosDesde(perfil: Perfil, desde: Date): Registros {
+  const corte = desde.getTime();
+  const raiz = join(perfil.directorio, 'projects');
+  const usos: Uso[] = [];
+  const compactaciones: Compactacion[] = [];
+  const vistos = new Set<string>();
+  let archivos = 0;
+
+  // Los hilos principales primero. Un fork arranca con una copia de los
+  // requests de quien lo lanzó, y el set de deduplicación se queda con la
+  // primera que ve: si el fork llegara antes, esos requests se le cobrarían a
+  // él y no a la sesión que los hizo. Medido el 2026-10-26 en dos cuentas: 32
+  // de 783 requests de `fork` en una semana eran copias del hilo principal.
+  //
+  // Y el filtro por fecha va antes que `hiloDe()`: el .meta.json de un
+  // subagente de hace un mes no hace falta abrirlo.
+  const hilos = transcripciones(perfil)
+    .filter((archivo) => {
+      try {
+        return statSync(archivo).mtimeMs >= corte;
+      } catch {
+        return false;
+      }
+    })
+    .map((archivo) => ({ archivo, ...hiloDe(archivo) }))
+    .sort((a, b) => Number(a.agente !== null) - Number(b.agente !== null));
+
+  for (const { archivo, sesion, agente } of hilos) {
+    archivos += 1;
+    // El nombre codificado del directorio, por si ningún record trae `cwd`.
+    const carpeta = relative(raiz, archivo).split(sep)[0] ?? null;
+    let previo: number | null = null;
+
+    for (const linea of lineasCon(archivo, MARCAS_DESGLOSE)) {
+      let d: Record<string, any>;
+      try {
+        d = JSON.parse(linea);
+      } catch {
+        continue;
+      }
+      const cuando = typeof d['timestamp'] === 'string' ? Date.parse(d['timestamp']) : NaN;
+      if (Number.isNaN(cuando)) continue;
+
+      if (d['type'] === 'system' && d['subtype'] === 'compact_boundary') {
+        if (cuando >= corte) compactaciones.push({ sesion, agente, cuando });
+        continue;
+      }
+      if (d['type'] !== 'assistant') continue;
+      const m = d['message'];
+      const uso = m?.['usage'];
+      if (!uso || m['model'] === '<synthetic>') continue;
+
+      const id = typeof m['id'] === 'string' ? m['id'] : '';
+      const req = typeof d['requestId'] === 'string' ? d['requestId'] : '';
+      const clave = id === '' && req === '' ? null : `${id}|${req}`;
+
+      // Una copia también mueve el reloj: tiene la hora del mismo request, así
+      // que el hueco hasta el siguiente sale igual. Lo que no hace es contarse.
+      const huecoMs = previo === null ? null : Math.max(0, cuando - previo);
+      previo = cuando;
+      if (cuando < corte) continue;
+      if (clave !== null) {
+        if (vistos.has(clave)) continue;
+        vistos.add(clave);
+      }
+
+      // El TTL de lo escrito viene desglosado en `cache_creation`. Si falta, o
+      // no suma lo mismo que el total, la diferencia va a 5 m, que es el TTL
+      // por defecto de la API.
+      const escrita = numero(uso['cache_creation_input_tokens']);
+      const cc = uso['cache_creation'] ?? {};
+      const de1h = Math.min(escrita, numero(cc['ephemeral_1h_input_tokens']));
+      const de5m = escrita - de1h;
+
+      usos.push({
+        sesion,
+        agente,
+        proyecto: typeof d['cwd'] === 'string' && d['cwd'] !== '' ? d['cwd'] : carpeta,
+        cuando,
+        huecoMs,
+        entrada: numero(uso['input_tokens']),
+        lecturaCache: numero(uso['cache_read_input_tokens']),
+        escrituraCache5m: de5m,
+        escrituraCache1h: de1h,
+        salida: numero(uso['output_tokens']),
+      });
+    }
+  }
+  return { usos, compactaciones, archivos };
 }

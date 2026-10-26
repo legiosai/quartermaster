@@ -14,6 +14,25 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **`qm --desglose`: where the quota went, not just how much is left.** It
+  reads the same transcripts as the local-usage line and breaks the last
+  7 days (`--dias=N`) down per account: cost by token class, by prompt size,
+  cache rebuilds by idle gap and by main thread vs subagent, subagents by agent
+  type, and the most expensive sessions with their context sizes, compactions
+  and duration. Tokens are weighted by relative API price (cache read 0.1,
+  cache write 1.25 or 2 by TTL, input 1, output 5) as a proxy for quota drain —
+  Anthropic does not publish how a subscription weighs them, and the output
+  says so. `--json` has the same numbers; `--redactado` also hides project
+  directories and session ids. Disk only, no network: about two seconds for a
+  week of two busy profiles (~2 GB). Codex is included; opencode and
+  Antigravity are not, because they do not keep per-request cache usage.
+
+---
+
 ## v0.1.20 — 2026-09-27
 
 ### Fixed
