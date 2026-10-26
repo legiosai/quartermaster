@@ -1,14 +1,14 @@
 {
-  "generado": "2026-10-25T15:31:05.416Z",
+  "generado": "2026-10-26T18:11:48.548Z",
   "resumen": {
     "humanasHastaHoy": {
-      "npm": 465,
-      "github": 67
+      "npm": 470,
+      "github": 68
     },
     "estaSemana": {
-      "desde": "2026-10-18",
-      "npm": 6,
-      "github": 1
+      "desde": "2026-10-19",
+      "npm": 7,
+      "github": 2
     },
     "sinContador": {
       "brew": 5,
@@ -16,12 +16,12 @@
     },
     "llegaron": 3,
     "estrellas": 10,
-    "cobertura": "faltan 1 de 40 días",
+    "cobertura": "faltan 1 de 41 días",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 2807,
-    "enDiasSinPublicar": 465,
+    "total": 2812,
+    "enDiasSinPublicar": 470,
     "porPublicacion": 130,
     "dias": [
       {
@@ -290,6 +290,12 @@
       },
       {
         "dia": "2026-10-25",
+        "descargas": 5,
+        "publicaciones": 0,
+        "humanas": 5
+      },
+      {
+        "dia": "2026-10-26",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
@@ -297,7 +303,7 @@
     ]
   },
   "github": {
-    "humanas": 67,
+    "humanas": 68,
     "porVersion": [
       {
         "version": "v0.1.20",
@@ -417,15 +423,15 @@
       {
         "version": "v0.1.15",
         "publicada": "2026-09-16",
-        "humanas": 23,
+        "humanas": 24,
         "adjuntos": {
           "exe": {
             "bajadas": 8,
             "netas": 4
           },
           "zip": {
-            "bajadas": 21,
-            "netas": 19
+            "bajadas": 22,
+            "netas": 20
           },
           "extension": {
             "bajadas": 0,
@@ -694,14 +700,9 @@
   "interes": {
     "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
     "vistas": {
-      "total": 13,
+      "total": 17,
       "unicos": 3,
       "dias": [
-        {
-          "dia": "2026-10-11",
-          "vistas": 0,
-          "unicos": 0
-        },
         {
           "dia": "2026-10-12",
           "vistas": 0,
@@ -766,6 +767,11 @@
           "dia": "2026-10-24",
           "vistas": 12,
           "unicos": 2
+        },
+        {
+          "dia": "2026-10-25",
+          "vistas": 4,
+          "unicos": 1
         }
       ]
     },
@@ -813,13 +819,6 @@
         "enDiasSinRelease": 5,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-10-11",
-            "clones": 0,
-            "unicos": 0,
-            "huboRelease": false,
-            "quietos": 0
-          },
           {
             "dia": "2026-10-12",
             "clones": 0,
@@ -910,6 +909,13 @@
             "unicos": 1,
             "huboRelease": false,
             "quietos": 1
+          },
+          {
+            "dia": "2026-10-25",
+            "clones": 0,
+            "unicos": 0,
+            "huboRelease": false,
+            "quietos": 0
           }
         ]
       },
@@ -920,13 +926,6 @@
         "enDiasSinRelease": 80,
         "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-10-11",
-            "clones": 5,
-            "unicos": 5,
-            "huboRelease": false,
-            "quietos": 5
-          },
           {
             "dia": "2026-10-12",
             "clones": 4,
@@ -1017,6 +1016,13 @@
             "unicos": 7,
             "huboRelease": false,
             "quietos": 7
+          },
+          {
+            "dia": "2026-10-25",
+            "clones": 5,
+            "unicos": 5,
+            "huboRelease": false,
+            "quietos": 5
           }
         ]
       }
@@ -1028,8 +1034,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 40,
-    "anotados": 39,
+    "esperados": 41,
+    "anotados": 40,
     "faltan": [
       "2026-10-05"
     ]
@@ -1229,6 +1235,11 @@
       "fecha": "2026-10-25",
       "npm": 465,
       "github": 67
+    },
+    {
+      "fecha": "2026-10-26",
+      "npm": 470,
+      "github": 68
     }
   ]
 }
