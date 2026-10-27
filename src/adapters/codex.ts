@@ -21,8 +21,10 @@
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 import type { OrigenCuota, ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
+import type { Compactacion, Registros, Uso } from '../core/desglose.ts';
+import { lineasCon } from './lineas.ts';
 
 export const DIRECTORIO_CODEX = join(homedir(), '.codex');
 
@@ -326,6 +328,130 @@ export function consumoCodex(desde: Date): { tokens: number; requests: number; a
     requests += veces;
   }
   return { tokens, requests, archivos: archivos.length };
+}
+
+/**
+ * Cada request de un rollout, para el desglose. Exportada para poder probarla
+ * con un archivo armado a mano: `usosCodex()` sólo le agrega dónde buscar.
+ *
+ * Lo que cambia respecto de Claude:
+ *
+ *   · Hay dos registros por respuesta y se usa UNO, nunca los dos: contarlos
+ *     juntos duplica todo. El bueno es `token_usage_record`, uno por
+ *     `response_id` con el `usage` de esa respuesta. Medido el 2026-10-26 en
+ *     23 rollouts: 4425 respuestas distintas, contra 4395 `token_count` — los
+ *     30 que faltan son, casi todos, los requests de compactación (había 28),
+ *     que no emiten `token_count` y son de los prompts más grandes: 8,8 M de
+ *     entrada que el otro camino no veía.
+ *   · Los rollouts viejos no traen `token_usage_record`. Para esos se usa
+ *     `event_msg/token_count` con `last_token_usage`, salteando las
+ *     reemisiones: 48 de 4441 repetían el `total_token_usage` del anterior sin
+ *     un request en el medio. Si el acumulado no se movió, no hubo request.
+ *   · `input_tokens` INCLUYE lo que vino del cache (`cached_input_tokens`), al
+ *     revés que en Claude. La entrada que no salió del cache es la resta.
+ *   · No informa escrituras de cache, así que nunca hay reconstrucciones, y no
+ *     separa subagentes: todo va al hilo principal.
+ */
+export function usosDeRollout(ruta: string, corte: number): { usos: Uso[]; compactaciones: Compactacion[] } {
+  const compactaciones: Compactacion[] = [];
+  let sesion = basename(ruta, '.jsonl');
+  let proyecto: string | null = null;
+  const n = (o: Record<string, unknown>, k: string): number =>
+    typeof o[k] === 'number' && Number.isFinite(o[k]) ? (o[k] as number) : 0;
+
+  /** Un camino de lectura: su lista y su propio reloj para el hueco. */
+  const camino = () => {
+    const usos: Uso[] = [];
+    let previo: number | null = null;
+    return {
+      usos,
+      sumar(cuando: number, uso: Record<string, unknown>): void {
+        const huecoMs = previo === null ? null : Math.max(0, cuando - previo);
+        previo = cuando;
+        if (cuando < corte) return;
+        const cacheado = n(uso, 'cached_input_tokens');
+        usos.push({
+          sesion,
+          agente: null,
+          proyecto,
+          cuando,
+          huecoMs,
+          entrada: Math.max(0, n(uso, 'input_tokens') - cacheado),
+          lecturaCache: cacheado,
+          escrituraCache5m: 0,
+          escrituraCache1h: 0,
+          salida: n(uso, 'output_tokens'),
+        });
+      },
+    };
+  };
+  const porRespuesta = camino();
+  const porConteo = camino();
+  // «Este rollout trae registros», aunque todos caigan fuera de la ventana: en
+  // ese caso el conteo describe los mismos requests y no puede reemplazarlos.
+  let hayRegistros = false;
+  const respuestas = new Set<string>();
+  let ultimoTotal: string | null = null;
+
+  const marcas = ['"token_usage_record"', '"token_count"', '"session_meta"', '"turn_context"', '"compacted"'];
+  for (const linea of lineasCon(ruta, marcas)) {
+    let d: Record<string, unknown>;
+    try {
+      d = JSON.parse(linea) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    const p = (d['payload'] as Record<string, unknown> | undefined) ?? {};
+    if (d['type'] === 'session_meta' || d['type'] === 'turn_context') {
+      if (d['type'] === 'session_meta' && typeof p['id'] === 'string') sesion = p['id'];
+      if (typeof p['cwd'] === 'string' && p['cwd'] !== '') proyecto = p['cwd'];
+      continue;
+    }
+    const cuando = typeof d['timestamp'] === 'string' ? Date.parse(d['timestamp']) : NaN;
+    if (Number.isNaN(cuando)) continue;
+
+    if (d['type'] === 'compacted') {
+      if (cuando >= corte) compactaciones.push({ sesion, agente: null, cuando });
+      continue;
+    }
+    if (d['type'] === 'token_usage_record') {
+      const uso = p['usage'];
+      if (typeof uso !== 'object' || uso === null) continue;
+      hayRegistros = true;
+      const id = p['response_id'];
+      if (typeof id === 'string') {
+        if (respuestas.has(id)) continue;
+        respuestas.add(id);
+      }
+      porRespuesta.sumar(cuando, uso as Record<string, unknown>);
+      continue;
+    }
+    if (d['type'] !== 'event_msg' || p['type'] !== 'token_count') continue;
+    const info = p['info'] as Record<string, unknown> | null | undefined;
+    const ultimo = info?.['last_token_usage'];
+    if (typeof ultimo !== 'object' || ultimo === null) continue;
+    const total = JSON.stringify(info?.['total_token_usage'] ?? null);
+    if (total === ultimoTotal) continue;
+    ultimoTotal = total;
+    porConteo.sumar(cuando, ultimo as Record<string, unknown>);
+  }
+  return { usos: hayRegistros ? porRespuesta.usos : porConteo.usos, compactaciones };
+}
+
+/** Todos los requests de Codex desde `desde`. Sin red: los rollouts del disco. */
+export function usosCodex(desde: Date): Registros {
+  const corte = desde.getTime();
+  const archivos = rollouts(desde);
+  const usos: Uso[] = [];
+  const compactaciones: Compactacion[] = [];
+  for (const ruta of archivos) {
+    const r = usosDeRollout(ruta, corte);
+    // push uno por uno y no con spread: un rollout largo pasa el límite de
+    // argumentos de una llamada.
+    for (const u of r.usos) usos.push(u);
+    for (const k of r.compactaciones) compactaciones.push(k);
+  }
+  return { usos, compactaciones, archivos: archivos.length };
 }
 
 export interface LecturaCodex {

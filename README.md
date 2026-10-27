@@ -112,6 +112,7 @@ qm --watch 60       # redraw every N seconds
 qm --umbral=80      # exit 3 if any bar is over N%
 qm --esperar        # block until quota drops:  qm --esperar && codex ...
 qm --diagnostico    # everything a bug report needs, already redacted
+qm --desglose       # where the week's quota went — disk only, never the network
 ```
 
 In Claude Code's `settings.json`:
@@ -128,6 +129,52 @@ personal 23/75%! · teams 9/42% · codex 49/59%
 the bar that stops you first. They answer different questions — "can I keep
 going right now?" and "do I make it to the end of the week?" — and either one
 alone is half an answer.
+
+## Where did it go?
+
+`qm` tells you how much is left. `qm --desglose` tells you what spent it: the
+same transcripts, broken down over the last 7 days (`--dias=N` for another
+window), one block per account.
+
+```
+  .claude · ~/.claude
+    7.909 requests · 282,1M de costo ponderado (tokens de entrada equivalentes)
+
+    por clase de token
+      lectura de cache   ██████████░░░░░  67,6%   1,9G tokens
+      escritura 1h       ██░░░░░░░░░░░░░  11,7%   16,5M tokens
+      escritura 5m       ██░░░░░░░░░░░░░  11,9%   26,8M tokens
+      salida             █░░░░░░░░░░░░░░   8,8%   5,0M tokens
+      entrada            ░░░░░░░░░░░░░░░   0,0%   15,9k tokens
+    …
+      400k o más: 35,0% del costo en 1.288 requests (16,3% de los requests)
+```
+
+Five answers per account:
+
+- **Cost by token class.** Tokens are weighted by their relative API price —
+  cache read 0.1, cache write 1.25 (5-minute TTL) or 2 (1-hour TTL), input 1,
+  output 5 — as a **proxy** for quota drain. Anthropic does not publish how a
+  subscription weighs them, and the output says so every time.
+- **Cost by prompt size**, in buckets from `<50k` to `>700k`, plus how much of
+  it came from prompts of 400k or more.
+- **Cache rebuilds**: requests that wrote more than 20k of cache without being
+  the first of their transcript, split by how long the cache sat idle (over an
+  hour, 5–60 minutes, or no gap) and by main thread vs subagent.
+- **Subagents**: the main thread against each agent type.
+- **The most expensive sessions**: requests, largest and median context,
+  compactions and duration, with the project directory — never message
+  content.
+
+Requests are deduplicated by message and request id, because a reply with
+several content blocks is written once per block with the same usage. Codex is
+included when it is installed (its rollouts report usage per request; they do
+not report cache writes or subagents, and the output says that instead of
+printing zeros). `--json` gives the same numbers for a script, and
+`--redactado` also replaces every project directory with `proyecto 1`,
+`proyecto 2`… and drops session ids, so the report can be pasted somewhere
+public. Reading a week of transcripts — about 2 GB across two profiles — takes
+about two seconds; see [`numeros/desglose.md`](numeros/desglose.md).
 
 ## When something is wrong
 

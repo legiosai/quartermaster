@@ -16,6 +16,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { ofrecerBarra } from '../adapters/barra.ts';
+import { correrDesglose } from './desglose.ts';
 import { descubrirPerfiles } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
 import { consumoDesde, transcripciones, ultimaActividad } from '../adapters/transcripciones.ts';
@@ -101,6 +102,7 @@ interface Opciones {
   breve: boolean;
   codex: boolean;
   antigravity: boolean;
+  desglose: boolean;
 }
 
 /**
@@ -155,6 +157,11 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --calentar-codex igual pero sólo Codex, sin tocar el llavero
   qm --diagnostico    todo lo que hace falta para reportar un bug, en un solo
                       comando y ya redactado: pegalo tal cual en el issue
+  qm --desglose       en qué se fue la cuota: costo ponderado por clase de
+                      token, tamaño del prompt, cache reconstruido, subagentes
+                      y sesiones más caras. Sólo disco. Acepta --dias=N (7 por
+                      defecto), --json, --redactado (también esconde los
+                      proyectos), --solo/--ocultar y --sin-codex
 
 Nunca refresca un token. Si una credencial venció, lo dice y sigue con el
 resto de los perfiles — la cuota igual se lee, porque sale del disco.`;
@@ -171,12 +178,14 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     breve: false,
     codex: true,
     antigravity: true,
+    desglose: false,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const a = argv[i]!;
     if (a === '--json') o.json = true;
     else if (a === '--redactado') o.redactado = true;
     else if (a === '--breve') o.breve = true;
+    else if (a === '--desglose') o.desglose = true;
     else if (a === '--sin-codex') o.codex = false;
     else if (a === '--sin-antigravity') o.antigravity = false;
     // La selección la lee configEfectiva() de process.argv; acá sólo se
@@ -1394,6 +1403,17 @@ if (typeof opciones === 'string') {
   // La ayuda y la versión son respuestas, no errores: salen 0. Lo único que
   // sale 2 es una opción que no existe.
   process.exit(opciones === AYUDA || opciones.startsWith('quartermaster ') ? 0 : 2);
+}
+
+// --desglose es otro informe, no otra forma de dibujar el mismo: no mira la
+// cuota, así que sale antes de todo lo que la pide, y nunca toca la red.
+if (opciones.desglose) {
+  process.exit(
+    correrDesglose(
+      { dias: opciones.dias, json: opciones.json, redactado: opciones.redactado, codex: opciones.codex, version: VERSION },
+      configEfectiva(),
+    ),
+  );
 }
 
 const unaVuelta = async (): Promise<number> => {

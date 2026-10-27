@@ -126,6 +126,7 @@ qm --refrescar      # además le pregunta al endpoint (necesita token vigente)
 qm --watch 60       # se redibuja cada N segundos
 qm --umbral=80      # sale 3 si alguna barra pasa el N %
 qm --esperar        # no vuelve hasta que baje:  qm --esperar && codex ...
+qm --desglose       # en qué se fue la cuota de la semana — sólo disco, nunca red
 ```
 
 En el `settings.json` de Claude Code:
@@ -141,6 +142,37 @@ personal 23/75%! · teams 9/42% · codex 49/59%
 **Dos números por cuenta a propósito**: el primero es la sesión y el segundo la
 barra que te frena antes. Contestan preguntas distintas —«¿puedo seguir ahora?»
 y «¿llego al final de la semana?»— y una sola de las dos es media respuesta.
+
+## ¿En qué se fue?
+
+`qm` dice cuánto queda; `qm --desglose` dice qué lo gastó. Lee las mismas
+transcripciones y desglosa los últimos 7 días (`--dias=N` para otra ventana),
+un bloque por cuenta:
+
+- **Costo por clase de token.** Cada token se pondera por su precio relativo en
+  la API —lectura de cache 0,1, escritura de cache 1,25 (TTL de 5 minutos) o 2
+  (TTL de 1 hora), entrada 1, salida 5— como **aproximación** de cuánto drena
+  la cuota. Anthropic no publica cómo pondera la suscripción, y la salida lo
+  dice cada vez.
+- **Costo por tamaño del prompt**, en tramos de `<50k` a `>700k`, y cuánto
+  salió de prompts de 400k o más.
+- **Cache reconstruido**: los requests que escribieron más de 20k de cache sin
+  ser el primero de su transcripción, por cuánto estuvo quieto el cache (más
+  de una hora, de 5 a 60 minutos, o nada) y por hilo principal o subagente.
+- **Subagentes**: el hilo principal contra cada tipo de agente.
+- **Las sesiones más caras**: requests, contexto máximo y mediano,
+  compactaciones y duración, con el directorio del proyecto — nunca el
+  contenido de un mensaje.
+
+Se deduplica por id de mensaje y de request, porque una respuesta con varios
+bloques se escribe una vez por bloque con el mismo usage. Codex entra si está
+instalado: sus rollouts traen el uso de cada request, pero no las escrituras de
+cache ni los subagentes, y la salida lo dice en vez de mostrar ceros. `--json`
+da los mismos números para un script, y `--redactado` además cambia cada
+directorio de proyecto por `proyecto 1`, `proyecto 2`… y saca los ids de
+sesión, para poder pegarlo en un lugar público. Leer una semana —unos 2 GB
+entre dos perfiles— tarda unos dos segundos; ver
+[`numeros/desglose.md`](numeros/desglose.md).
 
 ## Dónde se ve
 
