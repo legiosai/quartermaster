@@ -1135,7 +1135,10 @@ function DibujarPerfil($p, [int]$indice) {
 
   $partes = @()
   if ($p.cuenta) { $partes += $p.cuenta }
-  if ($p.plan) { $partes += $p.plan }
+  # planNombre es el que se dibuja; un qm anterior no lo trae, y con StrictMode
+  # leer un campo que falta tira.
+  if ($p.PSObject.Properties['planNombre'] -and $p.planNombre) { $partes += $p.planNombre }
+  elseif ($p.plan) { $partes += $p.plan }
   Escribir $g ($partes -join '  ·  ') ($m + (Px 19)) $y $script:FSub $script:Tinta3 -1 $anchoCabecera
   $y += Px 22
 

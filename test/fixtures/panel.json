@@ -25,6 +25,7 @@
             "directorio": "~/.claude",
             "cuenta": "***@hotmail.com",
             "plan": "claude_max",
+            "planNombre": "Ultra (max_20x)",
             "credencial": "vigente (5h53m)",
             "cuota": {
                 "estado": "ok",
@@ -334,6 +335,7 @@
             "directorio": "~/.claude-teams",
             "cuenta": "***@teramot.com",
             "plan": "team_tier_1",
+            "planNombre": "team_tier_1 (max_5x)",
             "credencial": "vigente (5h57m)",
             "cuota": {
                 "estado": "ok",

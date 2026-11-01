@@ -47,6 +47,12 @@ export function servicioLlavero(directorio: string): string {
  * Un archivo vacío que tapa a uno lleno es la misma falla que este repo le
  * critica a los monitores que leen una sola credencial, sólo que un nivel más
  * abajo. Así que se ordenan por lo que traen, no por dónde están.
+ *
+ * Y a igual riqueza, primero el más nuevo. Medido el 2026-11-01: ese
+ * `~/.claude/.claude.json` ya tenía cuenta (escrita el 13/10, en Max 5x) y
+ * ninguno de los dos traía `cachedUsageUtilization`, así que empataban; el
+ * empate dejaba el orden de las rutas, y el viejo tapaba al `~/.claude.json`
+ * que Claude Code sigue escribiendo, donde la cuenta ya era Ultra.
  */
 export function rutasConfig(directorio: string): string[] {
   const riqueza = (ruta: string): number => {
@@ -57,10 +63,17 @@ export function rutasConfig(directorio: string): string[] {
       return -1;
     }
   };
+  const escrito = (ruta: string): number => {
+    try {
+      return statSync(ruta).mtimeMs;
+    } catch {
+      return 0;
+    }
+  };
   return [join(directorio, '.claude.json'), `${directorio}.json`]
     .filter((r) => existsSync(r))
-    .map((ruta) => ({ ruta, r: riqueza(ruta) }))
-    .sort((a, b) => b.r - a.r)
+    .map((ruta) => ({ ruta, r: riqueza(ruta), t: escrito(ruta) }))
+    .sort((a, b) => b.r - a.r || b.t - a.t)
     .map((x) => x.ruta);
 }
 
@@ -88,11 +101,63 @@ export function leerCuenta(directorio: string): Cuenta | null {
   if (json === null) return null;
   const oauth = json['oauthAccount'] as Record<string, unknown> | undefined;
   if (!oauth) return null;
+  const plan = (oauth['seatTier'] as string) ?? (oauth['organizationType'] as string) ?? null;
   return {
     email: (oauth['emailAddress'] as string) ?? null,
     organizacion: (oauth['organizationName'] as string) ?? null,
-    plan: (oauth['seatTier'] as string) ?? (oauth['organizationType'] as string) ?? null,
+    plan,
+    planNombre: nombrePlan(oauth, plan),
   };
+}
+
+/** Un string con algo adentro, o null. `''` y `null` valen lo mismo: nada. */
+function texto(v: unknown): string | null {
+  return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
+}
+
+/**
+ * El plan como lo dice Claude Code en pantalla, con el multiplicador al lado.
+ *
+ * `plan` sale de `seatTier ?? organizationType`, y en una cuenta individual
+ * `seatTier` es null: el plan cae en `organizationType`, que vale `claude_max`
+ * para Max 5x, Max 20x y Ultra por igual. Medido el 2026-11-01: una cuenta que
+ * ya era Ultra (`planDisplayName: "Ultra"`) se seguía mostrando `claude_max`,
+ * igual que el 13/10 cuando era Max 5x. Lo que sí cambió entre las dos fechas
+ * es el tier de rate limit (`default_claude_max_5x` → `default_claude_max_20x`),
+ * que es lo único que dice cuánta cuota hay detrás.
+ *
+ * El tier del usuario va antes que el de la organización: en Teams el de la
+ * organización es un nombre interno (`default_raven`) y el del asiento
+ * (`userRateLimitTier: default_claude_max_5x`) es el que te frena a vos.
+ */
+export function nombrePlan(oauth: Record<string, unknown>, plan: string | null): string | null {
+  const nombre = texto(oauth['planDisplayName']) ?? plan;
+  if (nombre === null) return null;
+  const nivel = nivelPlan(texto(oauth['userRateLimitTier']) ?? texto(oauth['organizationRateLimitTier']));
+  if (nivel === null) return nombre;
+  // «Max 20x (max_20x)» no agrega nada: si el nombre ya lo dice, no se repite.
+  if (nombre.toLowerCase().replace(/[\s-]+/g, '_').includes(nivel)) return nombre;
+  return `${nombre} (${nivel})`;
+}
+
+/**
+ * `default_claude_max_20x` → `max_20x`. Sólo los tiers con multiplicador: los
+ * otros (`default_raven`, `default_claude_ai`) son nombres internos que no le
+ * dicen nada a quien lee, y entre paréntesis serían ruido.
+ */
+function nivelPlan(tier: string | null): string | null {
+  if (tier === null) return null;
+  const corto = tier.replace(/^default_/, '').replace(/^claude_/, '');
+  return /\d+x$/.test(corto) ? corto : null;
+}
+
+/**
+ * Lo que se muestra de una cuenta donde va el plan. Lo usan TODAS las salidas
+ * del CLI, y el JSON lo publica ya resuelto en `planNombre`: si cada pantalla
+ * eligiera entre `planNombre` y `plan` por su lado, alguna se olvidaría.
+ */
+export function planParaMostrar(cuenta: Cuenta | null | undefined): string | null {
+  return cuenta?.planNombre ?? cuenta?.plan ?? null;
 }
 
 /**

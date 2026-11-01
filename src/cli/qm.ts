@@ -17,7 +17,7 @@ import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { ofrecerBarra } from '../adapters/barra.ts';
 import { correrDesglose } from './desglose.ts';
-import { descubrirPerfiles } from '../core/perfiles.ts';
+import { descubrirPerfiles, planParaMostrar } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
 import { consumoDesde, transcripciones, ultimaActividad } from '../adapters/transcripciones.ts';
 import { cuotaEnCache } from '../adapters/cache-cuota.ts';
@@ -798,7 +798,8 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
 
   for (const f of filas) {
     const cuenta = f.perfil.cuenta?.email ?? 'sin cuenta';
-    const plan = f.perfil.cuenta?.plan ? tenue(` · ${f.perfil.cuenta.plan}`) : '';
+    const nombrePlan = planParaMostrar(f.perfil.cuenta);
+    const plan = nombrePlan ? tenue(` · ${nombrePlan}`) : '';
     const colorCred = f.producto === 'codex'
       ? tenue
       : f.veredicto.startsWith('vigente')
@@ -1055,7 +1056,11 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
       perfil: f.perfil.nombre,
       directorio: redactar(o, f.perfil.directorio),
       cuenta: redactar(o, f.perfil.cuenta?.email ?? null),
+      // `plan` es el identificador de siempre (`claude_max`, `team_tier_1`) y
+      // no cambia de significado; `planNombre` es lo que se dibuja: «Ultra
+      // (max_20x)». Campo nuevo y no `plan` reescrito, para no mover `esquema`.
       plan: f.perfil.cuenta?.plan ?? null,
+      planNombre: planParaMostrar(f.perfil.cuenta),
       credencial: f.veredicto,
       cuota:
         f.cuota.estado === 'ok'

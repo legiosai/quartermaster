@@ -670,7 +670,8 @@ class VistaCuenta:
         self.producto = p.get("producto") or "claude"
         self.indice_color = indice_color
         self.titulo = corto(p.get("perfil") or "?")
-        partes = [x for x in (p.get("cuenta"), p.get("plan")) if x]
+        # planNombre es el que se dibuja; `plan` queda para un qm anterior.
+        partes = [x for x in (p.get("cuenta"), p.get("planNombre") or p.get("plan")) if x]
         self.sub = "   ·   ".join(partes)
         self.hay_numero = cuota.get("estado") == "ok"
         self.frase = None if self.hay_numero else (cuota.get("frase") or "sin cuota")

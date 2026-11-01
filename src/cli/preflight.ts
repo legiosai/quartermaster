@@ -5,7 +5,7 @@
 //
 // En macOS esto puede abrir un prompt del llavero por perfil. Es esperado.
 
-import { descubrirPerfiles } from '../core/perfiles.ts';
+import { descubrirPerfiles, planParaMostrar } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
 import { negrita, relleno, rojo, tenue, verde, amarillo, duracion } from '../render/barras.ts';
 
@@ -22,7 +22,8 @@ let usables = 0;
 for (const p of perfiles) {
   const cred = estadoCredencial(p);
   const cuenta = p.cuenta?.email ?? tenue('sin cuenta');
-  const plan = p.cuenta?.plan ? tenue(` ${p.cuenta.plan}`) : '';
+  const nombrePlan = planParaMostrar(p.cuenta);
+  const plan = nombrePlan ? tenue(` ${nombrePlan}`) : '';
 
   let veredicto: string;
   if (cred.error !== null) veredicto = rojo(`ilegible · ${cred.error}`);
