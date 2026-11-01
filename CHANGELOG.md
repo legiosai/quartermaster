@@ -31,6 +31,16 @@ out unless they changed what you see.
   week of two busy profiles (~2 GB). Codex is included; opencode and
   Antigravity are not, because they do not keep per-request cache usage.
 
+### Fixed
+
+- **A Claude Max 20x or Ultra account showed up as `claude_max`.** For an
+  individual account the plan came from `organizationType`, which is
+  `claude_max` for Max 5x, Max 20x and Ultra alike, so upgrading changed
+  nothing on screen. The terminal, the panels and the dashboard now show the
+  plan name Claude Code shows, with the rate-limit multiplier when there is
+  one: `Ultra (max_20x)`, `team_tier_1 (max_5x)`. `qm --json` adds it as
+  `planNombre`; `plan` keeps its old value.
+
 ---
 
 ## v0.1.20 — 2026-09-27

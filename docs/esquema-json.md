@@ -68,7 +68,8 @@ Each entry of `perfiles`:
   "perfil": ".claude-teams",     // the config directory's name
   "directorio": "~/.claude-teams",
   "cuenta": "quien@ejemplo.com", // null if unknown. --redactado masks it
-  "plan": "claude_max",
+  "plan": "claude_max",          // an IDENTIFIER, as the provider reports it. null if unknown
+  "planNombre": "Ultra (max_20x)",   // what to DRAW. Falls back to `plan`; null only when `plan` is
   "credencial": "vigente (6h02m)",   // a SENTENCE, for humans. Never a token.
   "cuota": { … },
   "proyeccion": { … } | null,
@@ -76,6 +77,15 @@ Each entry of `perfiles`:
   "local": { … }                 // tokens and requests read from transcripts
 }
 ```
+
+**Draw `planNombre`, compare `plan`.** For a Claude account `plan` is
+`seatTier`, or `organizationType` when there is no seat — and an individual
+account has no seat, so Max 5x, Max 20x and Ultra are all `claude_max`.
+`planNombre` is the name Claude Code shows (`planDisplayName`) with the
+rate-limit multiplier next to it when there is one: `Ultra (max_20x)`, or
+`team_tier_1 (max_5x)` for a Teams seat. `plan` keeps its old meaning so a
+consumer that matches on it (`free`, `team_tier_1`) does not break; output from
+a `qm` older than the field has no `planNombre`, so fall back to `plan`.
 
 ### `presupuesto`
 

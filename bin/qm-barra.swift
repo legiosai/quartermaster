@@ -501,7 +501,8 @@ func leer() -> Lectura {
             nombre: p["perfil"] as? String ?? "?",
             directorio: p["directorio"] as? String ?? "",
             cuenta: p["cuenta"] as? String,
-            plan: p["plan"] as? String,
+            // planNombre es el que se dibuja; `plan` queda para un qm anterior.
+            plan: (p["planNombre"] as? String) ?? (p["plan"] as? String),
             credencial: p["credencial"] as? String ?? "?",
             hayNumero: hayNumero,
             frase: cuota["frase"] as? String,

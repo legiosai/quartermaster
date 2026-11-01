@@ -588,7 +588,7 @@ function tarjeta(p) {
         ${peorV ? insignia(nivel(peorV)) : ''}
       </div>
       <div class="chips">
-        <span class="chip">${esc(p.plan || 'sin plan')}</span>
+        <span class="chip">${esc(p.planNombre || p.plan || 'sin plan')}</span>
         <span class="chip">${esc(p.credencial)}</span>
         ${hayNumero ? `<span class="chip">cache ${duracion(c.edadSegundos)}${viejo ? ' · viejo' : ''}</span>` : ''}
       </div>
