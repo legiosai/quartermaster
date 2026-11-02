@@ -157,7 +157,8 @@ const ayuda = (): string =>
     `qm · cuánta cuota te queda, en todos tus perfiles de Claude Code
 
   qm                  cuota y consumo de cada perfil. Sin red y sin credencial:
-                      lee la cuota que Claude Code ya dejó en .claude.json
+                      lee la cuota guardada (la de --statusline, la del
+                      endpoint y la que dejó Claude Code en .claude.json)
   qm --refrescar      además pide el número al endpoint (necesita token vigente)
   qm --json           lo mismo, para scripts y statuslines
   qm --watch [seg]    se redibuja cada N segundos (mínimo 30, por defecto 60)
@@ -210,7 +211,8 @@ resto de los perfiles — la cuota igual se lee, porque sale del disco.`,
     `qm · how much quota you have left, in every Claude Code profile
 
   qm                  quota and usage for every profile. No network and no
-                      credential: it reads the quota already on disk
+                      credential: it reads the stored quota (from
+                      --statusline, the endpoint, and Claude Code's .claude.json)
   qm --refrescar      also asks the endpoint for the number (needs a valid token)
   qm --json           the same, for scripts and statuslines
   qm --watch [sec]    redraw every N seconds (minimum 30, default 60)

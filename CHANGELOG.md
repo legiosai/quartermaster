@@ -18,6 +18,20 @@ out unless they changed what you see.
 
 ### Added
 
+- **`qm` speaks English.** The README and landing page are in English, but
+  everything `qm` printed was Spanish. It now picks the language from the
+  locale like any terminal program — the first non-empty of `LC_ALL`,
+  `LC_MESSAGES` and `LANG` (`es*` is Spanish, anything else, including
+  `C.UTF-8`, is English), or the system's regional setting on Windows.
+  `QM_IDIOMA=es|en` sets it for good and `--idioma=` for one run. The table,
+  `--breve`/`--statusline`, `--help`, errors, `--esperar`, `--diagnostico`,
+  `--desglose` (tips included), `--mejor`, the `--aviso` hook's message and
+  number formatting (`5.8G`, not `5,8G`) all follow it. `--json` keeps its text
+  in Spanish unless a language is asked for explicitly, because the panels
+  draw it next to their own Spanish labels; its keys never change. A Spanish
+  speaker on a machine with `LC_ALL=C.UTF-8` now gets English until they set
+  `QM_IDIOMA=es`.
+
 - **`qm --statusline`: a fresh number on every prompt, with no network and no
   credential.** Claude Code stopped leaving the quota in each profile's
   `.claude.json` on every use — on the machine this was found on, neither of
@@ -29,7 +43,7 @@ out unless they changed what you see.
   per profile and prints the usual one-line summary; every other `qm` then
   reads it. It carries only those two bars, so it is laid over the last
   endpoint reading instead of replacing it, and a bar that comes from the
-  older reading shows its own age (`leída hace 2h`; `medidoEn` per window in
+  older reading shows its own age (`read 2h ago`; `medidoEn` per window in
   `--json`). Already have a statusline script? `echo "$input" | qm --statusline`.
 - **An account with no stored quota now says how to get one** — set up
   `qm --statusline`, or run `qm --refrescar` — instead of "use it once".
@@ -62,11 +76,11 @@ out unless they changed what you see.
   per account, and the thresholds in `umbrales.consejos`.
 - **The statusline also says what the next prompt will cost.** `qm
   --statusline` now starts with the session's context size and how long its
-  prompt cache stays warm — `ctx 182k · caché 12m · main 31/44%` — read from
+  prompt cache stays warm — `ctx 182k · cache 12m · main 31/44%` — read from
   the same input Claude Code passes it. The context turns yellow from 400k
   (prompts that size were 35 % of a measured week's weighted cost with 16 % of
   the requests), and once the cache goes cold the line says how much the next
-  request rewrites, `caché fría (+181k)`: the number that decides between
+  request rewrites, `cold cache (+181k)`: the number that decides between
   `/clear` and carrying on. `--breve` is unchanged.
 - **The panels say how old each bar is when it isn't as fresh as its account.**
   Since `qm --statusline`, one account can mix a session and weekly bar from
@@ -96,8 +110,8 @@ out unless they changed what you see.
   this was written on, three of six accounts and fifteen of thirty-five lines.
   The reason each one is dormant is still printed; `qm --todas` shows them in
   full, and if every account is dormant they are shown in full anyway.
-- **A bar the server doesn't name reads `otro límite (iguana_necktie)`** instead
-  of the server's internal key alone. The key stays, because it is the only
+- **A bar the server doesn't name reads `other limit (iguana_necktie)`** (`otro
+  límite (…)` in Spanish) instead of the server's internal key alone. The key stays, because it is the only
   thing that tells two such bars apart. The panels get the same name.
 
 ### Fixed
