@@ -14,6 +14,21 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **Desktop notifications leave the screen on their own, the urgent one too.**
+  On GNOME the «stopped» / «you hit the wall before the reset» notification went
+  out with `critical` urgency and no expiry, and GNOME keeps those on screen
+  until you close them. Every notification is now normal urgency with an
+  8-second expiry: GNOME takes it down after its own few seconds (it waits for
+  you if you are away), and it stays in the notification list. The urgent one
+  still has the error icon. On Windows both kinds ask for the same 8 s; Windows
+  10 and 11 use the Accessibility setting instead (5 s out of the box). On macOS
+  nothing changed: it was already a temporary banner, and if it stays, Script
+  Editor's notification style is set to Persistent or Alerts in System Settings.
+
 ## v0.1.21 — 2026-11-01
 
 ### Added

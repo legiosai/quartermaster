@@ -307,7 +307,7 @@ gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
 
 .PHONY: gate-dibujo-rojo
-gate-dibujo-rojo:  ## los siete rojos: la cabecera (sin frenaPrimero y encabezada por una dormida), el sello (la rotación de dos nombres y el reloj pelado), la cuenta sin sesión y la edad de cada barra (el pie sin edad propia y el «viejo» de la cuenta)
+gate-dibujo-rojo:  ## los diez rojos: la cabecera (sin frenaPrimero y encabezada por una dormida), el sello (la rotación de dos nombres y el reloj pelado), la cuenta sin sesión, la edad de cada barra (el pie sin edad propia y el «viejo» de la cuenta) y los avisos que se quedan (critical, sin vencimiento, el globo de 30 s)
 	@cp test/fixtures/panel.json .panel.gate
 	@python3 -c "import json;d=json.load(open('test/fixtures/panel.json'));d.pop('frenaPrimero',None);json.dump(d,open('test/fixtures/panel.json','w'),indent=4)"
 	@if python3 scripts/gate-tarjetas.py >/dev/null 2>&1; then \
@@ -370,6 +370,33 @@ gate-dibujo-rojo:  ## los siete rojos: la cabecera (sin frenaPrimero y encabezad
 	else \
 	  mv .indicador.gate bin/qm-indicator; \
 	  echo "✓ el gate falla en rojo con el «viejo» del item midiendo la cuenta y no la barra"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('{\"urgency\": GLib.Variant(\"y\", 1)}','{\"urgency\": GLib.Variant(\"y\", 2 if urgente else 1)}'))"
+	@if python3 scripts/gate-avisos.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con el aviso grave en urgencia critical. Es lo que el cambio vino a arreglar: GNOME lo dejaba clavado en pantalla hasta que lo cerrabas."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con el aviso grave en urgencia critical"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('                        AVISO_MS,','                        0,'))"
+	@if python3 scripts/gate-avisos.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con un aviso que no vence nunca."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con un aviso que no vence nunca"; \
+	fi
+	@cp bin/qm-tray.ps1 .bandeja.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-tray.ps1');p.write_text(p.read_text(encoding='utf-8').replace('ShowBalloonTip(\$$AVISO_MS,','ShowBalloonTip((\$$(if (\$$gl.urgente) { 30000 } else { 10000 })),'),encoding='utf-8')"
+	@if python3 scripts/gate-avisos.py >/dev/null 2>&1; then \
+	  mv .bandeja.gate bin/qm-tray.ps1; \
+	  echo "✗ el gate NO falló con el globo grave de Windows pidiendo 30 s."; exit 1; \
+	else \
+	  mv .bandeja.gate bin/qm-tray.ps1; \
+	  echo "✓ el gate falla en rojo con el globo grave de Windows pidiendo 30 s"; \
 	fi
 
 .PHONY: construir

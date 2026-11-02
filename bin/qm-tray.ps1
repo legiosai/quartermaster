@@ -770,11 +770,18 @@ function RevisarLiberada([string]$perfil, $v) {
     $false
 }
 
+# Cuánto queda un globo en pantalla: el mismo para todos, también el grave
+# (AVISO_MS de bin/qm-indicator). Windows 10 y 11 ignoran el número y usan el de
+# Accesibilidad (5 s de fábrica), y después el aviso queda en el centro de
+# notificaciones; las versiones viejas lo respetan entre 10 y 30 s. Lo grave se
+# distingue por el ícono, no por quedarse.
+$AVISO_MS = 8000
+
 function SoltarGlobos {
   if (-not $script:Ni) { $script:Globos = @(); return }
   foreach ($gl in @($script:Globos)) {
     $ico = if ($gl.urgente) { [System.Windows.Forms.ToolTipIcon]::Error } else { [System.Windows.Forms.ToolTipIcon]::Warning }
-    try { $script:Ni.ShowBalloonTip(($(if ($gl.urgente) { 30000 } else { 10000 })), $gl.titulo, $gl.cuerpo, $ico) } catch { }
+    try { $script:Ni.ShowBalloonTip($AVISO_MS, $gl.titulo, $gl.cuerpo, $ico) } catch { }
   }
   $script:Globos = @()
 }
