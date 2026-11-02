@@ -47,6 +47,7 @@ import { guardarStatusline, leerStdin, perfilDeLaStatusline, sesionDeStatusline,
 import { cuotaGuardada } from '../adapters/cuota-guardada.ts';
 import { correrMejor } from './mejor.ts';
 import { correrAviso } from './aviso.ts';
+import { UMBRAL_POR_DEFECTO } from '../core/aviso.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import { idiomaPedido, tr } from '../core/idioma.ts';
 import * as entorno from '../adapters/entorno.ts';
@@ -1094,7 +1095,13 @@ function pintarBreve(filas: readonly FilaPerfil[], o: Opciones, prefijo: readonl
   const partes: string[] = [];
   for (const f of filas) {
     if (f.cuota.estado !== 'ok') continue;
-    const v = peor(paraMostrar(f.cuota.ventanas));
+    // Una barra sin nombre (en la cuenta Ultra, `iguana_necktie`) no entra en
+    // el renglón mientras no frene: de un vistazo se lee la semanal, que es la
+    // que se entiende, y un número que nadie sabe qué mide la tapaba. Desde el
+    // umbral de `--aviso` (90 %) sí entra, con su nombre: ahí es la que te para.
+    const todas = paraMostrar(f.cuota.ventanas);
+    const aLaVista = todas.filter((w) => !sinNombre(w) || w.porcentaje >= UMBRAL_POR_DEFECTO);
+    const v = peor(aLaVista.length > 0 ? aLaVista : todas);
     if (v === null) continue;
     const viejo = Date.now() - (v.medidaEn ?? f.cuota.medidoEn).getTime() > 6 * 3600_000 ? '~' : '';
     // El «!» ya no es sólo severidad: también avisa que a este ritmo tocás el
@@ -1118,10 +1125,9 @@ function pintarBreve(filas: readonly FilaPerfil[], o: Opciones, prefijo: readonl
       sesion === undefined || sesion.clave === v.clave
         ? `${cifraDe(v)}%`
         : `${cifraDe(sesion)}/${cifraDe(v)}%`;
-    // Qué barra es, cuando no es la que uno supone. «main 44%» al lado de una
-    // semanal al 13 % parece un número equivocado, y es otra barra: una de un
-    // modelo, o una que el servidor manda sin nombre (en la cuenta Ultra,
-    // `iguana_necktie`). Sin nombrarla no hay cómo ir a buscarla a la tabla. La
+    // Qué barra es, cuando no es la que uno supone: una de un modelo
+    // («main 75% Fable»), o una sin nombre que ya pasó el umbral. Sin nombrarla
+    // parece una semanal equivocada y no hay cómo ir a buscarla a la tabla. La
     // sesión y la semanal general van sin nombre: son las que se esperan.
     const cual = v.alcance ?? (sinNombre(v) ? v.clave : null);
     partes.push(

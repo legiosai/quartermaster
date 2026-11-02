@@ -157,9 +157,10 @@ the bar that stops you first. They answer different questions — "can I keep
 going right now?" and "do I make it to the end of the week?" — and either one
 alone is half an answer.
 
-When that second bar is not the one you would assume — a model-scoped bar, or
-one the server sends without a name — the line says which: `main 44%
-iguana_necktie` next to a weekly at 13 % is that bar, not a wrong weekly.
+A model-scoped bar says which model: `main 75% Fable`. A bar the server sends
+without a name stays out of the line until it reaches 90 % — where `--aviso`
+starts warning — and then shows with its name, `main 92% iguana_necktie`; below
+that you see the weekly. The full table always lists every bar.
 
 ### Language
 

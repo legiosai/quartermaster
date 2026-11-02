@@ -14,6 +14,18 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **The statusline shows the weekly, not a bar nobody can name.** 0.1.22 named
+  the unnamed bar that stopped the account first (`main 44% iguana_necktie`),
+  but a number nobody can explain still covered the weekly you actually read.
+  Bars without a name now stay out of `--breve` and `--statusline` until they
+  reach 90 %, the point where `--aviso` warns, and then show with their name.
+  Below that the line shows the weekly: `main 15%`. Model-scoped bars keep
+  their label (`main 75% Fable`), and the full table still lists every bar.
+
 ## v0.1.22 — 2026-11-02
 
 ### Changed

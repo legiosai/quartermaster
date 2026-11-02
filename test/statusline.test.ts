@@ -271,10 +271,10 @@ test('qm --statusline antepone el contexto y lo que le queda al cache', () => {
   assert.match(qm(['--breve', '--sin-codex', '--sin-antigravity'], env), /^main 12%$/m);
 });
 
-test('la statusline nombra la barra que frena cuando no es la sesión ni la semanal', () => {
+test('la statusline muestra la semanal, no una barra sin nombre que todavía no frena', () => {
   // La cuenta Ultra de 2026-11-01: Claude Code sólo manda la semanal (13 %) y la
-  // que frena es una barra sin nombre del endpoint, al 44 %. «main 44%» sin más
-  // parecía una semanal equivocada.
+  // que frena es una barra sin nombre del endpoint, al 44 %. «main 44%» parecía
+  // una semanal equivocada, y con el nombre al lado tampoco se quería ver.
   const { env, dir } = casa();
   const reinicia = new Date(Date.now() + 3 * 86_400_000).toISOString();
   const barra = (clave: string, porcentaje: number, grupo: string | null, alcance: string | null) =>
@@ -287,8 +287,13 @@ test('la statusline nombra la barra que frena cuando no es la sesión ni la sema
   const semana = Math.floor(Date.now() / 1000) + 3 * 86_400;
   const entrada = JSON.stringify({ rate_limits: { seven_day: { used_percentage: 13, resets_at: semana } } });
 
+  // Una barra sin nombre no tapa la semanal mientras no frene…
   sembrar([barra('weekly_all', 11, 'weekly', null), barra('weekly_scoped', 0, 'weekly', 'Fable'), barra('iguana_necktie', 44, null, null)]);
-  assert.match(qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, entrada), /^main 44% iguana_necktie$/m);
+  assert.match(qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, entrada), /^main 13%$/m);
+
+  // …y desde el umbral de --aviso sí, con su nombre: ahí es la que te para.
+  sembrar([barra('weekly_all', 11, 'weekly', null), barra('iguana_necktie', 92, null, null)]);
+  assert.match(qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, entrada), /^main 92% iguana_necktie$/m);
 
   // Una barra de un modelo dice cuál.
   sembrar([barra('weekly_all', 11, 'weekly', null), barra('weekly_scoped', 75, 'weekly', 'Fable')]);
