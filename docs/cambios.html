@@ -323,6 +323,11 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2 id="v0.1.23">v0.1.23 — 2026-11-02</h2>
+<h3>Changed</h3>
+<ul>
+<li><strong>The statusline shows the weekly, not a bar nobody can name.</strong> 0.1.22 named the unnamed bar that stopped the account first (<code>main 44% iguana_necktie</code>), but a number nobody can explain still covered the weekly you actually read. Bars without a name now stay out of <code>--breve</code> and <code>--statusline</code> until they reach 90 %, the point where <code>--aviso</code> warns, and then show with their name. Below that the line shows the weekly: <code>main 15%</code>. Model-scoped bars keep their label (<code>main 75% Fable</code>), and the full table still lists every bar.</li>
+</ul>
 <h2 id="v0.1.22">v0.1.22 — 2026-11-02</h2>
 <h3>Changed</h3>
 <ul>

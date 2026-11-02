@@ -170,9 +170,10 @@ sólo la parte de cuota.
 barra que te frena antes. Contestan preguntas distintas —«¿puedo seguir ahora?»
 y «¿llego al final de la semana?»— y una sola de las dos es media respuesta.
 
-Cuando esa segunda barra no es la que uno supone —una de un modelo, o una que el
-servidor manda sin nombre— el renglón dice cuál: `main 44% iguana_necktie` al
-lado de una semanal al 13 % es esa barra, no una semanal equivocada.
+Una barra de un modelo dice cuál: `main 75% Fable`. Una que el servidor manda
+sin nombre no entra en el renglón hasta el 90 % —donde `--aviso` empieza a
+avisar— y ahí aparece con su nombre, `main 92% iguana_necktie`; por debajo se ve
+la semanal. La tabla completa muestra siempre todas las barras.
 
 ### Idioma
 
