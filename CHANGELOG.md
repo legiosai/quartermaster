@@ -18,6 +18,22 @@ out unless they changed what you see.
 
 ### Added
 
+- **`qm --statusline`: a fresh number on every prompt, with no network and no
+  credential.** Claude Code stopped leaving the quota in each profile's
+  `.claude.json` on every use — on the machine this was found on, neither of
+  the two profiles used daily had it — so a fresh install of `qm` showed no
+  Claude number at all and told you to "use it once", which no longer helped.
+  What Claude Code does on every redraw is hand the statusline command a
+  `rate_limits` object with the session and weekly percentages of the last API
+  response. Set `qm --statusline` as the `statusLine` command and it saves that
+  per profile and prints the usual one-line summary; every other `qm` then
+  reads it. It carries only those two bars, so it is laid over the last
+  endpoint reading instead of replacing it, and a bar that comes from the
+  older reading shows its own age (`leída hace 2h`; `medidoEn` per window in
+  `--json`). Already have a statusline script? `echo "$input" | qm --statusline`.
+- **An account with no stored quota now says how to get one** — set up
+  `qm --statusline`, or run `qm --refrescar` — instead of "use it once".
+
 - **`qm --desglose`: where the quota went, not just how much is left.** It
   reads the same transcripts as the local-usage line and breaks the last
   7 days (`--dias=N`) down per account: cost by token class, by prompt size,

@@ -261,6 +261,7 @@ footer a{color:var(--medio)}
     <tr><td>qm</td><td>Cuota y consumo de cada perfil. Sin red y sin credencial: la cuota sale de la que Claude Code ya dejó en <code>.claude.json</code>.</td></tr>
     <tr><td>--refrescar</td><td>Además le pide el número al endpoint. Necesita un token vigente.</td></tr>
     <tr><td>--json</td><td>La misma información como JSON, para scripts y statuslines. Es un contrato: ver más abajo.</td></tr>
+    <tr><td>--statusline</td><td>El renglón de <code>--breve</code>, para el <code>statusLine</code> de Claude Code. Además lee lo que Claude Code le pasa por stdin y guarda la cuota de sesión y semanal de la última respuesta: un número fresco sin red ni credencial.</td></tr>
     <tr><td>--breve</td><td>Un renglón y nada más. No lee transcripciones, así que tarda ~85 ms en vez de un segundo. Es lo que va en una statusline.</td></tr>
     <tr><td>--watch [seg]</td><td>Se redibuja cada N segundos. Mínimo 30, por defecto 60.</td></tr>
     <tr><td>--dias=N</td><td>Ventana del consumo local. Por defecto 7.</td></tr>
@@ -452,7 +453,7 @@ personal 23/75%<span class="w">!</span> · teams 9/42% · codex 49/59%</pre>
 
   <h3>La statusline, en el <code>settings.json</code> del perfil</h3>
   <pre class="pre-mas">{
-  "statusLine": { "type": "command", "command": "qm --breve" }
+  "statusLine": { "type": "command", "command": "qm --statusline" }
 }</pre>
   <p style="margin-top:18px">
     Ojo con lo que <b>no</b> hace: el cache se refresca cuando ese perfil corre

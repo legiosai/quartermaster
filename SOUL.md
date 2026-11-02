@@ -98,6 +98,14 @@ stops measuring what the tool does.
   a profile whose token expired — the exact state the motivating monitor died
   in. A path that needs a live token is a path that can go silent, so it is the
   refresher, never the only way to a number.
+
+  That source thinned out: by Claude Code 2.1.316 (2026-11-01) the cache is
+  written from `/usage` and not on every use, and the two profiles in daily use
+  here had none. The rule did not change, the place did. The number that needs
+  no permission now arrives on stdin: Claude Code passes `rate_limits` to the
+  statusline command on every redraw, and `qm --statusline` keeps it. A source
+  of truth that belongs to another program can move without notice — which is
+  why there are three, and why each reading carries its age.
 - **Read every bar the server sends, not the two with famous names.** On the
   account this was measured on, `five_hour` said 8 % and `seven_day` said 59 %
   while the bar actually about to stop the account was a `weekly_scoped` one at

@@ -44,6 +44,7 @@ import {
   ultimaActividadAntigravity,
 } from '../adapters/antigravity.ts';
 import { endpointEnCache, frenadoHasta, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
+import { guardarStatusline, leerStdin, perfilDeLaStatusline, statuslineEnCache, superponer } from '../adapters/statusline.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import * as entorno from '../adapters/entorno.ts';
 import { cuentaPedida, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
@@ -100,6 +101,8 @@ interface Opciones {
   umbral: number | null;
   redactado: boolean;
   breve: boolean;
+  /** Además de --breve: leer de stdin lo que Claude Code le pasa a la statusline. */
+  statusline: boolean;
   codex: boolean;
   antigravity: boolean;
   desglose: boolean;
@@ -144,6 +147,9 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --redactado      con --json, saca mails y rutas de casa: para comitear
   qm --breve          un renglón y nada más. No lee transcripciones, así que
                       tarda milisegundos: es lo que va en una statusline
+  qm --statusline     lo mismo que --breve, para el statusLine de Claude Code:
+                      lee lo que Claude Code le pasa por stdin y guarda la
+                      cuota de la última respuesta. Sin red ni credencial
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
@@ -176,6 +182,7 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     umbral: null,
     redactado: false,
     breve: false,
+    statusline: false,
     codex: true,
     antigravity: true,
     desglose: false,
@@ -185,6 +192,10 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     if (a === '--json') o.json = true;
     else if (a === '--redactado') o.redactado = true;
     else if (a === '--breve') o.breve = true;
+    else if (a === '--statusline') {
+      o.breve = true;
+      o.statusline = true;
+    }
     else if (a === '--desglose') o.desglose = true;
     else if (a === '--sin-codex') o.codex = false;
     else if (a === '--sin-antigravity') o.antigravity = false;
@@ -593,12 +604,15 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
       // El cache primero: es gratis y no necesita credencial. Se toma la más
       // nueva entre la que dejó Claude Code y la que dejamos nosotros la última
       // vez que se consultó el endpoint.
-      let cuota = masNueva(cuotaEnCache(perfil), endpointEnCache(perfil.nombre));
+      // Encima, lo que dejó la statusline: la sesión y la semanal de la última
+      // respuesta, barra por barra y sin tapar las que sólo sabe el endpoint.
+      const sensor = statuslineEnCache(perfil.nombre);
+      let cuota = superponer(masNueva(cuotaEnCache(perfil), endpointEnCache(perfil.nombre)), sensor);
       let notaRefresco: string | null = null;
       if (o.refrescar) {
         const fresca = await consultarCuota(perfil);
         if (fresca.estado === 'ok') {
-          cuota = fresca;
+          cuota = superponer(fresca, sensor);
           guardarEndpoint(perfil.nombre, fresca);
         } else notaRefresco = frase(fresca, perfil.directorio);
       }
@@ -611,7 +625,10 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
         const lecturas: Lectura[] = cuota.ventanas.map((v) => ({
           perfil: perfil.nombre,
           barra: claveBarra(v.clave, v.alcance),
-          medidoEn: cuota.medidoEn,
+          // Cada barra con SU instante: una que vino de una lectura anterior,
+          // anotada con la hora de la statusline, metería en la serie un
+          // número viejo como si fuera de ahora y aplanaría el ritmo.
+          medidoEn: v.medidaEn ?? cuota.medidoEn,
           porcentaje: v.porcentaje,
         }));
         try {
@@ -767,12 +784,14 @@ function pintarVentana(v: VentanaCuota, marca: boolean): void {
   // severidad, y el pie dice «reinició hace» en vez de «reinicia en vencido».
   const vencida = vencidaVentana(v);
   const resta = v.reinicia ? tenue(` ${reinicio(v.reinicia.getTime() - Date.now())}`) : '';
+  // La edad propia de una barra más vieja que el resto de su cuenta.
+  const edad = v.medidaEn === undefined ? '' : tenue(` · leída hace ${duracion(Date.now() - v.medidaEn.getTime())}`);
   const aviso = !vencida && v.severidad !== 'normal' ? ` ${amarillo(v.severidad)}` : '';
   const flecha = marca ? negrita('▸ ') : '  ';
   const medidor = vencida
     ? `${tenue(barraSinColor(v.porcentaje / 100))} ${tenue(pct)}`
     : `${barra(v.porcentaje / 100)} ${colorPct(v.porcentaje)(pct)}`;
-  console.log(`  ${relleno('', 17)}${flecha}${relleno(nombreVentana(v), 24)} ${medidor}${aviso}${resta}`);
+  console.log(`  ${relleno('', 17)}${flecha}${relleno(nombreVentana(v), 24)} ${medidor}${aviso}${resta}${edad}`);
 }
 
 /**
@@ -894,7 +913,7 @@ function pintarBreve(filas: readonly FilaPerfil[], o: Opciones): void {
     if (f.cuota.estado !== 'ok') continue;
     const v = peor(paraMostrar(f.cuota.ventanas));
     if (v === null) continue;
-    const viejo = Date.now() - f.cuota.medidoEn.getTime() > 6 * 3600_000 ? '~' : '';
+    const viejo = Date.now() - (v.medidaEn ?? f.cuota.medidoEn).getTime() > 6 * 3600_000 ? '~' : '';
     // El «!» ya no es sólo severidad: también avisa que a este ritmo tocás el
     // techo antes de que la ventana se reinicie, que es lo que duele.
     const chocas = f.proyeccion?.estado === 'sube' && f.proyeccion.chocas;
@@ -944,6 +963,9 @@ function ventanaJson(v: VentanaCuota): Record<string, unknown> {
     severidad: v.severidad,
     activa: v.activa,
     reinicia: v.reinicia?.toISOString() ?? null,
+    // null es «la misma que la cuenta». Sólo trae fecha la barra que vino de
+    // una lectura anterior a la que dice `medidoEn` de la cuota.
+    medidoEn: v.medidaEn?.toISOString() ?? null,
     nombre: nombreVentana(v),
     preocupa: esPreocupante(v),
     // Campo agregado, no reemplazo: `porcentaje` sigue siendo el último número
@@ -1419,6 +1441,19 @@ if (opciones.desglose) {
       configEfectiva(),
     ),
   );
+}
+
+// --statusline: lo que Claude Code mandó por stdin se guarda ANTES de medir,
+// así este mismo renglón ya sale con la cuota de la última respuesta.
+if (opciones.statusline) {
+  const crudo = await leerStdin();
+  if (crudo.trim() !== '') {
+    try {
+      guardarStatusline(perfilDeLaStatusline(), JSON.parse(crudo));
+    } catch {
+      // Una entrada que no es JSON no es motivo para no dibujar la línea.
+    }
+  }
 }
 
 const unaVuelta = async (): Promise<number> => {
