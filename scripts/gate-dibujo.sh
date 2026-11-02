@@ -159,4 +159,9 @@ python3 scripts/gate-corta.py || fallar "una cuenta sin sesión queda sin númer
 #     la edad de la cuenta presenta un 44 % de hace media hora como de ahora.
 python3 scripts/gate-edades.py || fallar "una barra de una lectura vieja se dibuja sin su edad"
 
+# 8 · que los avisos del escritorio se vayan solos, también el grave. Con
+#     urgencia `critical` GNOME lo deja clavado hasta que lo cerrás, y un aviso
+#     que tapa la pantalla durante horas se cierra sin leer.
+python3 scripts/gate-avisos.py || fallar "un aviso del escritorio se queda en pantalla hasta que lo cerrás"
+
 echo "gate de dibujo: verde"
