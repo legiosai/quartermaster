@@ -39,10 +39,14 @@ rem -- dist\ si esta, src\ si no ------------------------------------------
 rem No es una optimizacion: Node se NIEGA a hacer type stripping de archivos
 rem bajo node_modules, y un `npm install -g` deja el paquete justo ahi. Solo el
 rem tarball de npm lleva dist\; un clone y el instalador leen el TypeScript.
+rem El aviso de SQLite experimental no es de qm ni para quien lo corre: bin/qm
+rem lo apaga igual. Antes no se veia porque qm salia antes de que Node lo
+rem escribiera (en Windows un pipe es asincronico); desde que qm espera a
+rem vaciar stdout y stderr, llega, y PowerShell lo toma como un error.
 if exist "%RAIZ%\dist\cli\qm.js" (
-  "%NODO%" "%RAIZ%\dist\cli\qm.js" %*
+  "%NODO%" --disable-warning=ExperimentalWarning "%RAIZ%\dist\cli\qm.js" %*
 ) else (
-  "%NODO%" "%RAIZ%\src\cli\qm.ts" %*
+  "%NODO%" --disable-warning=ExperimentalWarning "%RAIZ%\src\cli\qm.ts" %*
 )
 set "CODIGO=%ERRORLEVEL%"
 
