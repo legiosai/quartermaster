@@ -34,6 +34,32 @@ out unless they changed what you see.
 - **An account with no stored quota now says how to get one** — set up
   `qm --statusline`, or run `qm --refrescar` — instead of "use it once".
 
+- **`qm --mejor`: start in the profile with room.** It prints the directory of
+  the Claude profile with the most headroom right now: the lowest binding bar
+  first, a projection that hits 100 % before the reset counts against it, and
+  the emptier session breaks ties. A window that already reset is unknown, not
+  0 %. `qm --mejor -- claude` launches there — and launches the default profile
+  *without* `CLAUDE_CONFIG_DIR`, because with the variable set Claude Code reads
+  a different `.claude.json` and, on macOS, skips the keychain. `--json` shows
+  the ranking and why. Disk only.
+- **`qm --aviso`: a warning inside Claude Code before the wall.** As a
+  `UserPromptSubmit` hook it shows you (not the model) a message when the
+  binding bar crosses 90 % (`--umbral=N`), 95 or 100, or when the projection
+  hits 100 % before the reset within 30 minutes, and names a profile with more
+  room and how to start it. Once per step and window; it never blocks the
+  prompt and always exits 0. Disk only.
+- **`qm --desglose` now says what to do, not just where it went.** Each account
+  opens with a short «qué hacer» block: at most three tips, each stating the
+  measured number it rests on and ranked by how much of the weighted cost it
+  explains — prompts of 400k or more (`/compact` or `/clear` sooner; `/new` on
+  Codex), cache rewritten after a pause, an agent type that costs per request
+  as much as the main thread when a cheaper one is in common use (a `fork`
+  carries the whole conversation), and a few sessions taking most of the week.
+  A tip appears only when its number crosses a threshold, so an account with
+  nothing to fix gets no generic advice. There is deliberately no "use fewer
+  subagents" tip: measured, a subagent request costs less than a main-thread
+  one. `--json` adds `consejos` (`clave`, `parte`, `frase`) and `sesionesTotal`
+  per account, and the thresholds in `umbrales.consejos`.
 - **The statusline also says what the next prompt will cost.** `qm
   --statusline` now starts with the session's context size and how long its
   prompt cache stays warm — `ctx 182k · caché 12m · main 31/44%` — read from
@@ -76,6 +102,14 @@ out unless they changed what you see.
 
 ### Fixed
 
+- **`qm --json` came out cut off when read through a pipe, and the panels went
+  blank.** Linux gives each new pipe 64 KB, but only 8 KB once a user already
+  has many open (`fs.pipe-user-pages-soft`) — a session with a lot of terminals
+  and agents gets there. `qm` wrote the first 8 KB and exited before the rest:
+  16.6 KB of JSON arrived as 8 KB, and the GNOME indicator logged «qm no
+  devolvió JSON» several times an hour. Every exit now waits for stdout and
+  stderr to drain. A test shrinks the pipe to 4 KB on purpose so it fails
+  without the fix.
 - **A bar scoped to a surface lost its name.** The usage endpoint describes a
   bar's scope as a model *or a surface*, each with a display name; the surface
   one was read as plain text, so it never matched and the bar showed only its

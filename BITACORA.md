@@ -2388,6 +2388,25 @@ manda sesión).
 tres por el texto— y va adentro de `gate-dibujo.sh`; `make gate-dibujo-rojo`
 suma sus dos rojos: el pie sin edad propia y el «viejo» midiendo la cuenta.
 
+### El JSON salía cortado por un pipe chico (2026-11-01)
+
+`qm --json | wc -c` daba 8192; redirigido a un archivo, 16 629. Y el journal
+del indicador de GNOME tenía «qm no devolvió JSON» varias veces por hora, que
+se veía como un panel en blanco de vez en cuando.
+
+La causa no es de qm sino de la combinación. Linux le da a cada pipe nuevo
+64 KB, salvo cuando el usuario ya tiene demasiados abiertos
+(`fs.pipe-user-pages-soft`, 16384 páginas): desde ahí cada pipe nuevo recibe
+dos páginas, 8 KB. Una sesión con muchas terminales y agentes llega. Node
+escribe lo que entra, encola el resto, y el `process.exit()` de la línea
+siguiente lo tira sin esperar. La 0.1.20 instalada hacía lo mismo.
+
+Ahora todas las salidas pasan por `salir()`, que escribe un pedazo vacío y
+espera su callback —un stream escribe en orden, así que cuando vuelve ya salió
+todo lo anterior— y recién ahí sale. `test/salida.test.ts` achica el pipe a
+4 KB con `F_SETPIPE_SZ` desde el lector, para que el corte pase en cualquier
+máquina y no sólo en una cargada: sin el arreglo da 4096 de 16 469.
+
 ## El build, y por qué es opcional
 
 El repo lee el TypeScript directo: no hay paso de build y `make instalar`, el

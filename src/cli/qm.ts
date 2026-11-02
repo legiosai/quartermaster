@@ -1369,15 +1369,15 @@ function diagnostico(): string {
 // parser de abajo rechazaría. Sólo cuenta lo que está antes del `--`.
 {
   const antesDelCorte = ((c) => (c < 0 ? process.argv : process.argv.slice(0, c)))(process.argv.indexOf('--')).slice(2);
-  if (antesDelCorte.includes('--mejor')) process.exit(correrMejor(configEfectiva(), process.argv.slice(2)));
-  if (antesDelCorte.includes('--aviso')) process.exit(await correrAviso(configEfectiva(), process.argv.slice(2)));
+  if (antesDelCorte.includes('--mejor')) await salir(correrMejor(configEfectiva(), process.argv.slice(2)));
+  if (antesDelCorte.includes('--aviso')) await salir(await correrAviso(configEfectiva(), process.argv.slice(2)));
 }
 
 // --diagnostico sale primero: tiene que contestar incluso cuando lo demás está
 // roto. Es lo único que se le pide a alguien que reporta un bug.
 if (process.argv.includes('--diagnostico')) {
   process.stdout.write(diagnostico());
-  process.exit(0);
+  await salir(0);
 }
 
 // --calentar sale antes que nada: es lo que corre el item de la barra en su
@@ -1450,7 +1450,7 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
   const codigo = c.cuota.estado === 'ok' || bien ? 0 : 1;
   if (codigo !== 0 && fallas.length === 0) fallas.push('no hay ninguna cuenta a la que preguntarle');
   for (const f of fallas) console.error(`calentar · ${f}`);
-  process.exit(codigo);
+  await salir(codigo);
 }
 
 /**
@@ -1474,7 +1474,7 @@ if (process.argv.includes('--esperar')) {
     const filas = (await medir(opts)).filter((f) => cuenta === null || f.perfil.nombre.includes(cuenta));
     if (filas.length === 0) {
       console.error(cuenta === null ? 'no hay ninguna cuenta' : `no encontré la cuenta "${cuenta}"`);
-      process.exit(2);
+      await salir(2);
     }
     // Las dormidas no hacen esperar a nadie. Si `--cuenta=` dejó SÓLO dormidas,
     // se las mira igual: pediste esa cuenta y esperar por ella es lo que
@@ -1494,7 +1494,7 @@ if (process.argv.includes('--esperar')) {
     }
     if (peorPct < umbral) {
       console.log(`libre: la barra que más apremia va ${peorPct} % (umbral ${umbral} %)`);
-      process.exit(0);
+      await salir(0);
     }
     // Dormir hasta el reinicio, no sondear a ciegas.
     const faltan = cuando === null ? 60_000 : Math.max(60_000, cuando.getTime() - Date.now() + 5_000);
@@ -1506,18 +1506,46 @@ if (process.argv.includes('--esperar')) {
   }
 }
 
-const opciones = parsearArgs(process.argv.slice(2));
-if (typeof opciones === 'string') {
-  console.log(opciones);
+/**
+ * Sale cuando stdout y stderr ya escribieron todo.
+ *
+ * `process.exit()` no espera lo que quedó pendiente en un pipe. Linux le da a
+ * cada pipe nuevo 64 KB, salvo cuando el usuario ya tiene demasiados abiertos
+ * (`fs.pipe-user-pages-soft`): desde ahí cada pipe nuevo recibe dos páginas,
+ * 8 KB. Node escribe esos 8 KB, encola el resto, y un `process.exit()` en la
+ * línea siguiente lo tira. Medido el 2026-11-01 en una sesión con muchas
+ * terminales y agentes abiertos: `qm --json | wc -c` daba 8192 de 16 629 bytes,
+ * redirigido a un archivo salía entero, y el indicador de GNOME anotaba «qm no
+ * devolvió JSON» varias veces por hora — un panel en blanco por un JSON cortado.
+ *
+ * Escribir un pedazo vacío y esperar su callback alcanza: un stream escribe en
+ * orden, así que cuando vuelve ese callback ya salió todo lo anterior.
+ */
+async function salir(codigo: number): Promise<never> {
+  const vaciar = (s: NodeJS.WriteStream): Promise<void> =>
+    new Promise((listo) => {
+      if (s.destroyed || !s.writable) listo();
+      else s.write('', () => listo());
+    });
+  await Promise.all([vaciar(process.stdout), vaciar(process.stderr)]);
+  process.exit(codigo);
+}
+
+const leidas = parsearArgs(process.argv.slice(2));
+if (typeof leidas === 'string') {
+  console.log(leidas);
   // La ayuda y la versión son respuestas, no errores: salen 0. Lo único que
   // sale 2 es una opción que no existe.
-  process.exit(opciones === AYUDA || opciones.startsWith('quartermaster ') ? 0 : 2);
+  await salir(leidas === AYUDA || leidas.startsWith('quartermaster ') ? 0 : 2);
 }
+// `salir()` no vuelve, pero TypeScript no estrecha el tipo después de un
+// `await`: de acá para abajo `leidas` ya no puede ser el texto.
+const opciones = leidas as Opciones;
 
 // --desglose es otro informe, no otra forma de dibujar el mismo: no mira la
 // cuota, así que sale antes de todo lo que la pide, y nunca toca la red.
 if (opciones.desglose) {
-  process.exit(
+  await salir(
     correrDesglose(
       { dias: opciones.dias, json: opciones.json, redactado: opciones.redactado, codex: opciones.codex, version: VERSION },
       configEfectiva(),
@@ -1566,7 +1594,7 @@ if (opciones.watch === null) {
   // acaba de instalar y corre `qm` a secas. Ver src/adapters/barra.ts.
   const modoNormal = !opciones.json && !opciones.breve && opciones.umbral === null;
   await ofrecerBarra(fileURLToPath(new URL('../..', import.meta.url)), modoNormal);
-  process.exit(codigo);
+  await salir(codigo);
 }
 
 // --watch: se redibuja hasta que lo maten. Se limpia la pantalla sólo si hay
