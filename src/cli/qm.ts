@@ -174,9 +174,6 @@ const ayuda = (): string =>
                       cuota de la última respuesta (sin red ni credencial) y
                       antepone el contexto y cuánto le queda al cache
   qm --todas          las cuentas dormidas también enteras, no un renglón al pie
-  qm --idioma=es|en   el idioma de esta corrida. Por defecto sale del locale
-                      (LANG); QM_IDIOMA hace lo mismo para siempre. El JSON
-                      queda en castellano salvo que se pida otro a propósito
   qm --mejor          el directorio del perfil de Claude con más margen ahora.
                       Para arrancar ahí: qm --mejor -- claude (el perfil por
                       defecto se arranca SIN CLAUDE_CONFIG_DIR, y $(…) no puede
@@ -186,6 +183,9 @@ const ayuda = (): string =>
                       ritmo chocás en menos de 30 minutos, y a qué perfil
                       pasarte. Una vez por escalón y por ventana; nunca frena
                       el prompt
+  qm --idioma=es|en   el idioma de esta corrida. Por defecto sale del locale
+                      (LANG); QM_IDIOMA hace lo mismo para siempre. El JSON
+                      queda en castellano salvo que se pida otro a propósito
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
