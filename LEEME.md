@@ -128,6 +128,8 @@ qm --refrescar      # además le pregunta al endpoint (necesita token vigente)
 qm --watch 60       # se redibuja cada N segundos
 qm --umbral=80      # sale 3 si alguna barra pasa el N %
 qm --esperar        # no vuelve hasta que baje:  qm --esperar && codex ...
+qm --mejor -- claude  # arranca claude en el perfil con más margen
+qm --aviso          # hook de UserPromptSubmit: avisa adentro de Claude Code
 qm --desglose       # en qué se fue la cuota de la semana — sólo disco, nunca red
 ```
 
@@ -157,6 +159,51 @@ personal 23/75%! · teams 9/42% · codex 49/59%
 **Dos números por cuenta a propósito**: el primero es la sesión y el segundo la
 barra que te frena antes. Contestan preguntas distintas —«¿puedo seguir ahora?»
 y «¿llego al final de la semana?»— y una sola de las dos es media respuesta.
+
+## Antes de la pared
+
+**`qm --mejor`** elige el perfil de Claude con más margen ahora: la barra que
+frena más baja; una proyección que llega al 100 % antes del reinicio le juega
+en contra; a igual margen, la sesión más vacía. Una ventana cuyo reinicio ya
+pasó es *desconocida*, no 0 %. Los perfiles sin sesión o sin número guardado
+quedan afuera.
+
+```sh
+qm --mejor -- claude        # arranca claude ahí
+qm --mejor                  # sólo el directorio, para scripts
+qm --mejor --json           # el orden entero, y por qué
+```
+
+Para arrancar, la forma con `--`. `CLAUDE_CONFIG_DIR=$(qm --mejor) claude` está
+mal para el perfil por defecto: con la variable puesta —aunque apunte a
+`~/.claude`— Claude Code lee `~/.claude/.claude.json` en vez de
+`~/.claude.json`, y en macOS deja de mirar el llavero: es otro perfil, sin
+sesión. `qm --mejor -- …` saca la variable para el perfil por defecto.
+
+**`qm --aviso`** es un hook que te avisa *adentro* de Claude Code, que es donde
+estás mirando, antes de que la barra te frene. En el `settings.json` del perfil:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "qm --aviso" }] }
+    ]
+  }
+}
+```
+
+```
+qm · main: iguana_necktie al 92 % · se reinicia en 3d7h. teams tiene 94 % libre: CLAUDE_CONFIG_DIR=~/.claude-teams claude
+```
+
+Habla cuando la barra que frena pasa el 90 % (`--umbral=N`), otra vez en 95 y
+en 100, y cuando la proyección dice que llegás al 100 % antes del reinicio en
+menos de 30 minutos: una vez por escalón y por ventana, así que no se repite en
+cada prompt. El mensaje va en `systemMessage`, que Claude Code te muestra a vos
+y no al modelo; nunca frena el prompt y siempre sale 0. Sólo disco, como
+`--breve`: lee lo que dejaron `qm --statusline` y la barra, así que necesita que
+alguno de los dos tenga un número.
 
 ## ¿En qué se fue?
 
