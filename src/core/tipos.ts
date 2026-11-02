@@ -270,8 +270,17 @@ export function sinNombre(v: VentanaCuota): boolean {
  * hay que buscar si alguien quiere saber qué es.
  */
 export function nombreVentana(v: VentanaCuota): string {
+  return sinNombre(v) ? tr(`otro límite (${v.clave})`, `other limit (${v.clave})`) : claveVentana(v);
+}
+
+/**
+ * El nombre de una ventana como parte de una clave guardada (los avisos que ya
+ * sonaron): siempre en castellano, para que cambiar de idioma no la cambie y
+ * vuelva a sonar un aviso que ya se dio.
+ */
+export function claveVentana(v: VentanaCuota): string {
   if (v.alcance !== null) return `${v.clave} (${v.alcance})`;
-  return sinNombre(v) ? tr(`otro límite (${v.clave})`, `other limit (${v.clave})`) : v.clave;
+  return sinNombre(v) ? `otro límite (${v.clave})` : v.clave;
 }
 
 /** La frase que se le muestra al usuario para cada estado. Nunca vacía. */

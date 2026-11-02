@@ -20,7 +20,6 @@ import { correrDesglose } from './desglose.ts';
 import { descubrirPerfiles, planParaMostrar } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
 import { consumoDesde, transcripciones, ultimaActividad } from '../adapters/transcripciones.ts';
-import { cuotaEnCache } from '../adapters/cache-cuota.ts';
 import { anotar, claveBarra, muestras, type Lectura } from '../adapters/historial.ts';
 import { proyectar, VENTANA_AJUSTE_MS, type Proyeccion } from '../core/proyeccion.ts';
 import { frasePresupuesto, presupuestoDiario, type Presupuesto } from '../core/presupuesto.ts';
@@ -45,6 +44,9 @@ import {
 } from '../adapters/antigravity.ts';
 import { endpointEnCache, frenadoHasta, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import { guardarStatusline, leerStdin, perfilDeLaStatusline, sesionDeStatusline, statuslineEnCache, superponer } from '../adapters/statusline.ts';
+import { cuotaGuardada } from '../adapters/cuota-guardada.ts';
+import { correrMejor } from './mejor.ts';
+import { correrAviso } from './aviso.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import { idiomaPedido, tr } from '../core/idioma.ts';
 import * as entorno from '../adapters/entorno.ts';
@@ -175,6 +177,15 @@ const ayuda = (): string =>
   qm --idioma=es|en   el idioma de esta corrida. Por defecto sale del locale
                       (LANG); QM_IDIOMA hace lo mismo para siempre. El JSON
                       queda en castellano salvo que se pida otro a propósito
+  qm --mejor          el directorio del perfil de Claude con más margen ahora.
+                      Para arrancar ahí: qm --mejor -- claude (el perfil por
+                      defecto se arranca SIN CLAUDE_CONFIG_DIR, y $(…) no puede
+                      sacarla). --json da el orden entero y por qué
+  qm --aviso          hook de UserPromptSubmit: avisa en Claude Code cuando la
+                      barra que frena pasa el 90 % (--umbral=N) o cuando a este
+                      ritmo chocás en menos de 30 minutos, y a qué perfil
+                      pasarte. Una vez por escalón y por ventana; nunca frena
+                      el prompt
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
@@ -216,6 +227,16 @@ resto de los perfiles — la cuota igual se lee, porque sale del disco.`,
                       last response (no network, no credential) and puts the
                       context size and the time left on the prompt cache first
   qm --todas          dormant accounts in full, not one line each at the bottom
+  qm --mejor          the directory of the Claude profile with the most room
+                      right now. To start there: qm --mejor -- claude (the
+                      default profile is started WITHOUT CLAUDE_CONFIG_DIR,
+                      and $(…) can't unset it). --json gives the full order
+                      and why
+  qm --aviso          UserPromptSubmit hook: warns inside Claude Code when the
+                      bar that stops you passes 90 % (--umbral=N) or when at
+                      this pace you hit it in under 30 minutes, and which
+                      profile to switch to. Once per step and per window; it
+                      never blocks the prompt
   qm --idioma=es|en   the language for this run. By default it comes from the
                       locale (LANG); QM_IDIOMA does the same for good. JSON
                       stays in Spanish unless another language is asked for
@@ -697,8 +718,9 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
       // vez que se consultó el endpoint.
       // Encima, lo que dejó la statusline: la sesión y la semanal de la última
       // respuesta, barra por barra y sin tapar las que sólo sabe el endpoint.
+      // La regla vive en cuotaGuardada(): la usan también --mejor y --aviso.
       const sensor = statuslineEnCache(perfil.nombre);
-      let cuota = superponer(masNueva(cuotaEnCache(perfil), endpointEnCache(perfil.nombre)), sensor);
+      let cuota = cuotaGuardada(perfil);
       let notaRefresco: string | null = null;
       if (o.refrescar) {
         const fresca = await consultarCuota(perfil);
@@ -1478,11 +1500,20 @@ function diagnostico(): string {
   return `${l.join('\n')}\n`;
 }
 
+// --mejor y --aviso salen antes que todo: tienen sus propias banderas y, en
+// --mejor, un `--` después del cual viene el comando de otro programa, que el
+// parser de abajo rechazaría. Sólo cuenta lo que está antes del `--`.
+{
+  const antesDelCorte = ((c) => (c < 0 ? process.argv : process.argv.slice(0, c)))(process.argv.indexOf('--')).slice(2);
+  if (antesDelCorte.includes('--mejor')) await salir(correrMejor(configEfectiva(), process.argv.slice(2)));
+  if (antesDelCorte.includes('--aviso')) await salir(await correrAviso(configEfectiva(), process.argv.slice(2)));
+}
+
 // --diagnostico sale primero: tiene que contestar incluso cuando lo demás está
 // roto. Es lo único que se le pide a alguien que reporta un bug.
 if (process.argv.includes('--diagnostico')) {
   process.stdout.write(diagnostico());
-  process.exit(0);
+  await salir(0);
 }
 
 // --calentar sale antes que nada: es lo que corre el item de la barra en su
@@ -1558,7 +1589,7 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
   const codigo = c.cuota.estado === 'ok' || bien ? 0 : 1;
   if (codigo !== 0 && fallas.length === 0) fallas.push(tr('no hay ninguna cuenta a la que preguntarle', 'there is no account to ask'));
   for (const f of fallas) console.error(`calentar · ${f}`);
-  process.exit(codigo);
+  await salir(codigo);
 }
 
 /**
@@ -1584,7 +1615,7 @@ if (process.argv.includes('--esperar')) {
       console.error(cuenta === null
         ? tr('no hay ninguna cuenta', 'there are no accounts')
         : tr(`no encontré la cuenta "${cuenta}"`, `couldn't find the account "${cuenta}"`));
-      process.exit(2);
+      await salir(2);
     }
     // Las dormidas no hacen esperar a nadie. Si `--cuenta=` dejó SÓLO dormidas,
     // se las mira igual: pediste esa cuenta y esperar por ella es lo que
@@ -1607,7 +1638,7 @@ if (process.argv.includes('--esperar')) {
         `libre: la barra que más apremia va ${peorPct} % (umbral ${umbral} %)`,
         `free: the most pressing bar is at ${peorPct} % (threshold ${umbral} %)`,
       ));
-      process.exit(0);
+      await salir(0);
     }
     // Dormir hasta el reinicio, no sondear a ciegas.
     const faltan = cuando === null ? 60_000 : Math.max(60_000, cuando.getTime() - Date.now() + 5_000);
@@ -1619,18 +1650,46 @@ if (process.argv.includes('--esperar')) {
   }
 }
 
-const opciones = parsearArgs(process.argv.slice(2));
-if (typeof opciones === 'string') {
-  console.log(opciones);
+/**
+ * Sale cuando stdout y stderr ya escribieron todo.
+ *
+ * `process.exit()` no espera lo que quedó pendiente en un pipe. Linux le da a
+ * cada pipe nuevo 64 KB, salvo cuando el usuario ya tiene demasiados abiertos
+ * (`fs.pipe-user-pages-soft`): desde ahí cada pipe nuevo recibe dos páginas,
+ * 8 KB. Node escribe esos 8 KB, encola el resto, y un `process.exit()` en la
+ * línea siguiente lo tira. Medido el 2026-11-01 en una sesión con muchas
+ * terminales y agentes abiertos: `qm --json | wc -c` daba 8192 de 16 629 bytes,
+ * redirigido a un archivo salía entero, y el indicador de GNOME anotaba «qm no
+ * devolvió JSON» varias veces por hora — un panel en blanco por un JSON cortado.
+ *
+ * Escribir un pedazo vacío y esperar su callback alcanza: un stream escribe en
+ * orden, así que cuando vuelve ese callback ya salió todo lo anterior.
+ */
+async function salir(codigo: number): Promise<never> {
+  const vaciar = (s: NodeJS.WriteStream): Promise<void> =>
+    new Promise((listo) => {
+      if (s.destroyed || !s.writable) listo();
+      else s.write('', () => listo());
+    });
+  await Promise.all([vaciar(process.stdout), vaciar(process.stderr)]);
+  process.exit(codigo);
+}
+
+const leidas = parsearArgs(process.argv.slice(2));
+if (typeof leidas === 'string') {
+  console.log(leidas);
   // La ayuda y la versión son respuestas, no errores: salen 0. Lo único que
   // sale 2 es una opción que no existe.
-  process.exit(opciones === ayuda() || opciones.startsWith('quartermaster ') ? 0 : 2);
+  await salir(leidas === ayuda() || leidas.startsWith('quartermaster ') ? 0 : 2);
 }
+// `salir()` no vuelve, pero TypeScript no estrecha el tipo después de un
+// `await`: de acá para abajo `leidas` ya no puede ser el texto.
+const opciones = leidas as Opciones;
 
 // --desglose es otro informe, no otra forma de dibujar el mismo: no mira la
 // cuota, así que sale antes de todo lo que la pide, y nunca toca la red.
 if (opciones.desglose) {
-  process.exit(
+  await salir(
     correrDesglose(
       { dias: opciones.dias, json: opciones.json, redactado: opciones.redactado, codex: opciones.codex, version: VERSION },
       configEfectiva(),
@@ -1682,7 +1741,7 @@ if (opciones.watch === null) {
   // acaba de instalar y corre `qm` a secas. Ver src/adapters/barra.ts.
   const modoNormal = !opciones.json && !opciones.breve && opciones.umbral === null;
   await ofrecerBarra(fileURLToPath(new URL('../..', import.meta.url)), modoNormal);
-  process.exit(codigo);
+  await salir(codigo);
 }
 
 // --watch: se redibuja hasta que lo maten. Se limpia la pantalla sólo si hay

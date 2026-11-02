@@ -816,6 +816,68 @@ cinco pantallas —`qm`, el tablero, la barra de menú de macOS, el panel de GNO
 el de la bandeja de Windows—, leyendo el mismo campo `presupuesto` del JSON: acá
 tampoco divide nadie.
 
+## Antes de la pared: `--mejor` y `--aviso` (2026-11-01)
+
+Tener varios perfiles sólo sirve si podés arrancar en el que tiene lugar sin
+leer la tabla. `qm --mejor` contesta eso con un directorio, y `qm --aviso` lo
+dice adentro de Claude Code cuando el perfil en el que estás se está por llenar.
+Las dos leen sólo disco, con la misma regla que la terminal: `cuotaGuardada()`
+(src/adapters/cuota-guardada.ts) es ahora el único lugar que decide qué lectura
+gana, y `medir()` también la usa.
+
+**El orden** vive en src/core/eleccion.ts, puro. Primero el nivel —`libre`,
+`desconocida`, `choca`, `llena`—, después el margen de la barra que frena, la
+sesión más vacía y el nombre, para que dos corridas seguidas contesten lo mismo.
+La barra que frena se calcula **sólo con las vigentes**: `peor()` a secas no
+filtra vencidas, con razón (contesta cuál barra importa), pero para comparar
+cuentas el 80 % de una sesión que cerró anteayer no dice nada del lugar que hay
+ahora. Una cuenta con todas sus barras reiniciadas es `desconocida`, no 0 %.
+
+**Un token de acceso vencido no descarta.** El pedido original decía «afuera las
+de credencial vencida», y en esta máquina eso dejaba afuera a cualquier perfil
+que no se usó hoy: el token de acceso dura ~8 h (`vigente (7h35m)`,
+`vigente (4h01m)` el mismo día) y Claude Code lo renueva solo con el refresh
+token al arrancar. Afuera quedan los perfiles **sin sesión** y los sin número.
+
+**`CLAUDE_CONFIG_DIR=$(qm --mejor)` está mal para el perfil por defecto**, y no
+por qm. Leído en el binario de Claude Code 2.1.316: con la variable puesta lee
+`<dir>/.claude.json` en vez de `~/.claude.json`, y la credencial sale del
+llavero sólo cuando la variable NO está. Así que `CLAUDE_CONFIG_DIR=~/.claude
+claude` es otro perfil —en esta máquina, el `~/.claude/.claude.json` viejo de
+Max 5x que ya había confundido a `rutasConfig()`—, y en macOS uno sin sesión.
+Por eso existe `qm --mejor -- claude`: arranca el comando con la variable puesta,
+o **sacada** para el perfil por defecto. Mientras el hijo vive, este proceso
+ignora SIGINT y SIGQUIT: el Ctrl-C que Claude Code usa para interrumpir le llega
+a todo el grupo, y si matara al padre la shell recuperaría una terminal que
+Claude Code todavía está leyendo.
+
+**El contrato del hook**, del mismo binario. `UserPromptSubmit` recibe por stdin
+`{session_id, transcript_path, cwd, hook_event_name, prompt, source, …}` y puede
+devolver `{continue, suppressOutput, stopReason, decision, systemMessage,
+terminalSequence, reason, hookSpecificOutput}`. `systemMessage` es «Display a
+message to the user (all hooks)»; `hookSpecificOutput.additionalContext`, o el
+texto pelado en stdout, le llega al **modelo**. El aviso es para la persona: va
+sólo en `systemMessage`, con `suppressOutput`, nunca con `continue` ni
+`decision`, y el proceso sale 0 pase lo que pase.
+
+**No repetir es la mitad del aviso.** Las claves son las de la barra —perfil,
+barra, minuto del reinicio, escalón— y los escalones son el umbral (90 por
+defecto), 95 y 100. Cruzar uno más alto vuelve a sonar; quedarse arriba, no;
+cuando la ventana se reinicia la clave cambia sola. El choque proyectado suena
+aparte (`|choque`) si es dentro de 30 minutos. La memoria va en
+`avisos-claude-code.json` y **no** comparte `avisados.json`: que la barra haya
+mandado una notificación del escritorio no quiere decir que la viste. Se poda lo
+de ventanas que se reiniciaron hace más de ocho días.
+
+Medido sobre los perfiles de verdad (con la memoria del aviso en un directorio
+aparte): `--mejor` eligió `.claude-teams` (94 % libre contra el 56 % de `.claude`,
+cuya barra que frena es `iguana_necktie`) y descartó `.claude-bedrock` y
+`.claude-personal` por no tener sesión. `--aviso --umbral=40` dijo una vez
+`qm · main: iguana_necktie al 44 % · se reinicia en 3d7h. teams tiene 94 % libre:
+CLAUDE_CONFIG_DIR=~/.claude-teams claude` y en el prompt siguiente se calló.
+~110 ms por prompt desde el TypeScript; el caso de siempre —nada que decir— no
+lee ninguna credencial.
+
 ## En el navegador
 
 El indicador de GNOME es la respuesta para GNOME. `qm-web` es la misma idea
@@ -2110,6 +2172,64 @@ dibuja un CLI que hay que instalar aparte. Esa mitad es la que más devoluciones
 se come.
 
 
+## Del desglose a qué hacer (2026-11-01)
+
+`qm --desglose` contestaba en qué se fue la cuota con cinco tablas, y dejaba al
+que las mira la parte difícil: decidir qué cambiar. Ahora cada cuenta arranca
+con un bloque **qué hacer**: a lo sumo tres consejos, cada uno con el número
+medido adentro de la frase y ordenados por cuánto del costo ponderado explican.
+Salen de `consejos()` en `core/desglose.ts`, que sólo lee el `Desglose` ya
+calculado; la frase la arma `fraseConsejo()` en el render, porque los comandos
+dependen del producto (`/clear` en Claude Code, `/new` en Codex). El `--json`
+trae los mismos, con la misma frase, y los umbrales viajan en
+`umbrales.consejos`.
+
+Los umbrales se calibraron sobre 7, 14 y 30 días de las tres cuentas reales de
+esta máquina (dos perfiles de Claude Code y Codex):
+
+| consejo | qué mide | rango medido | umbral |
+|---|---|---|---|
+| `contexto-grande` | parte del costo en prompts de 400k o más | 2,3–38,6 % | 15 % |
+| `pausas` | cache reescrito después de un hueco de más de 5 min | 1,1–6,2 % | 3 % |
+| `subagente-caro` | un tipo que cuesta por request como el principal | fork 4,6–10,3 % | 5 % |
+| `sesiones` | las tres sesiones más caras (con 10 o más en la ventana) | 18,5–61,9 % | 40 % |
+| `salida` | parte del costo en salida | 9,3–18,8 % | 25 % |
+
+Con esos cortes, la semana del 2026-11-01 da: `.claude` un consejo (prompts
+grandes, 15,9 %), `.claude-teams` dos (fork 10,3 %, pausas 4,7 %), Codex uno
+(tres sesiones con el 61,9 %). A 30 días los prompts grandes pasan a 29 % y
+39 %, que es la tendencia que el consejo existe para cortar.
+
+**El consejo que no está, a propósito: «usá menos subagentes».** Era el primero
+de la lista y los números lo tiran. Ponderado igual, un request de
+general-purpose cuesta **menos** que uno del hilo principal (26,9k contra 35,8k
+en `.claude`; 25,5k contra 36,9k en teams): un subagente arranca con un
+contexto chico y el principal relee el suyo, que es grande. Que se lleven el
+25–37 % del costo dice cuántos se lanzan, no que sean caros, y «delegá menos»
+mandaría ese trabajo al hilo más caro. Lo que sí sostienen los números es más
+angosto: `fork` cuesta por request lo mismo que el principal (36,9k contra
+36,9k), porque arrastra la conversación entera, y para lo que no la necesita
+hay un reemplazo de uso común más barato. Ése es el consejo, y sólo aparece si
+existe ese reemplazo con 50 requests o más; el reemplazo es el más usado de los
+baratos y no el más barato, que suele ser Explore y sólo busca.
+
+**Las reconstrucciones «sin hueco» tampoco dan consejo.** Las causa un cambio
+de prompt, de herramientas, de modelo o una compactación, y el desglose no sabe
+cuál; un consejo que no puede decir qué hacer es una opinión. Después de una
+pausa la causa es una sola —se venció el cache— y el remedio depende de dónde
+pasó: en el hilo principal la pausa es tuya (`/clear` con un resumen antes de
+retomar); en un subagente, el hueco es lo que tardó una herramienta.
+
+**Y «las tres sesiones más caras» pide diez.** La primera versión lo disparaba
+siempre en una cuenta con tres sesiones: «se llevaron el 100 %» es aritmética,
+no un hallazgo. `sesionesTotal` (nuevo en el JSON) dice cuántas hubo.
+
+Un hueco que quedó a la vista y no es de este cambio: `qm --desglose` **se
+corta a los 8192 bytes cuando la salida va a un pipe** (`| jq`, `| less`):
+`qm.ts` hace `process.exit(correrDesglose(…))` justo después del
+`console.log`, y Node no terminó de escribir. A un archivo o a la terminal sale
+entero.
+
 ## En la statusline de Claude Code
 
 Es donde la herramienta cumple su misión: el número deja de ser algo que te
@@ -2302,17 +2422,52 @@ contra `tr()` del mismo idioma, que es el mismo texto que produjo el
 veredicto. Y la coma decimal: `5,8G` en inglés se lee como miles, así que
 `tokens()` pasa a `5.8G`.
 
-**Lo que quedó afuera a propósito:** `--desglose` (sus tres archivos se estaban
-cambiando en paralelo), los cuatro paneles, `preflight.ts` y `demo-h1.ts`
-(demos de desarrollo), y los comentarios, que siguen en castellano.
+**Lo que quedó afuera a propósito:** los cuatro paneles, `preflight.ts` y
+`demo-h1.ts` (demos de desarrollo), el `postinstall` de npm
+(`scripts/instalar-barra.mjs`), y los comentarios, que siguen en castellano.
+
+**`--desglose`, `--mejor` y `--aviso` llegaron después**, con 0.1.22 en
+paralelo, y se tradujeron al mergearla: el desglose entero con sus consejos, la
+línea de `--mejor` cuando no hay con qué comparar, y el `systemMessage` de
+`--aviso`, que sigue el locale como el resto porque el hook hereda el entorno de
+Claude Code. En el desglose inglés el día va con el mes en letras («Mon Oct
+20», «Oct 20 14:05» en la columna de inicio): «20/10» se lee al revés en medio
+mundo. `sin hueco` es la clave del dato en `core/desglose.ts` y se traduce
+recién al dibujarla. Y una trampa: `--aviso` recuerda lo que ya avisó con una
+clave que lleva el nombre de la barra, y el de una barra sin nombre conocido
+(«otro límite (…)») ahora cambia con el idioma. Con `nombreVentana` en la
+clave, cambiar de idioma entre dos prompts hacía sonar otra vez un aviso ya
+dado. La clave sale de `claveVentana`, que es siempre el castellano: las claves
+que ya estaban guardadas siguen valiendo.
 
 **Los tests** fijan `QM_IDIOMA=es` después de sus imports, porque leen frases
 en castellano y el locale de CI es `C.UTF-8`. El inglés se prueba en
 `test/idioma.test.ts`: la precedencia, `--idioma=` en las dos direcciones, la
 regla del JSON y corridas de punta a punta de la tabla, `--statusline`,
-`--help` y la frase de una instalación nueva. Ningún gate miraba el texto de
-`qm` —miran códigos de salida y que la salida no esté vacía—, así que ninguno
-cambió.
+`--help` y la frase de una instalación nueva; el desglose y el aviso en
+inglés, en sus propios archivos de test. Dos gates comparan frases del núcleo
+TS con las de los paneles en castellano (`gate-duraciones.py`,
+`gate-presupuesto.py`): corren el lado TS con `QM_IDIOMA=es`, igual que los
+tests. Los demás miran códigos de salida y que la salida no esté vacía.
+
+### El JSON salía cortado por un pipe chico (2026-11-01)
+
+`qm --json | wc -c` daba 8192; redirigido a un archivo, 16 629. Y el journal
+del indicador de GNOME tenía «qm no devolvió JSON» varias veces por hora, que
+se veía como un panel en blanco de vez en cuando.
+
+La causa no es de qm sino de la combinación. Linux le da a cada pipe nuevo
+64 KB, salvo cuando el usuario ya tiene demasiados abiertos
+(`fs.pipe-user-pages-soft`, 16384 páginas): desde ahí cada pipe nuevo recibe
+dos páginas, 8 KB. Una sesión con muchas terminales y agentes llega. Node
+escribe lo que entra, encola el resto, y el `process.exit()` de la línea
+siguiente lo tira sin esperar. La 0.1.20 instalada hacía lo mismo.
+
+Ahora todas las salidas pasan por `salir()`, que escribe un pedazo vacío y
+espera su callback —un stream escribe en orden, así que cuando vuelve ya salió
+todo lo anterior— y recién ahí sale. `test/salida.test.ts` achica el pipe a
+4 KB con `F_SETPIPE_SZ` desde el lector, para que el corte pase en cualquier
+máquina y no sólo en una cargada: sin el arreglo da 4096 de 16 469.
 
 ## El build, y por qué es opcional
 
