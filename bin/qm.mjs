@@ -24,7 +24,7 @@
 // el Node viejo que justamente lo obliga a delegar.
 
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -42,7 +42,28 @@ function sirveEsteNode() {
 const compilado = join(RAIZ, 'dist', 'cli', 'qm.js');
 const fuente = join(RAIZ, 'src', 'cli', 'qm.ts');
 
-if (sirveEsteNode() && existsSync(compilado)) {
+/**
+ * Algún .ts de src/ es más nuevo que el dist/: el dist/ es de una corrida
+ * anterior y no describe lo que está escrito. Sólo puede pasar en un clone
+ * (un `npm link`, por ejemplo): el tarball no lleva src/cli. En ese caso se
+ * delega al lanzador, que corre el src/ — misma regla que bin/qm.
+ */
+function distViejo() {
+  if (!existsSync(fuente)) return false;
+  const limite = statSync(compilado).mtimeMs;
+  const pila = [join(RAIZ, 'src')];
+  while (pila.length > 0) {
+    const dir = pila.pop();
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const ruta = join(dir, e.name);
+      if (e.isDirectory()) pila.push(ruta);
+      else if (e.name.endsWith('.ts') && statSync(ruta).mtimeMs > limite) return true;
+    }
+  }
+  return false;
+}
+
+if (sirveEsteNode() && existsSync(compilado) && !distViejo()) {
   // `src/adapters/opencode.ts` usa node:sqlite, que es experimental, así que
   // Node escribe dos renglones en stderr en cada corrida:
   //

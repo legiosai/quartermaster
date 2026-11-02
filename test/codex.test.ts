@@ -4,6 +4,10 @@ import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { modoDeAuth, parsearRateLimits, tieneBarras } from '../src/adapters/codex.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 /** Como lo escribe el app-server: camelCase. */
 const DEL_SERVIDOR = {
   limitId: 'codex',

@@ -22,6 +22,7 @@
 import { leerConfig } from '../core/perfiles.ts';
 import { parsearUtilizacion } from './utilizacion.ts';
 import type { Perfil, ResultadoCuota } from '../core/tipos.ts';
+import { tr } from '../core/idioma.ts';
 
 export function cuotaEnCache(perfil: Perfil): ResultadoCuota {
   const config = leerConfig(perfil.directorio);
@@ -33,7 +34,7 @@ export function cuotaEnCache(perfil: Perfil): ResultadoCuota {
 
   const ms = c['fetchedAtMs'];
   if (typeof ms !== 'number' || !Number.isFinite(ms)) {
-    return { estado: 'ilegible', detalle: 'cachedUsageUtilization sin fetchedAtMs' };
+    return { estado: 'ilegible', detalle: tr('cachedUsageUtilization sin fetchedAtMs', 'cachedUsageUtilization without fetchedAtMs') };
   }
 
   const ventanas = parsearUtilizacion(c);
@@ -41,7 +42,7 @@ export function cuotaEnCache(perfil: Perfil): ResultadoCuota {
     const dentro = c['utilization'];
     const claves = Object.keys((dentro as Record<string, unknown>) ?? {}).slice(0, 8);
     if (claves.length === 0) return { estado: 'sin-suscripcion' };
-    return { estado: 'ilegible', detalle: `sin barras reconocibles en {${claves.join(', ')}}` };
+    return { estado: 'ilegible', detalle: tr(`sin barras reconocibles en {${claves.join(', ')}}`, `no recognizable bars in {${claves.join(', ')}}`) };
   }
 
   return { estado: 'ok', origen: 'cache', medidoEn: new Date(ms), ventanas };

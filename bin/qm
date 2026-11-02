@@ -116,14 +116,18 @@ if [ -f "$RAIZ/dist/cli/qm.js" ]; then
   # bandera ya mergeada en main, porque el dist/ del disco era de diez horas
   # antes.
   #
-  # Sólo se comprueba cuando hay un src/ al lado: el tarball de npm no lleva
-  # src/cli, así que quien instaló por npm no tiene nada que reconstruir y no
-  # tiene por qué ver esto. Y avisa, no falla — el dist/ igual funciona, sólo
-  # que no es lo que está escrito.
-  if [ -f "$RAIZ/src/cli/qm.ts" ] && [ "$RAIZ/src/cli/qm.ts" -nt "$RAIZ/dist/cli/qm.js" ] 2>/dev/null; then
-    echo "qm: dist/ es más viejo que src/, y dist/ es el que se ejecuta." >&2
-    echo "    Tus cambios en src/ NO se están viendo. Corré \`npm run construir\`," >&2
-    echo "    o borrá dist/ para volver a leer el TypeScript directo." >&2
+  # Avisar no alcanzó. El 2026-11-01 `npm test` dio dos rojos falsos por esto
+  # —los tests corren este lanzador y el dist/ era de cinco semanas antes— y
+  # el aviso salía por un stderr que nadie lee dentro de un test. Así que ahora
+  # se corre el src/: si algún .ts es más nuevo que el dist/, el dist/ es de una
+  # corrida anterior y no describe lo que está escrito.
+  #
+  # Sólo pasa en un clone. El tarball de npm no lleva src/cli, y brew y el .deb
+  # no llevan dist/: en ninguno de los tres hay dos versiones que comparar.
+  if [ -f "$RAIZ/src/cli/qm.ts" ] && \
+     [ -n "$(find "$RAIZ/src" -name '*.ts' -newer "$RAIZ/dist/cli/qm.js" 2>/dev/null | head -n 1)" ]; then
+    echo "qm: dist/ es más viejo que src/: corro src/. \`npm run construir\` lo pone al día." >&2
+    exec "$NODO" $SIN_EXPERIMENTAL "$RAIZ/src/cli/qm.ts" "$@"
   fi
   exec "$NODO" $SIN_EXPERIMENTAL "$RAIZ/dist/cli/qm.js" "$@"
 fi

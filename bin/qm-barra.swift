@@ -237,8 +237,19 @@ struct Ventana {
     let grupo: String?
     /// Lo decide qm, no acá.
     let preocupa: Bool
+    /// Cuándo se leyó ESTA barra, sólo cuando es de una lectura más vieja que
+    /// la cuenta: desde `qm --statusline` la sesión y la semanal pueden ser de
+    /// recién y el resto de la última lectura del endpoint. nil = la de la
+    /// cuenta. Con valor por defecto para que el `Lider` no tenga que pasarlo.
+    var medidoEn: Date? = nil
 
     var nombre: String { alcance == nil ? clave : "\(clave) (\(alcance!))" }
+
+    /// Los segundos desde que se leyó esta barra: la suya si la trae, la de la
+    /// cuenta si no.
+    func edad(_ deLaCuenta: Int?) -> Int? {
+        medidoEn.map { max(0, Int(-$0.timeIntervalSinceNow)) } ?? deLaCuenta
+    }
 }
 
 struct Proyeccion {
@@ -460,7 +471,8 @@ func leer() -> Lectura {
                     activa: v["activa"] as? Bool ?? false,
                     reinicia: fecha(v["reinicia"]),
                     grupo: v["grupo"] as? String,
-                    preocupa: v["preocupa"] as? Bool ?? false)
+                    preocupa: v["preocupa"] as? Bool ?? false,
+                    medidoEn: fecha(v["medidoEn"]))
         }
         let mostrar = (cuota["mostrar"] as? [[String: Any]] ?? []).map(aVentana)
         let historia: [(t: Double, pct: Int)] = (cuota["historia"] as? [[String: Any]] ?? []).compactMap {
@@ -674,7 +686,12 @@ final class VistaCuenta: NSView {
         let chocas = p.proyeccion?.chocas ?? false
         self.barras = p.hayNumero ? visibles.map { v in
             var pie = v.reinicia.map { "reinicia en \(duracion(Int($0.timeIntervalSinceNow)))" } ?? ""
-            if let e = p.edadSegundos, v.clave == cual?.clave {
+            // Una barra de una lectura más vieja que la cuenta dice la suya,
+            // sea o no la que frena: es la de bin/qm-indicator, pie_de_barra().
+            if v.medidoEn != nil, let e = v.edad(nil) {
+                pie += pie.isEmpty ? "" : "   ·   "
+                pie += "leída hace \(duracion(e))" + (e >= VIEJO_SEGUNDOS ? " · vieja" : "")
+            } else if let e = p.edadSegundos, v.clave == cual?.clave {
                 pie += pie.isEmpty ? "" : "   ·   "
                 pie += "cache de hace \(duracion(e))" + (e >= VIEJO_SEGUNDOS ? " · viejo" : "")
             }
@@ -1219,7 +1236,11 @@ final class Barra: NSObject, NSApplicationDelegate {
                 menu.addItem(.separator())
 
                 if p.hayNumero, let cual = p.frena {
-                    let viejo = (p.edadSegundos ?? 0) >= VIEJO_SEGUNDOS
+                    // La edad de lo que se DIBUJA —la sesión y la semanal—, no la
+                    // de la cuenta: con la statusline encima, la cuenta puede ser
+                    // de recién y una de las dos venir de una lectura de ayer.
+                    let viejo = [p.sesion, p.semanal].compactMap { $0?.edad(p.edadSegundos) }
+                        .max().map { $0 >= VIEJO_SEGUNDOS } ?? ((p.edadSegundos ?? 0) >= VIEJO_SEGUNDOS)
                     // El `!` no es sólo severidad: también avisa que a este
                     // ritmo tocás el techo ANTES del reinicio.
                     let chocas = p.proyeccion?.chocas ?? false

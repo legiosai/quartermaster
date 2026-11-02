@@ -8,6 +8,10 @@ import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { PISO, REPOS_CANAL, agregarAlHistorial, estaSemana, separarAdjuntos, separarClones, huecosDelHistorial, separarEstrellas, separarNpm, tipoAdjunto } from '../scripts/descargas.mjs';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 describe('npm', () => {
   it('un día con publicación no cuenta como humano; uno sin publicación sí', () => {
     const r = separarNpm(

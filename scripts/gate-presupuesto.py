@@ -151,8 +151,11 @@ def por_typescript() -> list[str]:
         "console.log(JSON.stringify(cs.map(c=>c===null?null:frasePresupuesto("
         "{...c, medidoDesde: c.medidoDesde===null?null:new Date(c.medidoDesde).getTime()}))));"
     )
+    # La frase se compara en castellano, que es la de los paneles: el CLI elige
+    # el idioma por el locale (el de CI es C.UTF-8, inglés), así que se fija.
     r = subprocess.run(["node", "--experimental-strip-types", "-e", guion],
-                       cwd=RAIZ, capture_output=True, text=True, encoding="utf-8", timeout=60)
+                       cwd=RAIZ, capture_output=True, text=True, encoding="utf-8", timeout=60,
+                       env={**os.environ, "QM_IDIOMA": "es"})
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "node falló")
     return [SALTEADO if s is None else s for s in json.loads(r.stdout)]

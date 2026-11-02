@@ -54,15 +54,27 @@ function texto(v: unknown): string | null {
   return typeof v === 'string' && v.length > 0 ? v : null;
 }
 
-/** El nombre del alcance de una barra: hoy, el display_name del modelo. */
+/**
+ * El nombre del alcance de una barra: el display_name del modelo, o el de la
+ * superficie.
+ *
+ * `scope.surface` es un objeto `{ display_name }`, igual que `scope.model`: así
+ * lo declara el esquema que Claude Code 2.1.316 trae adentro («What a scoped row
+ * is for, a model or a surface, with the server's display label»). Acá se lo
+ * leía como texto, así que una barra por superficie perdía su nombre y quedaba
+ * con la clave interna del servidor a secas. Se acepta también el texto pelado
+ * por si algún servidor viejo lo mandó así.
+ */
 function alcanceDe(scope: unknown): string | null {
   if (typeof scope !== 'object' || scope === null) return null;
   const s = scope as Record<string, unknown>;
-  const modelo = s['model'];
-  if (typeof modelo === 'object' && modelo !== null) {
-    const m = modelo as Record<string, unknown>;
-    const n = texto(m['display_name']) ?? texto(m['id']);
-    if (n) return n;
+  for (const campo of ['model', 'surface']) {
+    const dentro = s[campo];
+    if (typeof dentro === 'object' && dentro !== null) {
+      const d = dentro as Record<string, unknown>;
+      const n = texto(d['display_name']) ?? texto(d['id']);
+      if (n) return n;
+    }
   }
   return texto(s['surface']);
 }

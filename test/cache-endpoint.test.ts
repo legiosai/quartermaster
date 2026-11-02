@@ -5,6 +5,10 @@ import { describe, it } from 'node:test';
 import { masNueva } from '../src/adapters/cache-endpoint.ts';
 import type { ResultadoCuota } from '../src/core/tipos.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const ok = (iso: string): ResultadoCuota => ({
   estado: 'ok',
   origen: 'cache',

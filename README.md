@@ -107,14 +107,18 @@ get one, rather than dying with a syntax error.
 qm                  # quota and usage for every account
 qm --statusline     # one line, for Claude Code's statusLine — and it records
                     # the quota Claude Code hands it, no network, no credential
-qm --breve          # the same line, without reading stdin
+qm --breve          # the quota part of that line, without reading stdin
+qm --todas          # dormant accounts in full, not one line each at the bottom
 qm --json           # the same, for scripts and panels
 qm --refrescar      # also ask the endpoint (needs a live token)
 qm --watch 60       # redraw every N seconds
 qm --umbral=80      # exit 3 if any bar is over N%
 qm --esperar        # block until quota drops:  qm --esperar && codex ...
+qm --mejor -- claude  # start claude in the profile with the most room left
+qm --aviso          # a UserPromptSubmit hook: warns inside Claude Code
 qm --diagnostico    # everything a bug report needs, already redacted
 qm --desglose       # where the week's quota went — disk only, never the network
+qm --idioma=es      # this run in Spanish (or =en); QM_IDIOMA does it for good
 ```
 
 In Claude Code's `settings.json`:
@@ -137,13 +141,82 @@ Already have a statusline script? Pipe the event through and print what comes
 back: `echo "$input" | qm --statusline`.
 
 ```
-personal 23/75%! · teams 9/42% · codex 49/59%
+ctx 182k · cache 12m · personal 23/75%! · teams 9/42% · codex 49/59%
 ```
+
+The first two segments are the session drawing the line, and they are what the
+*next* prompt will cost: the context size (yellow from 400k — prompts that big
+were 35 % of a measured week's weighted cost with 16 % of the requests) and
+how long the prompt cache stays warm. Once it goes cold the line says
+`cold cache (+181k)`: the next request rewrites that many tokens of cache, so
+that is the moment to decide between `/clear` and carrying on. `--breve` prints
+only the quota part.
 
 **Two numbers per account, on purpose.** The first is the session; the second is
 the bar that stops you first. They answer different questions — "can I keep
 going right now?" and "do I make it to the end of the week?" — and either one
 alone is half an answer.
+
+### Language
+
+`qm` speaks English or Spanish, picked from the locale the way any terminal
+program does: the first non-empty of `LC_ALL`, `LC_MESSAGES` and `LANG` — `es*`
+is Spanish, anything else (including `C` and `C.UTF-8`) is English — and on
+Windows, where those are usually unset, the system's regional setting.
+`QM_IDIOMA=es` or `QM_IDIOMA=en` overrides it for good, `--idioma=` for one run.
+A Spanish speaker on a machine with `LC_ALL=C.UTF-8` gets English until they set
+`QM_IDIOMA=es`. The `--aviso` hook runs with Claude Code's environment, so its
+warning follows the same rule.
+
+`--json` is the exception. The four panels draw its sentences (`frase`,
+`nombre`, `credencial`, `porque`) next to labels of their own that are still in
+Spanish, and a panel with half its words in each language reads worse than one
+in Spanish. So the JSON's text stays Spanish unless you ask for a language on
+purpose with `QM_IDIOMA` or `--idioma`. Its keys never change.
+
+## Before the wall
+
+**`qm --mejor`** picks the Claude profile with the most room right now: the
+lowest binding bar, then a projection that hits 100% before the reset counts
+against it, then the emptier session. A window whose reset already passed is
+*unknown*, not 0%. Profiles with no session or no stored number are left out.
+
+```sh
+qm --mejor -- claude        # start claude there
+qm --mejor                  # just print the directory, for scripts
+qm --mejor --json           # the whole ranking, and why
+```
+
+Use the `--` form to launch. `CLAUDE_CONFIG_DIR=$(qm --mejor) claude` is wrong
+for the default profile: with the variable set, even to `~/.claude`, Claude
+Code reads `~/.claude/.claude.json` instead of `~/.claude.json`, and on macOS
+it stops looking in the keychain — a different profile, with no session.
+`qm --mejor -- …` removes the variable for the default profile.
+
+**`qm --aviso`** is a hook that warns you *inside* Claude Code, where you are
+looking, before the bar stops you. In the profile's `settings.json`:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "qm --aviso" }] }
+    ]
+  }
+}
+```
+
+```
+qm · main: iguana_necktie at 92 % · resets in 3d7h. teams has 94 % free: CLAUDE_CONFIG_DIR=~/.claude-teams claude
+```
+
+It speaks when the binding bar crosses 90% (`--umbral=N`), again at 95 and
+100, and when the projection says you hit 100% before the reset within 30
+minutes — once per step and per window, so it does not repeat on every
+prompt. The message goes in `systemMessage`, which Claude Code shows to you and
+not to the model; it never blocks the prompt and always exits 0. Disk only, like
+`--breve`: it reads what `qm --statusline` and the bar left, so it needs one of
+them to have a number.
 
 ## Where did it go?
 
@@ -153,19 +226,31 @@ window), one block per account.
 
 ```
   .claude · ~/.claude
-    7.909 requests · 282,1M de costo ponderado (tokens de entrada equivalentes)
+    7,909 requests · 282.1M of weighted cost (equivalent input tokens)
 
-    por clase de token
-      lectura de cache   ██████████░░░░░  67,6%   1,9G tokens
-      escritura 1h       ██░░░░░░░░░░░░░  11,7%   16,5M tokens
-      escritura 5m       ██░░░░░░░░░░░░░  11,9%   26,8M tokens
-      salida             █░░░░░░░░░░░░░░   8,8%   5,0M tokens
-      entrada            ░░░░░░░░░░░░░░░   0,0%   15,9k tokens
+    what to do · shares of the weighted cost: they approximate the quota, they don't measure it
+      · 35.0% of the cost came from prompts of 400k or more (16.3% of the
+        requests). Every turn rereads the whole context: /compact or /clear
+        before you get there makes every request after it cheaper.
+
+    by token class
+      cache read         ██████████░░░░░  67.6%   1.9G tokens
+      write 1h           ██░░░░░░░░░░░░░  11.7%   16.5M tokens
+      write 5m           ██░░░░░░░░░░░░░  11.9%   26.8M tokens
+      output             █░░░░░░░░░░░░░░   8.8%   5.0M tokens
+      input              ░░░░░░░░░░░░░░░   0.0%   15.9k tokens
     …
-      400k o más: 35,0% del costo en 1.288 requests (16,3% de los requests)
+      400k or more: 35.0% of the cost in 1,288 requests (16.3% of the requests)
 ```
 
-Five answers per account:
+It opens with **what to do** — at most three tips per account, each one
+carrying the measured number it rests on, ranked by how much of the cost it
+explains: prompts of 400k or more (`/compact` or `/clear` sooner), cache
+rewritten after a pause, an agent type that costs per request as much as the
+main thread (a `fork` drags the whole conversation along) when a cheaper one is
+in common use, or a few sessions taking most of the week. A tip appears only
+when its number crosses a threshold; an account with nothing to fix gets no
+generic advice. Then the evidence, five answers per account:
 
 - **Cost by token class.** Tokens are weighted by their relative API price —
   cache read 0.1, cache write 1.25 (5-minute TTL) or 2 (1-hour TTL), input 1,
@@ -186,8 +271,8 @@ several content blocks is written once per block with the same usage. Codex is
 included when it is installed (its rollouts report usage per request; they do
 not report cache writes or subagents, and the output says that instead of
 printing zeros). `--json` gives the same numbers for a script, and
-`--redactado` also replaces every project directory with `proyecto 1`,
-`proyecto 2`… and drops session ids, so the report can be pasted somewhere
+`--redactado` also replaces every project directory with `project 1`,
+`project 2`… (`proyecto 1` in Spanish and in `--json`) and drops session ids, so the report can be pasted somewhere
 public. Reading a week of transcripts — about 2 GB across two profiles — takes
 about two seconds; see [`numeros/desglose.md`](numeros/desglose.md).
 
@@ -207,10 +292,10 @@ the cache directory, and `ps` for when the graphical session started — and it
 prompted it:
 
 ```
-  ⚠ extension.js es 12.9 h MÁS NUEVO que la sesión gráfica.
-    El shell carga el módulo una vez y lo deja en memoria: lo que está
-    corriendo es el archivo viejo …
-      → cerrá sesión y volvé a entrar. Es el único paso que falta.
+  ⚠ extension.js is 12.9 h NEWER than the graphical session.
+    The shell loads the module once and keeps it in memory: what is
+    running is the old file …
+      → log out and back in. It is the only step left.
 ```
 
 Anything it cannot find out it says so — it never omits and never guesses. It

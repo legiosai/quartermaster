@@ -15,6 +15,10 @@ import assert from 'node:assert/strict';
 import { presupuestoDiario, frasePresupuesto } from '../src/core/presupuesto.ts';
 import type { VentanaCuota } from '../src/core/tipos.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const H = 3600_000;
 const MIN = 60_000;
 /** Hora local, como el resto de los tests del presupuesto. */

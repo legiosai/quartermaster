@@ -24,6 +24,10 @@ import {
 } from '../src/adapters/antigravity.ts';
 import { totalTokens } from '../src/core/tipos.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 // ─── un protobuf mínimo, para armar los casos ──────────────────────────────
 
 function varint(n: number): number[] {

@@ -4,6 +4,10 @@ import { deepStrictEqual, strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { parsearCuotaZai } from '../src/adapters/zai.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 /**
  * Copiado tal cual de `GET /api/monitor/usage/quota/limit`, cuenta `lite`,
  * 2026-09-14. Es la fixture: si el vendor cambia la forma, este archivo es el

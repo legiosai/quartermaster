@@ -18,6 +18,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { decidirConsulta, frenoPor, FRENO_MINIMO_MS, FRENO_MAXIMO_MS } from '../src/core/pedir.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const AHORA = Date.UTC(2026, 8, 14, 15, 0, 0);
 const MIN = 60_000;
 const hace = (m: number) => new Date(AHORA - m * MIN);

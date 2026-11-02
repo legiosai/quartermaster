@@ -7,8 +7,12 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, test } from 'node:test';
-import { perfilDeLaStatusline, superponer, ventanasDeStatusline } from '../src/adapters/statusline.ts';
+import { perfilDeLaStatusline, sesionDeStatusline, superponer, ventanasDeStatusline } from '../src/adapters/statusline.ts';
 import type { ResultadoCuota, VentanaCuota } from '../src/core/tipos.ts';
+
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
 
 const RAIZ = new URL('..', import.meta.url).pathname;
 
@@ -156,6 +160,7 @@ function casa(): { env: NodeJS.ProcessEnv; dir: string } {
       XDG_CONFIG_HOME: join(dir, 'config'),
       XDG_DATA_HOME: join(dir, 'data'),
       NO_COLOR: '1',
+      QM_IDIOMA: 'es',
     },
   };
 }
@@ -211,4 +216,82 @@ test('qm --statusline con una entrada sin rate_limits dibuja igual y no pisa la 
   assert.match(renglon, /main 12%/);
   // Y basura en stdin tampoco la rompe.
   assert.match(qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, 'no es json'), /main 12%/);
+});
+
+describe('sesionDeStatusline · contexto y cache de la sesión que dibuja', () => {
+  it('lee el contexto y el cache tal cual los manda Claude Code', () => {
+    const s = sesionDeStatusline({
+      context_window: { total_input_tokens: 182_400, used_percentage: 18 },
+      prompt_cache: { warm: true, caching_observed: true, ttl: '1h', expires_at: 1_793_580_000, recache_tokens_if_cold: 181_000 },
+    });
+    assert.equal(s.contexto, 182_400);
+    assert.equal(s.cache?.caliente, true);
+    assert.equal(s.cache?.venceEn?.getTime(), 1_793_580_000_000);
+    assert.equal(s.cache?.recachear, 181_000);
+  });
+
+  it('sin total_input_tokens suma el último uso', () => {
+    const s = sesionDeStatusline({
+      context_window: { current_usage: { input_tokens: 10, cache_creation_input_tokens: 990, cache_read_input_tokens: 9_000 } },
+    });
+    assert.equal(s.contexto, 10_000);
+  });
+
+  it('un proveedor que no cachea no tiene cache que se enfríe', () => {
+    // Si no, la statusline diría «caché fría» para siempre.
+    const s = sesionDeStatusline({ prompt_cache: { warm: false, caching_observed: false, expires_at: null } });
+    assert.equal(s.cache, null);
+  });
+
+  it('antes de la primera respuesta no hay nada', () => {
+    assert.deepEqual(sesionDeStatusline({ session_id: 'x' }), { contexto: null, cache: null });
+    assert.deepEqual(sesionDeStatusline(null), { contexto: null, cache: null });
+  });
+});
+
+test('qm --statusline antepone el contexto y lo que le queda al cache', () => {
+  const { env } = casa();
+  const ahora = Math.floor(Date.now() / 1000);
+  const base = { rate_limits: { five_hour: { used_percentage: 12, resets_at: ahora + 3600 } } };
+  const caliente = qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, JSON.stringify({
+    ...base,
+    context_window: { total_input_tokens: 182_400 },
+    prompt_cache: { warm: true, caching_observed: true, expires_at: ahora + 12 * 60 + 30, recache_tokens_if_cold: 181_000 },
+  }));
+  assert.match(caliente, /^ctx 182k · caché 12m · main 12%$/m);
+
+  const fria = qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, JSON.stringify({
+    ...base,
+    context_window: { total_input_tokens: 182_400 },
+    prompt_cache: { warm: false, caching_observed: true, expires_at: ahora - 60, recache_tokens_if_cold: 181_000 },
+  }));
+  assert.match(fria, /^ctx 182k · caché fría \(\+181k\) · main 12%$/m);
+
+  // --breve no lee stdin y no cambia: los scripts que ya lo usan siguen igual.
+  assert.match(qm(['--breve', '--sin-codex', '--sin-antigravity'], env), /^main 12%$/m);
+});
+
+test('las cuentas dormidas van en un renglón cada una al pie, y --todas las muestra enteras', () => {
+  const { env, dir } = casa();
+  // Una segunda cuenta que nadie usa: sin transcripciones, sin credencial.
+  mkdirSync(join(dir, '.claude-vieja'));
+  writeFileSync(join(dir, '.claude-vieja', '.claude.json'), JSON.stringify({ oauthAccount: { emailAddress: 'vieja@ejemplo.com' } }));
+  const futuro = Math.floor(Date.now() / 1000) + 3600;
+  qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, JSON.stringify({
+    rate_limits: { five_hour: { used_percentage: 12, resets_at: futuro } },
+  }));
+  // La cuenta principal tiene que tener actividad para no quedar dormida ella también.
+  const proyecto = join(dir, '.claude', 'projects', 'p');
+  mkdirSync(proyecto, { recursive: true });
+  writeFileSync(join(proyecto, 's.jsonl'), '');
+
+  const tabla = qm(['--sin-codex', '--sin-antigravity'], env);
+  assert.match(tabla, /dormidas · `qm --todas` las muestra enteras/);
+  const renglones = tabla.split('\n').filter((l) => l.includes('.claude-vieja'));
+  assert.equal(renglones.length, 1, `la dormida ocupa un renglón:\n${tabla}`);
+  assert.doesNotMatch(tabla, /vieja@ejemplo\.com/);
+
+  const entera = qm(['--todas', '--sin-codex', '--sin-antigravity'], env);
+  assert.match(entera, /vieja@ejemplo\.com/);
+  assert.doesNotMatch(entera, /dormidas ·/);
 });

@@ -153,4 +153,10 @@ python3 scripts/gate-sellos.py || fallar "el nombre de los dibujos se puede repe
 #     corta de un plan sin sesión es la semanal, no un hueco.
 python3 scripts/gate-corta.py || fallar "una cuenta sin sesión queda sin número ni medidor en la barra"
 
+# 7 · que una barra de una lectura más vieja que su cuenta diga su edad. Desde
+#     `qm --statusline` la sesión y la semanal llegan en cada prompt y el resto
+#     sigue siendo de la última lectura del endpoint: un panel que sólo muestra
+#     la edad de la cuenta presenta un 44 % de hace media hora como de ahora.
+python3 scripts/gate-edades.py || fallar "una barra de una lectura vieja se dibuja sin su edad"
+
 echo "gate de dibujo: verde"

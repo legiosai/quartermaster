@@ -21,6 +21,7 @@ import { parsearUtilizacion } from './utilizacion.ts';
 import { anotarFreno, frenadoHasta } from './cache-endpoint.ts';
 import { frenoPor } from '../core/pedir.ts';
 import type { Perfil, ResultadoCuota } from '../core/tipos.ts';
+import { tr } from '../core/idioma.ts';
 
 // 24 h a propósito: es-AR sin `hourCycle` da «03:21 p. m.».
 export const hora = (d: Date): string =>
@@ -42,7 +43,10 @@ export async function consultarCuota(perfil: Perfil, ms = 10_000): Promise<Resul
   // pedir otro 429. Vale también para `qm --refrescar`.
   const freno = frenadoHasta(perfil.nombre);
   if (freno !== null && freno.getTime() > Date.now()) {
-    return { estado: 'error', detalle: `el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ${hora(freno)}` };
+    return { estado: 'error', detalle: tr(
+      `el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ${hora(freno)}`,
+      `the endpoint asked to wait (HTTP 429): asking again at ${hora(freno)}`,
+    ) };
   }
 
   const token = tokenDeAcceso(perfil);
@@ -60,7 +64,7 @@ export async function consultarCuota(perfil: Perfil, ms = 10_000): Promise<Resul
       signal: AbortSignal.timeout(ms),
     });
   } catch (e) {
-    const detalle = e instanceof Error ? e.message : 'error de red';
+    const detalle = e instanceof Error ? e.message : tr('error de red', 'network error');
     return { estado: 'error', detalle };
   }
 
@@ -70,7 +74,10 @@ export async function consultarCuota(perfil: Perfil, ms = 10_000): Promise<Resul
     // encontrar, venga de la barra, de GNOME o de un `qm --refrescar` a mano.
     const hasta = frenoPor(respuesta.headers.get('retry-after'), Date.now());
     anotarFreno(perfil.nombre, hasta);
-    return { estado: 'error', detalle: `el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ${hora(hasta)}` };
+    return { estado: 'error', detalle: tr(
+      `el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ${hora(hasta)}`,
+      `the endpoint asked to wait (HTTP 429): asking again at ${hora(hasta)}`,
+    ) };
   }
   if (!respuesta.ok) return { estado: 'error', detalle: `HTTP ${respuesta.status}` };
 
@@ -78,7 +85,7 @@ export async function consultarCuota(perfil: Perfil, ms = 10_000): Promise<Resul
   try {
     cuerpo = await respuesta.json();
   } catch {
-    return { estado: 'ilegible', detalle: 'la respuesta no es JSON' };
+    return { estado: 'ilegible', detalle: tr('la respuesta no es JSON', 'the response is not JSON') };
   }
 
   const ventanas = parsearUtilizacion(cuerpo);
@@ -86,7 +93,7 @@ export async function consultarCuota(perfil: Perfil, ms = 10_000): Promise<Resul
     const claves = Object.keys((cuerpo as Record<string, unknown>) ?? {}).slice(0, 8);
     // Una cuenta con API key o enterprise legítimamente no tiene ventanas.
     if (claves.length === 0) return { estado: 'sin-suscripcion' };
-    return { estado: 'ilegible', detalle: `sin barras reconocibles en {${claves.join(', ')}}` };
+    return { estado: 'ilegible', detalle: tr(`sin barras reconocibles en {${claves.join(', ')}}`, `no recognizable bars in {${claves.join(', ')}}`) };
   }
   return { estado: 'ok', origen: 'endpoint', medidoEn: new Date(), ventanas };
 }

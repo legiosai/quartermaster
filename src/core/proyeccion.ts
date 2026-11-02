@@ -14,6 +14,8 @@
 // número inventado con cara de dato. Por eso hay mínimos explícitos y el
 // resultado tiene un caso 'sin-datos' que el render tiene que saber mostrar.
 
+import { tr } from './idioma.ts';
+
 /** Una lectura de una barra en un instante. */
 export interface Muestra {
   /** Epoch en milisegundos. Es el `medidoEn` de la cuota, no el "ahora" de quien mira. */
@@ -73,7 +75,10 @@ export function proyectar(
   if (recientes.length < MINIMO_MUESTRAS) {
     return {
       estado: 'sin-datos',
-      motivo: `hacen falta ${MINIMO_MUESTRAS} lecturas y hay ${recientes.length}`,
+      motivo: tr(
+        `hacen falta ${MINIMO_MUESTRAS} lecturas y hay ${recientes.length}`,
+        `needs ${MINIMO_MUESTRAS} readings, has ${recientes.length}`,
+      ),
     };
   }
 
@@ -81,7 +86,10 @@ export function proyectar(
   const ultima = recientes[recientes.length - 1]!;
   const span = ultima.t - primera.t;
   if (span < MINIMO_SPAN_MS) {
-    return { estado: 'sin-datos', motivo: 'las lecturas cubren menos de 10 minutos' };
+    return {
+      estado: 'sin-datos',
+      motivo: tr('las lecturas cubren menos de 10 minutos', 'the readings span less than 10 minutes'),
+    };
   }
 
   // Mínimos cuadrados sobre (horas desde la primera, porcentaje).
@@ -97,7 +105,12 @@ export function proyectar(
     num += dx * (ys[i]! - mediaY);
     den += dx * dx;
   }
-  if (den === 0) return { estado: 'sin-datos', motivo: 'todas las lecturas son del mismo instante' };
+  if (den === 0) {
+    return {
+      estado: 'sin-datos',
+      motivo: tr('todas las lecturas son del mismo instante', 'every reading is from the same instant'),
+    };
+  }
 
   const ritmo = num / den;
   const subida = ultima.porcentaje - primera.porcentaje;

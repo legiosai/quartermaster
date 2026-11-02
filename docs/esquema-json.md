@@ -268,7 +268,9 @@ Each window:
   "reinicia": "2026-09-13T04:00:00.088Z",
   "medidoEn": null,              // null = same as the account's `medidoEn`;
                                  // a date when this bar is from an older reading
-  "nombre": "weekly_scoped (Fable)",   // ready to draw
+  "nombre": "weekly_scoped (Fable)",   // ready to draw; a bar the server sends
+                                       // with no known name and no scope reads
+                                       // "otro límite (iguana_necktie)"
   "preocupa": true,              // the resolved "should this worry you"
   "vencida": false               // `reinicia` is already in the past
 }
@@ -318,6 +320,16 @@ the tray red and fires the "you are blocked" warning for something that ended.
 - New fields may appear. **Ignore what you do not know.**
 - `frase` and `relevancia.porque` are prose for humans: read them, show them,
   do not parse them.
+- **The prose is in Spanish by default, whatever the locale.** Since `qm`
+  speaks English, every human string in the JSON (`frase`, `nombre`,
+  `credencial`, `relevancia.porque`, `presupuesto.motivo`, `proyeccion.motivo`)
+  follows the language only when one is asked for explicitly — `QM_IDIOMA=en`
+  or `--idioma=en`. Without that it stays Spanish, because the four panels in
+  this repo draw those strings next to Spanish labels of their own. The keys
+  and the enum values (`estado`, `origen`, `clave`, `severidad`…) never change
+  with the language. The same rule holds for `qm --mejor --json` and
+  `qm --desglose --json` (`motivo`, `nota`, `consejos[].frase`, and
+  `proyecto N` under `--redactado`).
 - The order of `perfiles` is meaningful (see above). It was not before
   `frenaPrimero` existed; nothing may reorder it now.
 - `--redactado` removes emails and home paths, and nothing else changes shape.
@@ -338,6 +350,36 @@ is the shortest worked example, and it is in the repo.
 Use `--breve` for anything that redraws on a timer: it skips transcripts, so it
 costs milliseconds instead of a second.
 
+## `qm --mejor --json` — a separate document
+
+The ranking `qm --mejor` used. Exit code 0 with an `elegida`, 1 when nothing
+could be compared (and then `elegida` is `null`).
+
+```jsonc
+{
+  "esquema": 1,
+  "elegida": {
+    "perfil": ".claude-teams",
+    "directorio": "/home/you/.claude-teams",
+    "porDefecto": false,          // true: launch WITHOUT CLAUDE_CONFIG_DIR
+    "nivel": "libre" | "desconocida" | "choca" | "llena",
+    "libre": 94,                  // 100 - the binding bar; null when "desconocida"
+    "frena": { "clave", "alcance", "nombre", "porcentaje", "reinicia" } | null,
+    "sesion": 6,                  // the current session %, or null
+    "credencial": "vigente" | "vencida",   // an expired ACCESS token is not excluded:
+                                           // Claude Code renews it on start
+    "medidoEn": "…"
+  } | null,
+  "orden": [ … ],                 // every comparable profile, best first
+  "descartadas": [ { "perfil": ".claude-personal", "motivo": "sin sesión de Claude Code" } ]
+}
+```
+
+`nivel` is the first sort key, in that order: room and no hurry, then a profile
+whose every bar already reset (probably empty, not known), then one the
+projection says hits 100% before its reset, then one at 100% (soonest reset
+first). Ties break on room, then the emptier session, then the name.
+
 ## `qm --desglose --json` — a separate document
 
 Not the same contract. It answers a different question — what spent the quota,
@@ -355,7 +397,8 @@ never be confused.
   "desde": "2026-10-19T23:40:00.000Z",
   "pesos": { "entrada": 1, "escrituraCache5m": 1.25, "escrituraCache1h": 2, "lecturaCache": 0.1, "salida": 5 },
   "nota": "Los pesos son el precio relativo …",  // prose: the weights are a proxy
-  "umbrales": { "reconstruccion": 20000, "contextoGrande": 400000 },
+  "umbrales": { "reconstruccion": 20000, "contextoGrande": 400000,
+                "consejos": { "contextoGrande": 0.15, "pausas": 0.03, "subagenteCaro": 0.05, … } },
   "perfiles": [ … ]
 }
 ```
@@ -372,6 +415,11 @@ Each entry of `perfiles`:
   "lectura": { "archivos": 73, "ms": 937 },
   "requests": 7157,
   "costo": 281800000,                // weighted, in input-token equivalents
+  "consejos": [{                     // what to do about it: at most 3, empty when nothing crosses a threshold
+    "clave": "contexto-grande",      // "contexto-grande" | "pausas" | "subagente-caro" | "sesiones" | "salida"
+    "parte": 0.1588,                 // share of `costo` the tip explains; sorted by it, descending
+    "frase": "El 15,9% del costo salió de prompts de 400k o más …"   // the sentence the terminal prints
+  }],
   "porClase":     [{ "clase": "lecturaCache", "tokens": 2.0e9, "costo": …, "parte": 0.718 }, …],
   "porContexto":  [{ "tramo": "400–700k", "desde": 400000, "hasta": 700000, "requests": …, "costo": …, "parte": … }, …],
   "contextoGrande": { "desde": 400000, "requests": …, "costo": …, "parte": 0.478, "parteRequests": 0.26 },
@@ -381,6 +429,7 @@ Each entry of `perfiles`:
   "subagentes":   { "requests": …, "costo": …, "parte": 0.231 },
   "porDia":       [{ "dia": "2026-10-20", … }],   // the machine's local day
   "proyectos":    [{ "proyecto": "/home/…/repo", … }],   // top 10 by cost
+  "sesionesTotal": 57,               // sessions in the window; `sesiones` is only the top 10
   "sesiones": [{                     // top 10 by cost, subagents included
     "sesion": "…",                   // null with --redactado
     "proyecto": "/home/…/repo",      // "proyecto 1" with --redactado
@@ -402,6 +451,17 @@ Each entry of `perfiles`:
   is the cache-write part only. `hueco` is the idle time since the previous
   request of the same transcript: `>60m`, `5–60m`, or `sin hueco` (5 minutes or
   less).
+- **`consejos`** are computed from the numbers in the same entry, and each
+  `frase` states the number it rests on. A tip appears only when its number
+  crosses its threshold (all thresholds travel in `umbrales.consejos`), so an
+  empty list means "nothing stood out", not "not computed". `sesiones` needs at
+  least `sesionesMin` sessions in the window: with three, "the top three took
+  100 %" is arithmetic. There is no "use fewer subagents" tip on purpose: on
+  the data this was calibrated on, a subagent request costs *less* than a
+  main-thread one; `subagente-caro` only fires for an agent type that costs per
+  request about as much as the main thread **and** has a cheaper, commonly
+  used alternative. The `frase` uses the product's commands (`/clear` for
+  Claude Code, `/new` for Codex) and, with `--redactado`, the redacted project.
 - **`--redactado`** replaces every project directory with `proyecto N`
   (numbered by first appearance, most expensive first, and stable across
   accounts within one run) and sets `sesion` to null.

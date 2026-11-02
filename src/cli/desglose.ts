@@ -19,13 +19,16 @@ import {
   CONTEXTO_GRANDE,
   PESOS,
   RECONSTRUCCION_MIN,
+  UMBRALES_CONSEJO,
+  consejos,
   desglosar,
   type Desglose,
   type Porcion,
   type Registros,
 } from '../core/desglose.ts';
+import { tr } from '../core/idioma.ts';
 import { descubrirPerfiles } from '../core/perfiles.ts';
-import { encabezadoDesglose, lineasCuenta, type CuentaDesglose } from '../render/desglose.ts';
+import { encabezadoDesglose, fraseConsejo, lineasCuenta, type CuentaDesglose } from '../render/desglose.ts';
 import { tenue } from '../render/barras.ts';
 
 /**
@@ -34,13 +37,21 @@ import { tenue } from '../render/barras.ts';
  * pelados, «68 % lectura de cache» se lee como «68 % de tu cuota», que es una
  * afirmación que nadie puede hacer con lo que hay publicado.
  */
-export const NOTA_PESOS =
-  'Los pesos son el precio relativo de cada clase de token en la API, y se usan como aproximación de cuánto ' +
-  'drena la cuota: Anthropic no publica cómo pondera la suscripción (OpenAI tampoco, para Codex). Sirven ' +
-  'para ver en qué se va, no para medir cuánto queda.';
+export const notaPesos = (): string =>
+  tr(
+    'Los pesos son el precio relativo de cada clase de token en la API, y se usan como aproximación de cuánto ' +
+      'drena la cuota: Anthropic no publica cómo pondera la suscripción (OpenAI tampoco, para Codex). Sirven ' +
+      'para ver en qué se va, no para medir cuánto queda.',
+    'The weights are the relative API price of each token class, used as an approximation of how much it ' +
+      "drains the quota: Anthropic doesn't publish how the subscription weighs them (nor does OpenAI, for " +
+      "Codex). They show where it goes, not how much is left.",
+  );
 
-const PESOS_TEXTO =
-  'lectura de cache 0,1 · escritura de cache 5m 1,25 · escritura 1h 2 · entrada 1 · salida 5';
+const pesosTexto = (): string =>
+  tr(
+    'lectura de cache 0,1 · escritura de cache 5m 1,25 · escritura 1h 2 · entrada 1 · salida 5',
+    'cache read 0.1 · cache write 5m 1.25 · write 1h 2 · input 1 · output 5',
+  );
 
 export interface OpcionesDesglose {
   readonly dias: number;
@@ -59,7 +70,6 @@ interface Fuente {
 }
 
 interface Medida extends CuentaDesglose {
-  readonly producto: 'claude' | 'codex';
   /** La ruta completa del perfil, para el JSON sin redactar. */
   readonly ruta: string;
 }
@@ -112,7 +122,7 @@ function etiquetador(redactado: boolean): (p: string | null) => string | null {
       n = numeros.size + 1;
       numeros.set(p, n);
     }
-    return `proyecto ${n}`;
+    return tr(`proyecto ${n}`, `project ${n}`);
   };
 }
 
@@ -171,8 +181,8 @@ export function desgloseJson(
     ventanaDias: o.dias,
     desde: r.desde.toISOString(),
     pesos: PESOS,
-    nota: NOTA_PESOS,
-    umbrales: { reconstruccion: RECONSTRUCCION_MIN, contextoGrande: CONTEXTO_GRANDE },
+    nota: notaPesos(),
+    umbrales: { reconstruccion: RECONSTRUCCION_MIN, contextoGrande: CONTEXTO_GRANDE, consejos: UMBRALES_CONSEJO },
     perfiles: r.cuentas.map((c) => {
       const d = c.desglose;
       return {
@@ -184,6 +194,9 @@ export function desgloseJson(
         lectura: { archivos: c.archivos, ms: Math.round(c.ms) },
         requests: d.requests,
         costo: Math.round(d.costo),
+        // Los mismos que la terminal, con la misma frase. Vacío cuando nada
+        // pasa su umbral: no hay consejo genérico para rellenar.
+        consejos: consejos(d).map((k) => ({ clave: k.clave, parte: cuatro(k.parte), frase: fraseConsejo(k, c.producto) })),
         porClase: d.porClase.map((k) => ({ clase: k.clase, tokens: k.tokens, costo: Math.round(k.costo), parte: cuatro(k.parte) })),
         porContexto: d.porContexto.map((t) => ({ tramo: t.tramo, desde: t.desde, hasta: t.hasta, ...porcionJson(t) })),
         contextoGrande: { desde: CONTEXTO_GRANDE, ...porcionJson(d.contextoGrande), parteRequests: cuatro(d.contextoGrande.parteRequests) },
@@ -193,6 +206,7 @@ export function desgloseJson(
         subagentes: porcionJson(d.subagentes),
         porDia: d.porDia.map((x) => ({ dia: x.dia, ...porcionJson(x) })),
         proyectos: d.proyectos.map((p) => ({ proyecto: p.proyecto, ...porcionJson(p) })),
+        sesionesTotal: d.sesionesTotal,
         sesiones: d.sesiones.map((s) => ({
           // El id de la sesión es lo que pide `claude --resume`; redactado no
           // sale, porque junto con el directorio identifica una conversación.
@@ -226,9 +240,9 @@ export function correrDesglose(o: OpcionesDesglose, cfg: Config): number {
   // Igual que en `qm`: la nota de la selección va a stderr, para que no
   // ensucie una salida que alguien redirige a un archivo cada semana.
   if (r.nota !== null) console.error(tenue(`  (${r.nota} · ${RUTA_CONFIG})`));
-  const l = encabezadoDesglose(o.dias, r.desde.getTime(), NOTA_PESOS, PESOS_TEXTO);
+  const l = encabezadoDesglose(o.dias, r.desde.getTime(), notaPesos(), pesosTexto());
   if (r.cuentas.length === 0) {
-    l.push('  No se encontró ninguna cuenta con transcripciones en esta máquina.', '');
+    l.push(`  ${tr('No se encontró ninguna cuenta con transcripciones en esta máquina.', 'No account with transcripts was found on this machine.')}`, '');
   }
   for (const c of r.cuentas) l.push(...lineasCuenta(c));
   console.log(l.join('\n'));

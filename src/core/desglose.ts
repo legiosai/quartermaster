@@ -217,6 +217,8 @@ export interface Desglose {
   readonly porDia: readonly PorDia[];
   readonly proyectos: readonly PorProyecto[];
   readonly sesiones: readonly Sesion[];
+  /** Cuántas sesiones hubo en la ventana. `sesiones` viene recortada a las más caras. */
+  readonly sesionesTotal: number;
 }
 
 const parte = (x: number, total: number): number => (total > 0 ? x / total : 0);
@@ -373,6 +375,7 @@ export function desglosar(
       .sort((a, b) => b.costo - a.costo)
       .slice(0, maxProyectos)
       .map((p) => ({ proyecto: p.proyecto, ...porcion(p) })),
+    sesionesTotal: sesiones.size,
     sesiones: [...sesiones.entries()]
       .map(([sesion, s]): Sesion => ({
         sesion,
@@ -392,4 +395,139 @@ export function desglosar(
       .sort((a, b) => b.costo + b.costoSubagentes - (a.costo + a.costoSubagentes))
       .slice(0, maxSesiones),
   };
+}
+
+// ─── qué hacer ────────────────────────────────────────────────────────────
+//
+// El desglose dice en qué se fue; esto lo convierte en lo que conviene hacer
+// distinto la semana que viene. Cada consejo sale de un número ya medido arriba
+// y lo lleva adentro: un consejo sin su número es una opinión.
+//
+// Tres reglas para que no se vuelva ruido:
+//   · sólo se dice algo cuando un número pasa su umbral. Una cuenta sana no
+//     recibe consejos genéricos; recibe ninguno;
+//   · a lo sumo tres, ordenados por la parte del costo que explica cada uno;
+//   · nada que los números no sostengan. Los subagentes son el caso: en la
+//     máquina donde se calibró esto un request de general-purpose cuesta MENOS
+//     que uno del hilo principal (26,9k contra 35,8k ponderados), así que
+//     «delegá menos» habría sido un mal consejo con cara de bueno. Lo que sí
+//     sostienen es que un tipo que cuesta por request lo mismo que el hilo
+//     principal —fork, que arrastra la conversación— tiene un reemplazo más
+//     barato para las tareas que no la necesitan.
+//
+// Los umbrales se calibraron el 2026-11-01 sobre 7, 14 y 30 días de tres
+// cuentas reales (dos de Claude Code, una de Codex). Ver BITACORA.md.
+
+export const UMBRALES_CONSEJO = {
+  /** Parte del costo en prompts de CONTEXTO_GRANDE o más. Medido: 2–39 %. */
+  contextoGrande: 0.15,
+  /** Parte del costo en reconstrucciones después de un hueco de más de 5 minutos. Medido: 1–6 %. */
+  pausas: 0.03,
+  /** Parte del costo de un tipo de subagente que cuesta por request como el hilo principal. */
+  subagenteCaro: 0.05,
+  /** «Como el hilo principal»: su costo por request sobre el del principal. */
+  subagenteCaroRelativo: 0.9,
+  /** Requests mínimos de un tipo para comparar su costo por request: con menos, el promedio no dice nada. */
+  subagenteMinRequests: 50,
+  /** Parte del costo de las tres sesiones más caras. Medido: 18–62 %. */
+  sesiones: 0.4,
+  /**
+   * Sesiones mínimas en la ventana para hablar de concentración: con tres o
+   * menos, «las tres más caras se llevaron el 100 %» es aritmética, no un hallazgo.
+   */
+  sesionesMin: 10,
+  /** Parte del costo en salida. Medido: 9–19 %; pasa del 25 % sólo si algo cambió. */
+  salida: 0.25,
+} as const;
+
+export type Consejo =
+  | { readonly clave: 'contexto-grande'; readonly parte: number; readonly parteRequests: number }
+  | {
+      readonly clave: 'pausas';
+      readonly parte: number;
+      readonly principal: number;
+      readonly subagentes: number;
+      readonly masDeUnaHora: number;
+    }
+  | {
+      readonly clave: 'subagente-caro';
+      readonly parte: number;
+      readonly agente: string;
+      readonly requests: number;
+      readonly porRequest: number;
+      readonly porRequestPrincipal: number;
+      /** El tipo más usado de los que cuestan menos por request: el reemplazo para lo que no necesita la conversación. */
+      readonly alternativa: { readonly agente: string; readonly porRequest: number };
+    }
+  | { readonly clave: 'sesiones'; readonly parte: number; readonly cuantas: number; readonly masCara: Sesion }
+  | { readonly clave: 'salida'; readonly parte: number };
+
+const porRequest = (p: Porcion): number => (p.requests > 0 ? p.costo / p.requests : 0);
+
+/** Los consejos de una cuenta, del que más costo explica al que menos. Vacío si nada pasa su umbral. */
+export function consejos(d: Desglose, max = 3): Consejo[] {
+  const u = UMBRALES_CONSEJO;
+  const salida: Consejo[] = [];
+  if (d.requests === 0 || d.costo <= 0) return salida;
+
+  if (d.contextoGrande.parte >= u.contextoGrande) {
+    salida.push({ clave: 'contexto-grande', parte: d.contextoGrande.parte, parteRequests: d.contextoGrande.parteRequests });
+  }
+
+  // Las reconstrucciones «sin hueco» quedan afuera: las causa un cambio de
+  // prompt, de herramientas o una compactación, y el desglose no sabe cuál.
+  // Después de una pausa la causa es una sola —se venció el cache— y tiene
+  // remedio.
+  const conHueco = d.reconstrucciones.filter((r) => r.hueco !== 'sin hueco');
+  const pausas = conHueco.reduce((a, r) => a + r.parte, 0);
+  if (pausas >= u.pausas) {
+    salida.push({
+      clave: 'pausas',
+      parte: pausas,
+      principal: conHueco.filter((r) => r.hilo === 'principal').reduce((a, r) => a + r.parte, 0),
+      subagentes: conHueco.filter((r) => r.hilo === 'subagente').reduce((a, r) => a + r.parte, 0),
+      masDeUnaHora: conHueco.filter((r) => r.hueco === '>60m').reduce((a, r) => a + r.parte, 0),
+    });
+  }
+
+  const principal = d.porAgente.find((a) => a.agente === null);
+  if (principal !== undefined && principal.requests > 0) {
+    const base = porRequest(principal);
+    const tipos = d.porAgente.filter(
+      (a): a is PorAgente & { agente: string } => a.agente !== null && a.requests >= u.subagenteMinRequests,
+    );
+    const caro = tipos
+      .filter((a) => a.parte >= u.subagenteCaro && porRequest(a) >= base * u.subagenteCaroRelativo)
+      .sort((a, b) => b.parte - a.parte)[0];
+    // El reemplazo es el tipo más barato que MÁS se usa, no el más barato a
+    // secas: el más barato suele ser uno especializado (Explore sólo busca) y
+    // recomendarlo para cualquier tarea sería un consejo que no se puede seguir.
+    const barato = tipos
+      .filter((a) => porRequest(a) < base * u.subagenteCaroRelativo)
+      .sort((a, b) => b.requests - a.requests)[0];
+    // Sin un tipo más barato no hay consejo: «cuesta lo mismo que el hilo
+    // principal» solo no dice qué hacer en su lugar.
+    if (caro !== undefined && barato !== undefined) {
+      salida.push({
+        clave: 'subagente-caro',
+        parte: caro.parte,
+        agente: caro.agente,
+        requests: caro.requests,
+        porRequest: porRequest(caro),
+        porRequestPrincipal: base,
+        alternativa: { agente: barato.agente, porRequest: porRequest(barato) },
+      });
+    }
+  }
+
+  const top = d.sesiones.slice(0, 3);
+  const parteTop = top.reduce((a, s) => a + s.parte, 0);
+  if (top.length > 0 && d.sesionesTotal >= u.sesionesMin && parteTop >= u.sesiones) {
+    salida.push({ clave: 'sesiones', parte: parteTop, cuantas: top.length, masCara: top[0]! });
+  }
+
+  const out = d.porClase.find((k) => k.clase === 'salida');
+  if (out !== undefined && out.parte >= u.salida) salida.push({ clave: 'salida', parte: out.parte });
+
+  return salida.sort((a, b) => b.parte - a.parte).slice(0, max);
 }

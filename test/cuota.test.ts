@@ -5,6 +5,10 @@ import { parsearUtilizacion, aFecha } from '../src/adapters/utilizacion.ts';
 import { frase, peor, paraMostrar, nombreVentana, esPreocupante, vencida, type ResultadoCuota } from '../src/core/tipos.ts';
 import { anchoVisible, duracion, reinicio, relleno, tenue } from '../src/render/barras.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 // Las fixtures son respuestas REALES de dos cuentas de distinto tipo, sacadas
 // de `cachedUsageUtilization` en .claude.json y redactadas sólo en accountUuid.
 const max = JSON.parse(readFileSync(new URL('./fixtures/cached-usage-max.json', import.meta.url), 'utf8'));
@@ -272,4 +276,28 @@ test('peor() no puede elegir una barra interna de 0 % porque las fechadas vencie
   const p = peor(ventanas)!;
   assert.equal(p.clave, 'weekly_scoped');
   assert.equal(p.porcentaje, 75);
+});
+
+// ─── Barras sin nombre ─────────────────────────────────────────────────────
+
+test('una barra por superficie toma el nombre de la superficie', () => {
+  // `scope.surface` es un objeto { display_name }, como `scope.model`. Leído
+  // como texto, la barra quedaba con la clave interna del servidor a secas.
+  const [v] = parsearUtilizacion({
+    limits: [{ kind: 'iguana_necktie', group: null, percent: 44, severity: 'normal', resets_at: null, is_active: false,
+      scope: { model: null, surface: { display_name: 'Claude Design' } } }],
+  });
+  assert.equal(v!.alcance, 'Claude Design');
+  assert.equal(nombreVentana(v!), 'iguana_necktie (Claude Design)');
+});
+
+test('una barra que el servidor no nombra se presenta como otro límite, con su clave', () => {
+  const [v] = parsearUtilizacion({
+    limits: [{ kind: 'iguana_necktie', group: null, percent: 44, severity: 'normal', resets_at: null, is_active: false, scope: null }],
+  });
+  assert.equal(nombreVentana(v!), 'otro límite (iguana_necktie)');
+  // Las que ya dicen qué miden no cambian: los paneles las buscan por nombre.
+  for (const clave of ['session', 'weekly_all', 'weekly', 'five_hour', 'seven_day', 'seven_day_opus', 'spend_limit']) {
+    assert.equal(nombreVentana({ ...v!, clave }), clave);
+  }
 });

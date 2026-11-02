@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { proyectar, type Muestra } from '../src/core/proyeccion.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const H = 3600_000;
 const AHORA = Date.UTC(2026, 8, 9, 12, 0, 0);
 

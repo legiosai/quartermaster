@@ -122,13 +122,17 @@ de morir con un error de sintaxis.
 qm                  # cuota y consumo de cada cuenta
 qm --statusline     # un renglón para el statusLine de Claude Code, que además
                     # guarda la cuota que Claude Code le pasa: sin red ni credencial
-qm --breve          # el mismo renglón, sin leer stdin
+qm --breve          # la parte de cuota de ese renglón, sin leer stdin
+qm --todas          # las cuentas dormidas enteras, no un renglón cada una al pie
 qm --json           # lo mismo, para scripts y paneles
 qm --refrescar      # además le pregunta al endpoint (necesita token vigente)
 qm --watch 60       # se redibuja cada N segundos
 qm --umbral=80      # sale 3 si alguna barra pasa el N %
 qm --esperar        # no vuelve hasta que baje:  qm --esperar && codex ...
+qm --mejor -- claude  # arranca claude en el perfil con más margen
+qm --aviso          # hook de UserPromptSubmit: avisa adentro de Claude Code
 qm --desglose       # en qué se fue la cuota de la semana — sólo disco, nunca red
+qm --idioma=en      # esta corrida en inglés (o =es); QM_IDIOMA lo deja fijo
 ```
 
 En el `settings.json` de Claude Code:
@@ -151,18 +155,100 @@ valor y muestra su propia edad.
 `echo "$input" | qm --statusline`.
 
 ```
-personal 23/75%! · teams 9/42% · codex 49/59%
+ctx 182k · caché 12m · personal 23/75%! · teams 9/42% · codex 49/59%
 ```
+
+Los dos primeros tramos son de la sesión que dibuja, y dicen cuánto va a costar
+el *próximo* prompt: el tamaño del contexto (amarillo desde 400k: los prompts de
+ese tamaño fueron el 35 % del costo ponderado de una semana medida, con el 16 %
+de los requests) y cuánto le queda caliente al cache del prompt. Cuando se
+enfría dice `caché fría (+181k)`: el próximo request reescribe esos tokens de
+cache, y ése es el momento de elegir entre `/clear` y seguir. `--breve` imprime
+sólo la parte de cuota.
 
 **Dos números por cuenta a propósito**: el primero es la sesión y el segundo la
 barra que te frena antes. Contestan preguntas distintas —«¿puedo seguir ahora?»
 y «¿llego al final de la semana?»— y una sola de las dos es media respuesta.
 
+### Idioma
+
+`qm` habla castellano o inglés, y lo elige por el locale como cualquier
+programa de terminal: el primero que no esté vacío de `LC_ALL`, `LC_MESSAGES` y
+`LANG` —`es*` es castellano, cualquier otro (incluidos `C` y `C.UTF-8`) es
+inglés— y en Windows, donde esas variables suelen no estar, la configuración
+regional del sistema. `QM_IDIOMA=es` o `QM_IDIOMA=en` lo fija para siempre, y
+`--idioma=` para una corrida. **Ojo:** una máquina con `LC_ALL=C.UTF-8` o
+`LANG=en_US.UTF-8` —muy común aunque quien la usa hable castellano— ve `qm` en
+inglés hasta que se le pone `QM_IDIOMA=es`. El hook `--aviso` corre con el
+entorno de Claude Code, así que su aviso sigue la misma regla: `QM_IDIOMA=es`
+exportada en la shell desde la que se abre Claude Code lo pone en castellano.
+
+`--json` es la excepción. Los cuatro paneles dibujan sus frases (`frase`,
+`nombre`, `credencial`, `porque`) al lado de rótulos propios que siguen en
+castellano, y un panel con la mitad de las palabras en cada idioma se lee peor
+que uno entero en castellano. Así que el texto del JSON queda en castellano
+salvo que se pida otro idioma a propósito con `QM_IDIOMA` o `--idioma`. Las
+claves no cambian nunca.
+
+## Antes de la pared
+
+**`qm --mejor`** elige el perfil de Claude con más margen ahora: la barra que
+frena más baja; una proyección que llega al 100 % antes del reinicio le juega
+en contra; a igual margen, la sesión más vacía. Una ventana cuyo reinicio ya
+pasó es *desconocida*, no 0 %. Los perfiles sin sesión o sin número guardado
+quedan afuera.
+
+```sh
+qm --mejor -- claude        # arranca claude ahí
+qm --mejor                  # sólo el directorio, para scripts
+qm --mejor --json           # el orden entero, y por qué
+```
+
+Para arrancar, la forma con `--`. `CLAUDE_CONFIG_DIR=$(qm --mejor) claude` está
+mal para el perfil por defecto: con la variable puesta —aunque apunte a
+`~/.claude`— Claude Code lee `~/.claude/.claude.json` en vez de
+`~/.claude.json`, y en macOS deja de mirar el llavero: es otro perfil, sin
+sesión. `qm --mejor -- …` saca la variable para el perfil por defecto.
+
+**`qm --aviso`** es un hook que te avisa *adentro* de Claude Code, que es donde
+estás mirando, antes de que la barra te frene. En el `settings.json` del perfil:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "qm --aviso" }] }
+    ]
+  }
+}
+```
+
+```
+qm · main: iguana_necktie al 92 % · se reinicia en 3d7h. teams tiene 94 % libre: CLAUDE_CONFIG_DIR=~/.claude-teams claude
+```
+
+Habla cuando la barra que frena pasa el 90 % (`--umbral=N`), otra vez en 95 y
+en 100, y cuando la proyección dice que llegás al 100 % antes del reinicio en
+menos de 30 minutos: una vez por escalón y por ventana, así que no se repite en
+cada prompt. El mensaje va en `systemMessage`, que Claude Code te muestra a vos
+y no al modelo; nunca frena el prompt y siempre sale 0. Sólo disco, como
+`--breve`: lee lo que dejaron `qm --statusline` y la barra, así que necesita que
+alguno de los dos tenga un número.
+
 ## ¿En qué se fue?
 
 `qm` dice cuánto queda; `qm --desglose` dice qué lo gastó. Lee las mismas
 transcripciones y desglosa los últimos 7 días (`--dias=N` para otra ventana),
-un bloque por cuenta:
+un bloque por cuenta.
+
+Arranca con **qué hacer**: a lo sumo tres consejos por cuenta, cada uno con el
+número medido en el que se apoya, ordenados por cuánto del costo explican:
+prompts de 400k o más (`/compact` o `/clear` antes), cache reescrito después de
+una pausa, un tipo de agente que cuesta por request lo mismo que el hilo
+principal (un `fork` arrastra la conversación entera) cuando hay uno más barato
+de uso común, o unas pocas sesiones que se llevan la semana. Un consejo aparece
+sólo si su número pasa un umbral: una cuenta sin nada que corregir no recibe
+consejos genéricos. Después, la evidencia:
 
 - **Costo por clase de token.** Cada token se pondera por su precio relativo en
   la API —lectura de cache 0,1, escritura de cache 1,25 (TTL de 5 minutos) o 2

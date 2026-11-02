@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { servicioLlavero, directorioPorDefecto } from '../src/core/perfiles.ts';
 import { barra, duracion, tokens } from '../src/render/barras.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 // El vector fijo es lo que hace que este archivo sirva de algo: si alguien
 // "simplifica" el cálculo del servicio, el hash cambia y el test cae.
 test('el servicio del llavero de un perfil no-default es sha256(ruta)[:8]', () => {

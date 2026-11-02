@@ -262,6 +262,8 @@ footer a{color:var(--medio)}
     <tr><td>--refrescar</td><td>Also asks the endpoint for the number. Needs a live token.</td></tr>
     <tr><td>--json</td><td>The same information as JSON, for scripts and statuslines. It is a contract: see below.</td></tr>
     <tr><td>--statusline</td><td>The <code>--breve</code> line, for Claude Code's <code>statusLine</code>. It also reads what Claude Code passes on stdin and saves the session and weekly quota of the last response: a fresh number with no network and no credential.</td></tr>
+    <tr><td>--mejor</td><td>The directory of the Claude profile with the most room right now. To start there, <code>qm --mejor -- claude</code>: the default profile has to run <em>without</em> <code>CLAUDE_CONFIG_DIR</code>. <code>--json</code> gives the whole ranking.</td></tr>
+    <tr><td>--aviso</td><td>A <code>UserPromptSubmit</code> hook for Claude Code: warns when the binding bar crosses 90&nbsp;% (<code>--umbral=N</code>) or the projection hits 100&nbsp;% within 30 minutes, and names the profile with room. Once per step and window; never blocks the prompt.</td></tr>
     <tr><td>--breve</td><td>One line and nothing else. It does not read transcripts, so it takes ~85 ms instead of a second. This is what goes in a statusline.</td></tr>
     <tr><td>--watch [seg]</td><td>Redraws every N seconds. Minimum 30, 60 by default.</td></tr>
     <tr><td>--dias=N</td><td>The window for local usage. 7 by default.</td></tr>
@@ -276,6 +278,7 @@ footer a{color:var(--medio)}
     <tr><td>--cuentas=a,b</td><td>With <code>--calentar</code>: only those. Every account skipped is one request fewer to an endpoint that is not ours.</td></tr>
     <tr><td>--calentar-codex</td><td>The same, but only Codex and without touching the keychain.</td></tr>
     <tr><td>--diagnostico</td><td>Everything a bug report needs, in one command and already redacted: machine, desktop, the state of the extension, the indicator and the cache, and what the journal recorded. No e-mail, no tokens, no account ids.</td></tr>
+    <tr><td>--idioma=es|en</td><td>The language for this run. By default it comes from the locale (<code>LC_ALL</code>, <code>LC_MESSAGES</code>, <code>LANG</code>: <code>es*</code> is Spanish, anything else is English); <code>QM_IDIOMA</code> sets it for good. <code>--json</code> keeps its text in Spanish, because the panels draw it next to their own Spanish labels, unless a language is asked for on purpose.</td></tr>
     <tr><td>-V, --version</td><td>The version, and nothing else.</td></tr>
     <tr><td>--red / --sin-red</td><td>Force or forbid the network probe. <b>--offline</b> is a synonym for <b>--sin-red</b>.</td></tr>
     <tr><td>-h, --help</td><td>The same list, in the terminal.</td></tr>

@@ -4,6 +4,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { DIAS_DORMIDA, elQueFrena, ordenarPorRelevancia, relevancia, type Señales } from '../src/core/relevancia.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const AHORA = new Date('2026-09-14T21:00:00Z');
 const haceDias = (d: number) => new Date(AHORA.getTime() - d * 86_400_000);
 

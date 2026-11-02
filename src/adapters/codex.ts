@@ -25,6 +25,7 @@ import { basename, dirname, join } from 'node:path';
 import type { OrigenCuota, ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
 import type { Compactacion, Registros, Uso } from '../core/desglose.ts';
 import { lineasCon } from './lineas.ts';
+import { tr } from '../core/idioma.ts';
 
 export const DIRECTORIO_CODEX = join(homedir(), '.codex');
 
@@ -586,7 +587,10 @@ export async function consultarCodex(): Promise<LecturaCodex> {
       resolver({
         cuota: {
           estado: 'error',
-          detalle: 'no encontré el binario codex (probá con QM_CODEX=/ruta/a/codex)',
+          detalle: tr(
+            'no encontré el binario codex (probá con QM_CODEX=/ruta/a/codex)',
+            "couldn't find the codex binary (try QM_CODEX=/path/to/codex)",
+          ),
         },
         info: null,
       });
@@ -596,7 +600,7 @@ export async function consultarCodex(): Promise<LecturaCodex> {
     try {
       hijo = spawn(binario, ['app-server'], { stdio: ['pipe', 'pipe', 'ignore'] });
     } catch {
-      resolver({ cuota: { estado: 'error', detalle: `no pude correr ${binario}` }, info: null });
+      resolver({ cuota: { estado: 'error', detalle: tr(`no pude correr ${binario}`, `couldn't run ${binario}`) }, info: null });
       return;
     }
 
@@ -610,15 +614,18 @@ export async function consultarCodex(): Promise<LecturaCodex> {
     };
 
     const reloj = setTimeout(
-      () => terminar({ cuota: { estado: 'error', detalle: `el app-server de codex no contestó en ${TIMEOUT_MS / 1000} s` }, info: null }),
+      () => terminar({ cuota: { estado: 'error', detalle: tr(
+        `el app-server de codex no contestó en ${TIMEOUT_MS / 1000} s`,
+        `the codex app-server didn't answer within ${TIMEOUT_MS / 1000} s`,
+      ) }, info: null }),
       TIMEOUT_MS,
     );
 
     hijo.on('error', () =>
-      terminar({ cuota: { estado: 'error', detalle: 'no pude correr `codex app-server`' }, info: null }),
+      terminar({ cuota: { estado: 'error', detalle: tr('no pude correr `codex app-server`', "couldn't run `codex app-server`") }, info: null }),
     );
     hijo.on('exit', () =>
-      terminar({ cuota: { estado: 'error', detalle: 'el app-server de codex se cerró sin contestar' }, info: null }),
+      terminar({ cuota: { estado: 'error', detalle: tr('el app-server de codex se cerró sin contestar', 'the codex app-server closed without answering') }, info: null }),
     );
 
     let resto = '';
@@ -639,7 +646,7 @@ export async function consultarCodex(): Promise<LecturaCodex> {
         const res = msg['result'] as Record<string, unknown> | undefined;
         const rl = res?.['rateLimits'] as Record<string, unknown> | undefined;
         if (rl === undefined) {
-          terminar({ cuota: { estado: 'ilegible', detalle: 'la respuesta no traía rateLimits' }, info: null });
+          terminar({ cuota: { estado: 'ilegible', detalle: tr('la respuesta no traía rateLimits', 'the response had no rateLimits') }, info: null });
           return;
         }
         // El accountId y los créditos viven un nivel más arriba que las barras.

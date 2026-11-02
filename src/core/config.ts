@@ -12,6 +12,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { tr } from './idioma.ts';
 
 export interface Config {
   /** Si está, SÓLO estas. */
@@ -82,9 +83,12 @@ export function seleccionar<T extends { perfil: { nombre: string } }>(
   if (salida.length === 0 && filas.length > 0) {
     return {
       filas: [...filas],
-      nota: 'el filtro de cuentas no coincidió con ninguna: se muestran todas',
+      nota: tr('el filtro de cuentas no coincidió con ninguna: se muestran todas', 'the account filter matched none: showing all'),
     };
   }
   const escondidas = filas.length - salida.length;
-  return { filas: salida, nota: escondidas > 0 ? `${escondidas} cuenta(s) ocultas por config` : null };
+  return {
+    filas: salida,
+    nota: escondidas > 0 ? tr(`${escondidas} cuenta(s) ocultas por config`, `${escondidas} account(s) hidden by config`) : null,
+  };
 }

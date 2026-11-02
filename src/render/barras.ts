@@ -3,6 +3,7 @@
 // en runtime, sólo nombra la forma de lo que se rinde.)
 
 import type { EstadoCredencial } from '../core/tipos.ts';
+import { tr } from '../core/idioma.ts';
 
 const COLOR = process.stdout.isTTY === true && process.env['NO_COLOR'] === undefined;
 
@@ -39,17 +40,21 @@ export function barra(fraccion: number, ancho = 15): string {
   return verde(cuerpo);
 }
 
-/** 1234567 → "1,2M". Los números grandes en tokens no se leen sin esto. */
+/**
+ * 1234567 → "1,2M" en castellano, "1.2M" en inglés. Los números grandes en
+ * tokens no se leen sin esto, y la coma decimal en inglés se lee como miles.
+ */
 export function tokens(n: number): string {
-  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1).replace('.', ',')}G`;
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace('.', ',')}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace('.', ',')}k`;
+  const coma = (x: string): string => tr(x.replace('.', ','), x);
+  if (n >= 1_000_000_000) return `${coma((n / 1_000_000_000).toFixed(1))}G`;
+  if (n >= 1_000_000) return `${coma((n / 1_000_000).toFixed(1))}M`;
+  if (n >= 1_000) return `${coma((n / 1_000).toFixed(1))}k`;
   return String(n);
 }
 
 /** Una duración en milisegundos → "2h14m", "38m", "12s". */
 export function duracion(ms: number): string {
-  if (ms < 0) return 'vencido';
+  if (ms < 0) return tr('vencido', 'expired');
   const s = Math.floor(ms / 1000);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
@@ -81,11 +86,12 @@ export function duracion(ms: number): string {
  * `preflight.ts` ya lo hacía bien; esto es esa versión, sin color.
  */
 export function veredictoCredencial(cred: EstadoCredencial): string {
-  if (cred.error !== null) return `ilegible · ${cred.error}`;
-  if (!cred.presente) return 'sin credencial';
-  if (cred.vencida) return 'vencida';
-  if (cred.expiraEn === null) return 'vigente';
-  return `vigente (${duracion(cred.expiraEn.getTime() - Date.now())})`;
+  if (cred.error !== null) return tr(`ilegible · ${cred.error}`, `unreadable · ${cred.error}`);
+  if (!cred.presente) return tr('sin credencial', 'no credential');
+  if (cred.vencida) return tr('vencida', 'expired');
+  if (cred.expiraEn === null) return tr('vigente', 'valid');
+  const resta = duracion(cred.expiraEn.getTime() - Date.now());
+  return tr(`vigente (${resta})`, `valid (${resta})`);
 }
 
 /**
@@ -98,7 +104,8 @@ export function veredictoCredencial(cred: EstadoCredencial): string {
  * ventana que ya cerró.
  */
 export function reinicio(ms: number): string {
-  return ms < 0 ? `reinició hace ${duracion(-ms)}` : `reinicia en ${duracion(ms)}`;
+  const d = duracion(Math.abs(ms));
+  return ms < 0 ? tr(`reinició hace ${d}`, `reset ${d} ago`) : tr(`reinicia en ${d}`, `resets in ${d}`);
 }
 
 /** Rellena a `ancho` COLUMNAS, no a `ancho` bytes: el color no cuenta. */
