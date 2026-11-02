@@ -19,13 +19,15 @@ import {
   CONTEXTO_GRANDE,
   PESOS,
   RECONSTRUCCION_MIN,
+  UMBRALES_CONSEJO,
+  consejos,
   desglosar,
   type Desglose,
   type Porcion,
   type Registros,
 } from '../core/desglose.ts';
 import { descubrirPerfiles } from '../core/perfiles.ts';
-import { encabezadoDesglose, lineasCuenta, type CuentaDesglose } from '../render/desglose.ts';
+import { encabezadoDesglose, fraseConsejo, lineasCuenta, type CuentaDesglose } from '../render/desglose.ts';
 import { tenue } from '../render/barras.ts';
 
 /**
@@ -59,7 +61,6 @@ interface Fuente {
 }
 
 interface Medida extends CuentaDesglose {
-  readonly producto: 'claude' | 'codex';
   /** La ruta completa del perfil, para el JSON sin redactar. */
   readonly ruta: string;
 }
@@ -172,7 +173,7 @@ export function desgloseJson(
     desde: r.desde.toISOString(),
     pesos: PESOS,
     nota: NOTA_PESOS,
-    umbrales: { reconstruccion: RECONSTRUCCION_MIN, contextoGrande: CONTEXTO_GRANDE },
+    umbrales: { reconstruccion: RECONSTRUCCION_MIN, contextoGrande: CONTEXTO_GRANDE, consejos: UMBRALES_CONSEJO },
     perfiles: r.cuentas.map((c) => {
       const d = c.desglose;
       return {
@@ -184,6 +185,9 @@ export function desgloseJson(
         lectura: { archivos: c.archivos, ms: Math.round(c.ms) },
         requests: d.requests,
         costo: Math.round(d.costo),
+        // Los mismos que la terminal, con la misma frase. Vacío cuando nada
+        // pasa su umbral: no hay consejo genérico para rellenar.
+        consejos: consejos(d).map((k) => ({ clave: k.clave, parte: cuatro(k.parte), frase: fraseConsejo(k, c.producto) })),
         porClase: d.porClase.map((k) => ({ clase: k.clase, tokens: k.tokens, costo: Math.round(k.costo), parte: cuatro(k.parte) })),
         porContexto: d.porContexto.map((t) => ({ tramo: t.tramo, desde: t.desde, hasta: t.hasta, ...porcionJson(t) })),
         contextoGrande: { desde: CONTEXTO_GRANDE, ...porcionJson(d.contextoGrande), parteRequests: cuatro(d.contextoGrande.parteRequests) },
@@ -193,6 +197,7 @@ export function desgloseJson(
         subagentes: porcionJson(d.subagentes),
         porDia: d.porDia.map((x) => ({ dia: x.dia, ...porcionJson(x) })),
         proyectos: d.proyectos.map((p) => ({ proyecto: p.proyecto, ...porcionJson(p) })),
+        sesionesTotal: d.sesionesTotal,
         sesiones: d.sesiones.map((s) => ({
           // El id de la sesión es lo que pide `claude --resume`; redactado no
           // sale, porque junto con el directorio identifica una conversación.

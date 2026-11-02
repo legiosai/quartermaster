@@ -2110,6 +2110,64 @@ dibuja un CLI que hay que instalar aparte. Esa mitad es la que más devoluciones
 se come.
 
 
+## Del desglose a qué hacer (2026-11-01)
+
+`qm --desglose` contestaba en qué se fue la cuota con cinco tablas, y dejaba al
+que las mira la parte difícil: decidir qué cambiar. Ahora cada cuenta arranca
+con un bloque **qué hacer**: a lo sumo tres consejos, cada uno con el número
+medido adentro de la frase y ordenados por cuánto del costo ponderado explican.
+Salen de `consejos()` en `core/desglose.ts`, que sólo lee el `Desglose` ya
+calculado; la frase la arma `fraseConsejo()` en el render, porque los comandos
+dependen del producto (`/clear` en Claude Code, `/new` en Codex). El `--json`
+trae los mismos, con la misma frase, y los umbrales viajan en
+`umbrales.consejos`.
+
+Los umbrales se calibraron sobre 7, 14 y 30 días de las tres cuentas reales de
+esta máquina (dos perfiles de Claude Code y Codex):
+
+| consejo | qué mide | rango medido | umbral |
+|---|---|---|---|
+| `contexto-grande` | parte del costo en prompts de 400k o más | 2,3–38,6 % | 15 % |
+| `pausas` | cache reescrito después de un hueco de más de 5 min | 1,1–6,2 % | 3 % |
+| `subagente-caro` | un tipo que cuesta por request como el principal | fork 4,6–10,3 % | 5 % |
+| `sesiones` | las tres sesiones más caras (con 10 o más en la ventana) | 18,5–61,9 % | 40 % |
+| `salida` | parte del costo en salida | 9,3–18,8 % | 25 % |
+
+Con esos cortes, la semana del 2026-11-01 da: `.claude` un consejo (prompts
+grandes, 15,9 %), `.claude-teams` dos (fork 10,3 %, pausas 4,7 %), Codex uno
+(tres sesiones con el 61,9 %). A 30 días los prompts grandes pasan a 29 % y
+39 %, que es la tendencia que el consejo existe para cortar.
+
+**El consejo que no está, a propósito: «usá menos subagentes».** Era el primero
+de la lista y los números lo tiran. Ponderado igual, un request de
+general-purpose cuesta **menos** que uno del hilo principal (26,9k contra 35,8k
+en `.claude`; 25,5k contra 36,9k en teams): un subagente arranca con un
+contexto chico y el principal relee el suyo, que es grande. Que se lleven el
+25–37 % del costo dice cuántos se lanzan, no que sean caros, y «delegá menos»
+mandaría ese trabajo al hilo más caro. Lo que sí sostienen los números es más
+angosto: `fork` cuesta por request lo mismo que el principal (36,9k contra
+36,9k), porque arrastra la conversación entera, y para lo que no la necesita
+hay un reemplazo de uso común más barato. Ése es el consejo, y sólo aparece si
+existe ese reemplazo con 50 requests o más; el reemplazo es el más usado de los
+baratos y no el más barato, que suele ser Explore y sólo busca.
+
+**Las reconstrucciones «sin hueco» tampoco dan consejo.** Las causa un cambio
+de prompt, de herramientas, de modelo o una compactación, y el desglose no sabe
+cuál; un consejo que no puede decir qué hacer es una opinión. Después de una
+pausa la causa es una sola —se venció el cache— y el remedio depende de dónde
+pasó: en el hilo principal la pausa es tuya (`/clear` con un resumen antes de
+retomar); en un subagente, el hueco es lo que tardó una herramienta.
+
+**Y «las tres sesiones más caras» pide diez.** La primera versión lo disparaba
+siempre en una cuenta con tres sesiones: «se llevaron el 100 %» es aritmética,
+no un hallazgo. `sesionesTotal` (nuevo en el JSON) dice cuántas hubo.
+
+Un hueco que quedó a la vista y no es de este cambio: `qm --desglose` **se
+corta a los 8192 bytes cuando la salida va a un pipe** (`| jq`, `| less`):
+`qm.ts` hace `process.exit(correrDesglose(…))` justo después del
+`console.log`, y Node no terminó de escribir. A un archivo o a la terminal sale
+entero.
+
 ## En la statusline de Claude Code
 
 Es donde la herramienta cumple su misión: el número deja de ser algo que te

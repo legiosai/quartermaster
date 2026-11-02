@@ -1,11 +1,13 @@
 // El desglose, en texto. Sólo dibuja: cada número llega calculado desde
 // `core/desglose.ts`, y lo único que se decide acá es cómo se ve.
 
-import { HUECOS, type Clase, type Desglose, type Porcion } from '../core/desglose.ts';
+import { HUECOS, consejos, type Clase, type Consejo, type Desglose, type Porcion } from '../core/desglose.ts';
 import { barraSinColor, duracion, negrita, relleno, tenue, tokens } from './barras.ts';
 
 /** Una cuenta lista para dibujar. Los proyectos ya vienen redactados si hacía falta. */
 export interface CuentaDesglose {
+  /** Cambia cómo se dicen los consejos: los comandos de Codex no son los de Claude Code. */
+  readonly producto: 'claude' | 'codex';
   readonly nombre: string;
   readonly directorio: string;
   readonly desglose: Desglose;
@@ -82,6 +84,63 @@ function partir(texto: string, ancho: number): string[] {
   return salida;
 }
 
+/**
+ * Un consejo en una frase, con su número adentro. Los comandos dependen del
+ * producto: `/clear` no existe en Codex, que empieza de cero con `/new`.
+ */
+export function fraseConsejo(c: Consejo, producto: 'claude' | 'codex'): string {
+  const deCero = producto === 'codex' ? '/new' : '/clear';
+  switch (c.clave) {
+    case 'contexto-grande':
+      return (
+        `El ${pct(c.parte)} del costo salió de prompts de 400k o más (${pct(c.parteRequests)} de los requests). ` +
+        `Cada turno relee el contexto entero: /compact o ${deCero} antes de llegar ahí abarata todos los requests que siguen.`
+      );
+    case 'pausas': {
+      const cifras =
+        `El ${pct(c.parte)} del costo fue volver a escribir el cache después de una pausa ` +
+        `(hilo principal ${pct(c.principal)}, subagentes ${pct(c.subagentes)}; más de una hora: ${pct(c.masDeUnaHora)}).`;
+      // El remedio depende de dónde pasa: en el hilo principal la pausa es
+      // tuya; en un subagente, el hueco entre dos requests es lo que tardó una
+      // herramienta o lo que pasó hasta que se lo retomó.
+      return c.principal >= c.subagentes
+        ? `${cifras} Retomar una conversación larga con el cache vencido la vuelve a escribir entera: ` +
+            `después de una pausa de más de una hora, ${deCero} con un resumen corto sale más barato que seguir.`
+        : `${cifras} En un subagente, el hueco entre dos requests es lo que tardó una herramienta o lo que pasó ` +
+            `hasta que se lo retomó: si supera lo que dura el cache, el subagente lo vuelve a escribir entero.`;
+    }
+    case 'subagente-caro':
+      return (
+        `${c.agente} se llevó el ${pct(c.parte)} del costo en ${entero(c.requests)} requests, a ${tokens(Math.round(c.porRequest))} ` +
+        `por request: casi lo mismo que el hilo principal (${tokens(Math.round(c.porRequestPrincipal))}).` +
+        (c.agente === 'fork' ? ' Un fork arrastra la conversación entera.' : '') +
+        ` Para las tareas que no necesitan la conversación, ${c.alternativa.agente} sale ` +
+        `${tokens(Math.round(c.alternativa.porRequest))} por request.`
+      );
+    case 'sesiones': {
+      const s = c.masCara;
+      const quien = c.cuantas === 1 ? 'Una sesión se llevó' : `Las ${c.cuantas} sesiones más caras se llevaron`;
+      const datos = [
+        s.proyecto ?? '(sin directorio)',
+        s.inicio !== null && s.fin !== null ? duracion(s.fin - s.inicio) : null,
+        `${s.compactaciones} compactaciones`,
+        s.contextoMediana !== null ? `contexto mediano ${tokens(Math.round(s.contextoMediana))}` : null,
+      ].filter((x) => x !== null);
+      const remedio =
+        s.contextoMediana !== null && s.contextoMediana >= 200_000
+          ? ` Cada turno de esa sesión relee unos ${tokens(Math.round(s.contextoMediana))}: cortarla en conversaciones ` +
+            'más cortas baja el piso de cada request.'
+          : ' Es por donde empezar a mirar.';
+      return `${quien} el ${pct(c.parte)} del costo. La primera (${pct(s.parte)}): ${datos.join(', ')}.${remedio}`;
+    }
+    case 'salida':
+      return (
+        `El ${pct(c.parte)} del costo fue salida, que pesa cinco veces la entrada e incluye el razonamiento: ` +
+        'bajar el esfuerzo en las tareas mecánicas es lo que más la achica.'
+      );
+  }
+}
+
 /** Una cuenta entera. */
 export function lineasCuenta(c: CuentaDesglose, maxSesiones = 5, maxProyectos = 5): string[] {
   const d = c.desglose;
@@ -93,6 +152,18 @@ export function lineasCuenta(c: CuentaDesglose, maxSesiones = 5, maxProyectos = 
     return l;
   }
   l.push(`    ${entero(d.requests)} requests · ${tokens(Math.round(d.costo))} de costo ponderado ${tenue('(tokens de entrada equivalentes)')}`);
+
+  // Arriba de todo, porque es lo único del informe que se usa: el resto es la
+  // evidencia. Sin nada que pase un umbral, el bloque no aparece.
+  const aHacer = consejos(d);
+  if (aHacer.length > 0) {
+    l.push('', `    ${negrita('qué hacer')} ${tenue('· partes del costo ponderado: aproximan la cuota, no la miden')}`);
+    for (const k of aHacer) {
+      const [primera = '', ...resto] = partir(fraseConsejo(k, c.producto), 72);
+      l.push(`      · ${primera}`);
+      for (const r of resto) l.push(`        ${r}`);
+    }
+  }
 
   l.push('', `    ${negrita('por clase de token')}`);
   for (const k of d.porClase) {

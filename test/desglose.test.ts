@@ -18,6 +18,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
   CLASES,
+  UMBRALES_CONSEJO,
+  consejos,
   contexto,
   costo,
   desglosar,
@@ -27,6 +29,7 @@ import {
   type Uso,
 } from '../src/core/desglose.ts';
 import { lineasCon } from '../src/adapters/lineas.ts';
+import { fraseConsejo } from '../src/render/desglose.ts';
 import { hiloDe, usosDesde } from '../src/adapters/transcripciones.ts';
 import { usosDeRollout } from '../src/adapters/codex.ts';
 import type { Perfil } from '../src/core/tipos.ts';
@@ -653,6 +656,168 @@ describe('qm --desglose', () => {
       const r = qm(casa, ['--desglose', '--json', '--sin-codex']);
       const d = JSON.parse(r.salida) as { perfiles: { perfil: string }[] };
       assert.deepEqual(d.perfiles.map((p) => p.perfil), ['.claude']);
+    } finally {
+      rmSync(casa, { recursive: true, force: true });
+    }
+  });
+});
+
+
+// ─── qué hacer ───────────────────────────────────────────────────────────
+
+/** `n` requests del hilo principal, cada uno en su sesión, con `lectura` de cache leído. */
+function sesionesChicas(n: number, lectura = 30_000, agente: string | null = null, prefijo = 's'): Uso[] {
+  return Array.from({ length: n }, (_, i) =>
+    uso({ sesion: `${prefijo}${i}`, agente, cuando: BASE + i * MINUTO, lecturaCache: lectura, salida: 100 }),
+  );
+}
+
+describe('desglose · qué hacer', () => {
+  test('una cuenta sana no recibe ningún consejo, y una vacía tampoco', () => {
+    // Prompts chicos, sin pausas, sin subagentes, muchas sesiones parejas.
+    const d = desglosar({ usos: sesionesChicas(40), compactaciones: [], archivos: 1 });
+    assert.deepEqual(consejos(d), []);
+    assert.deepEqual(consejos(desglosar({ usos: [], compactaciones: [], archivos: 0 })), []);
+  });
+
+  test('prompts de 400k o más: el consejo trae el número y el comando del producto', () => {
+    const usos = [...sesionesChicas(30), uso({ sesion: 'grande', lecturaCache: 500_000, salida: 100 })];
+    const d = desglosar({ usos, compactaciones: [], archivos: 1 });
+    const [c] = consejos(d);
+    assert.equal(c?.clave, 'contexto-grande');
+    casi(c!.parte, d.contextoGrande.parte);
+    assert.ok(c!.parte >= UMBRALES_CONSEJO.contextoGrande);
+    const claude = fraseConsejo(c!, 'claude');
+    assert.match(claude, /^El \d+,\d% del costo salió de prompts de 400k o más/);
+    assert.match(claude, /\/compact o \/clear/);
+    // Codex no tiene /clear: empieza de cero con /new.
+    assert.match(fraseConsejo(c!, 'codex'), /\/compact o \/new/);
+  });
+
+  test('las reconstrucciones después de una pausa cuentan; las sin hueco no', () => {
+    const base = sesionesChicas(20);
+    const conPausa = [
+      ...base,
+      uso({ sesion: 'larga', cuando: BASE, lecturaCache: 1_000 }),
+      uso({ sesion: 'larga', cuando: BASE + 2 * HORA, huecoMs: 2 * HORA, escrituraCache1h: 100_000 }),
+    ];
+    const d = desglosar({ usos: conPausa, compactaciones: [], archivos: 1 });
+    const c = consejos(d).find((x) => x.clave === 'pausas');
+    assert.ok(c !== undefined && c.clave === 'pausas');
+    casi(c.masDeUnaHora, c.parte, 'toda la pausa fue de más de una hora');
+    assert.match(fraseConsejo(c, 'claude'), /después de una pausa de más de una hora, \/clear/);
+
+    // La misma escritura sin hueco es un cambio de prompt, no una pausa: no hay remedio que dar.
+    const sinHueco = [
+      ...base,
+      uso({ sesion: 'larga', cuando: BASE, lecturaCache: 1_000 }),
+      uso({ sesion: 'larga', cuando: BASE + MINUTO, huecoMs: MINUTO, escrituraCache1h: 100_000 }),
+    ];
+    assert.equal(consejos(desglosar({ usos: sinHueco, compactaciones: [], archivos: 1 })).find((x) => x.clave === 'pausas'), undefined);
+  });
+
+  test('pausas que pasan sobre todo en subagentes: el remedio es otro', () => {
+    const usos = [
+      ...sesionesChicas(20),
+      uso({ sesion: 's0', agente: 'general-purpose', cuando: BASE, lecturaCache: 1_000 }),
+      uso({ sesion: 's0', agente: 'general-purpose', cuando: BASE + 10 * MINUTO, huecoMs: 10 * MINUTO, escrituraCache5m: 120_000 }),
+    ];
+    const c = consejos(desglosar({ usos, compactaciones: [], archivos: 1 })).find((x) => x.clave === 'pausas');
+    assert.ok(c !== undefined);
+    assert.match(fraseConsejo(c, 'claude'), /En un subagente, el hueco entre dos requests/);
+  });
+
+  test('un subagente que cuesta como el hilo principal, con un reemplazo más barato y más usado', () => {
+    const principal = sesionesChicas(100, 40_000);
+    const fork = sesionesChicas(60, 40_000, 'fork', 'f');
+    const general = sesionesChicas(80, 20_000, 'general-purpose', 'g');
+    const explore = sesionesChicas(60, 5_000, 'Explore', 'e');
+    const d = desglosar({ usos: [...principal, ...fork, ...general, ...explore], compactaciones: [], archivos: 1 });
+    const c = consejos(d).find((x) => x.clave === 'subagente-caro');
+    assert.ok(c !== undefined && c.clave === 'subagente-caro');
+    assert.equal(c.agente, 'fork');
+    // El más usado de los baratos, no el más barato: Explore sólo busca.
+    assert.equal(c.alternativa.agente, 'general-purpose');
+    const f = fraseConsejo(c, 'claude');
+    assert.match(f, /^fork se llevó el/);
+    assert.match(f, /Un fork arrastra la conversación entera/);
+    assert.match(f, /general-purpose sale 2,5k por request/);
+  });
+
+  test('subagentes más baratos que el hilo principal no dan consejo: «delegá menos» sería falso', () => {
+    // Medido en la máquina donde se calibró: un request de general-purpose
+    // cuesta menos que uno del principal. Que pesen mucho en total no los
+    // vuelve el problema.
+    const principal = sesionesChicas(100, 40_000);
+    const general = sesionesChicas(300, 20_000, 'general-purpose', 'g');
+    const d = desglosar({ usos: [...principal, ...general], compactaciones: [], archivos: 1 });
+    assert.ok(d.subagentes.parte > 0.5);
+    assert.equal(consejos(d).find((x) => x.clave === 'subagente-caro'), undefined);
+  });
+
+  test('con menos de 50 requests, un tipo de subagente no se compara', () => {
+    const principal = sesionesChicas(100, 40_000);
+    const fork = sesionesChicas(10, 400_000 - 1, 'fork', 'f');
+    const general = sesionesChicas(80, 20_000, 'general-purpose', 'g');
+    const d = desglosar({ usos: [...principal, ...fork, ...general], compactaciones: [], archivos: 1 });
+    assert.equal(consejos(d).find((x) => x.clave === 'subagente-caro'), undefined);
+  });
+
+  test('pocas sesiones que se llevan casi todo, pero sólo si hubo muchas', () => {
+    const muchas = [
+      ...sesionesChicas(20, 10_000),
+      uso({ sesion: 'cara', cuando: BASE, lecturaCache: 300_000, salida: 100 }),
+      uso({ sesion: 'cara', cuando: BASE + HORA, lecturaCache: 300_000, salida: 100 }),
+    ];
+    const d = desglosar({ usos: muchas, compactaciones: [], archivos: 1 });
+    const c = consejos(d).find((x) => x.clave === 'sesiones');
+    assert.ok(c !== undefined && c.clave === 'sesiones');
+    assert.equal(c.masCara.sesion, 'cara');
+    assert.match(fraseConsejo(c, 'claude'), /La primera \(\d+,\d%\): \/proyectos\/ejemplo, 1h00m, 0 compactaciones/);
+
+    // Con tres sesiones, «las tres más caras se llevaron el 100 %» es aritmética.
+    const pocas = desglosar({ usos: sesionesChicas(3, 10_000), compactaciones: [], archivos: 1 });
+    assert.equal(consejos(pocas).find((x) => x.clave === 'sesiones'), undefined);
+  });
+
+  test('a lo sumo tres, del que más costo explica al que menos', () => {
+    const usos = [
+      ...sesionesChicas(20, 10_000),
+      // salida enorme: pasa el umbral de salida
+      ...Array.from({ length: 10 }, (_, i) => uso({ sesion: `out${i}`, cuando: BASE + i, salida: 400_000 })),
+      // contexto grande
+      ...Array.from({ length: 10 }, (_, i) => uso({ sesion: `big${i}`, cuando: BASE + i, lecturaCache: 3_000_000 })),
+      // una pausa
+      uso({ sesion: 'p', cuando: BASE, lecturaCache: 1_000 }),
+      uso({ sesion: 'p', cuando: BASE + 2 * HORA, huecoMs: 2 * HORA, escrituraCache1h: 300_000 }),
+    ];
+    const cs = consejos(desglosar({ usos, compactaciones: [], archivos: 1 }));
+    assert.ok(cs.length <= 3);
+    for (let i = 1; i < cs.length; i += 1) assert.ok(cs[i - 1]!.parte >= cs[i]!.parte, 'ordenados por parte');
+    assert.deepEqual(consejos(desglosar({ usos, compactaciones: [], archivos: 1 }), 1).length, 1);
+  });
+});
+
+describe('qm --desglose · qué hacer', () => {
+  test('--json trae los consejos con su frase, y la terminal el bloque', () => {
+    const casa = casaFalsa();
+    try {
+      const r = qm(casa, ['--desglose', '--json', '--dias=1']);
+      assert.equal(r.codigo, 0, r.error);
+      const d = JSON.parse(r.salida) as { umbrales: Record<string, unknown>; perfiles: Record<string, any>[] };
+      assert.ok(d.umbrales['consejos'], 'los umbrales viajan con el informe');
+      const claude = d.perfiles.find((p) => p['perfil'] === '.claude')!;
+      assert.equal(claude['sesionesTotal'], 1);
+      // La casa de mentira: un prompt de 450k y una reescritura de 60k tras 2 h.
+      assert.deepEqual(claude['consejos'].map((c: any) => c.clave), ['pausas', 'contexto-grande']);
+      for (const c of claude['consejos']) assert.match(c.frase, /\d+,\d%/, 'cada consejo lleva su número');
+      const codex = d.perfiles.find((p) => p['perfil'] === 'codex')!;
+      assert.ok(Array.isArray(codex['consejos']));
+
+      const t = qm(casa, ['--desglose', '--dias=1']);
+      assert.equal(t.codigo, 0, t.error);
+      assert.match(t.salida, /qué hacer · partes del costo ponderado: aproximan la cuota, no la miden/);
+      assert.match(t.salida, /· El \d+,\d% del costo fue volver a escribir el cache/);
     } finally {
       rmSync(casa, { recursive: true, force: true });
     }
