@@ -355,7 +355,8 @@ never be confused.
   "desde": "2026-10-19T23:40:00.000Z",
   "pesos": { "entrada": 1, "escrituraCache5m": 1.25, "escrituraCache1h": 2, "lecturaCache": 0.1, "salida": 5 },
   "nota": "Los pesos son el precio relativo …",  // prose: the weights are a proxy
-  "umbrales": { "reconstruccion": 20000, "contextoGrande": 400000 },
+  "umbrales": { "reconstruccion": 20000, "contextoGrande": 400000,
+                "consejos": { "contextoGrande": 0.15, "pausas": 0.03, "subagenteCaro": 0.05, … } },
   "perfiles": [ … ]
 }
 ```
@@ -372,6 +373,11 @@ Each entry of `perfiles`:
   "lectura": { "archivos": 73, "ms": 937 },
   "requests": 7157,
   "costo": 281800000,                // weighted, in input-token equivalents
+  "consejos": [{                     // what to do about it: at most 3, empty when nothing crosses a threshold
+    "clave": "contexto-grande",      // "contexto-grande" | "pausas" | "subagente-caro" | "sesiones" | "salida"
+    "parte": 0.1588,                 // share of `costo` the tip explains; sorted by it, descending
+    "frase": "El 15,9% del costo salió de prompts de 400k o más …"   // the sentence the terminal prints
+  }],
   "porClase":     [{ "clase": "lecturaCache", "tokens": 2.0e9, "costo": …, "parte": 0.718 }, …],
   "porContexto":  [{ "tramo": "400–700k", "desde": 400000, "hasta": 700000, "requests": …, "costo": …, "parte": … }, …],
   "contextoGrande": { "desde": 400000, "requests": …, "costo": …, "parte": 0.478, "parteRequests": 0.26 },
@@ -381,6 +387,7 @@ Each entry of `perfiles`:
   "subagentes":   { "requests": …, "costo": …, "parte": 0.231 },
   "porDia":       [{ "dia": "2026-10-20", … }],   // the machine's local day
   "proyectos":    [{ "proyecto": "/home/…/repo", … }],   // top 10 by cost
+  "sesionesTotal": 57,               // sessions in the window; `sesiones` is only the top 10
   "sesiones": [{                     // top 10 by cost, subagents included
     "sesion": "…",                   // null with --redactado
     "proyecto": "/home/…/repo",      // "proyecto 1" with --redactado
@@ -402,6 +409,17 @@ Each entry of `perfiles`:
   is the cache-write part only. `hueco` is the idle time since the previous
   request of the same transcript: `>60m`, `5–60m`, or `sin hueco` (5 minutes or
   less).
+- **`consejos`** are computed from the numbers in the same entry, and each
+  `frase` states the number it rests on. A tip appears only when its number
+  crosses its threshold (all thresholds travel in `umbrales.consejos`), so an
+  empty list means "nothing stood out", not "not computed". `sesiones` needs at
+  least `sesionesMin` sessions in the window: with three, "the top three took
+  100 %" is arithmetic. There is no "use fewer subagents" tip on purpose: on
+  the data this was calibrated on, a subagent request costs *less* than a
+  main-thread one; `subagente-caro` only fires for an agent type that costs per
+  request about as much as the main thread **and** has a cheaper, commonly
+  used alternative. The `frase` uses the product's commands (`/clear` for
+  Claude Code, `/new` for Codex) and, with `--redactado`, the redacted project.
 - **`--redactado`** replaces every project directory with `proyecto N`
   (numbered by first appearance, most expensive first, and stable across
   accounts within one run) and sets `sesion` to null.

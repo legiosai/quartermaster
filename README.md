@@ -155,6 +155,11 @@ window), one block per account.
   .claude · ~/.claude
     7.909 requests · 282,1M de costo ponderado (tokens de entrada equivalentes)
 
+    qué hacer · partes del costo ponderado: aproximan la cuota, no la miden
+      · El 35,0% del costo salió de prompts de 400k o más (16,3% de los
+        requests). Cada turno relee el contexto entero: /compact o /clear antes
+        de llegar ahí abarata todos los requests que siguen.
+
     por clase de token
       lectura de cache   ██████████░░░░░  67,6%   1,9G tokens
       escritura 1h       ██░░░░░░░░░░░░░  11,7%   16,5M tokens
@@ -165,7 +170,14 @@ window), one block per account.
       400k o más: 35,0% del costo en 1.288 requests (16,3% de los requests)
 ```
 
-Five answers per account:
+It opens with **what to do** — at most three tips per account, each one
+carrying the measured number it rests on, ranked by how much of the cost it
+explains: prompts of 400k or more (`/compact` or `/clear` sooner), cache
+rewritten after a pause, an agent type that costs per request as much as the
+main thread (a `fork` drags the whole conversation along) when a cheaper one is
+in common use, or a few sessions taking most of the week. A tip appears only
+when its number crosses a threshold; an account with nothing to fix gets no
+generic advice. Then the evidence, five answers per account:
 
 - **Cost by token class.** Tokens are weighted by their relative API price —
   cache read 0.1, cache write 1.25 (5-minute TTL) or 2 (1-hour TTL), input 1,

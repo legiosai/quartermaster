@@ -162,7 +162,16 @@ y «¿llego al final de la semana?»— y una sola de las dos es media respuesta
 
 `qm` dice cuánto queda; `qm --desglose` dice qué lo gastó. Lee las mismas
 transcripciones y desglosa los últimos 7 días (`--dias=N` para otra ventana),
-un bloque por cuenta:
+un bloque por cuenta.
+
+Arranca con **qué hacer**: a lo sumo tres consejos por cuenta, cada uno con el
+número medido en el que se apoya, ordenados por cuánto del costo explican:
+prompts de 400k o más (`/compact` o `/clear` antes), cache reescrito después de
+una pausa, un tipo de agente que cuesta por request lo mismo que el hilo
+principal (un `fork` arrastra la conversación entera) cuando hay uno más barato
+de uso común, o unas pocas sesiones que se llevan la semana. Un consejo aparece
+sólo si su número pasa un umbral: una cuenta sin nada que corregir no recibe
+consejos genéricos. Después, la evidencia:
 
 - **Costo por clase de token.** Cada token se pondera por su precio relativo en
   la API —lectura de cache 0,1, escritura de cache 1,25 (TTL de 5 minutos) o 2
