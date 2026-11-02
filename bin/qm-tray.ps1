@@ -490,6 +490,36 @@ function Reinicio($segundos) {
   return "reinicia en $(Dur $segundos)"
 }
 
+function EdadDe($v, $cuota) {
+  # Los segundos desde que se leyó ESTA barra: la suya si la trae, la de la
+  # cuenta si no. Desde `qm --statusline` una cuenta puede mezclar lecturas —la
+  # sesión y la semanal recién llegadas, el resto de la última lectura del
+  # endpoint— y la barra que viene de la más vieja trae su propio `medidoEn`.
+  # Es edad_de() de bin/qm-indicator. Se pregunta por la propiedad antes de
+  # leerla: StrictMode revienta con un qm anterior que no la manda.
+  if ($null -ne $v -and $v.PSObject.Properties['medidoEn'] -and $v.medidoEn) {
+    $f = Faltan $v.medidoEn
+    if ($null -ne $f) { return [int][math]::Max(0, -$f) }
+  }
+  if ($cuota.PSObject.Properties['edadSegundos']) { return $cuota.edadSegundos }
+  return $null
+}
+
+function PieBarra($v) {
+  # «reinicia en 3d7h   ·   leída hace 24m». Es pie_de_barra() de
+  # bin/qm-indicator: la edad sólo va cuando la barra trae la suya. Si es la de
+  # la cuenta ya la dice el renglón de «lecturas», y repetirla en cada barra es
+  # ruido.
+  $pie = Reinicio (Faltan $v.reinicia)
+  if (-not ($v.PSObject.Properties['medidoEn'] -and $v.medidoEn)) { return $pie }
+  $f = Faltan $v.medidoEn
+  if ($null -eq $f) { return $pie }
+  $e = [int][math]::Max(0, -$f)
+  $edad = "leída hace $(Dur $e)" + $(if ($e -ge $VIEJO_SEGUNDOS) { ' · vieja' } else { '' })
+  if ($pie) { return "$pie   ·   $edad" }
+  return $edad
+}
+
 function NombreVentana($v) {
   if ($v.nombre) { return $v.nombre }
   if ($v.alcance) { return "$($v.clave) ($($v.alcance))" }
@@ -1183,7 +1213,9 @@ function DibujarPerfil($p, [int]$indice) {
     # 40 m» es tranquilizador si se lee cada hora y alarmante si se lee cada
     # cinco minutos— y encima la repetía una vez por perfil en el renglón de
     # una barra que no es la suya.
-    Escribir $g (Reinicio (Faltan $v.reinicia)) $m $y $script:FPie $script:Tinta3
+    # Con ancho: el pie ahora puede llevar la edad propia de la barra, y un
+    # renglón largo se recorta con «…» en vez de salirse de la tarjeta.
+    Escribir $g (PieBarra $v) $m $y $script:FPie $script:Tinta3 -1 ($der - $m)
     $y += Px 19
 
     # La curva va pegada a la barra que frena: es de ella, no del perfil.
@@ -2406,7 +2438,10 @@ function ModeloPaneles($datos, [bool]$avisar) {
     $peor = $cuota.frena
     $proy = $p.proyeccion
     $chocas = [bool]($proy -and $proy.estado -eq 'sube' -and $proy.chocasAntesDelReinicio)
-    $viejo = if ($cuota.edadSegundos -gt $VIEJO_SEGUNDOS) { '~' } else { '' }
+    # El «~» va pegado al número de la sesión, así que es la edad de la sesión
+    # y no la de la cuenta: con la statusline encima, la cuenta puede ser de
+    # recién y la sesión venir de una lectura de ayer.
+    $viejo = if ((EdadDe $cuota.sesion $cuota) -gt $VIEJO_SEGUNDOS) { '~' } else { '' }
 
     # El medidor es la ventana CORTA, que es la que frena ahora: la sesión o, si
     # el plan no tiene —Codex Pro, medido el 2026-09-27: `sesion: null` y sólo

@@ -400,6 +400,18 @@ function conGlobo(el, titulo, lineas) {
 let datos = null;
 const relojes = [];   // { el, hasta } — se recalculan cada segundo
 
+// «leída hace 24m». Sólo para la barra que trae su propio `medidoEn`: desde
+// `qm --statusline` una cuenta puede mezclar lecturas —la sesión y la semanal
+// recién llegadas, el resto de la última lectura del endpoint— y la barra que
+// viene de la más vieja lo dice. La que no lo trae es de cuando dice la cuenta,
+// y esa edad ya está en el chip de la tarjeta.
+function edadPropia(v) {
+  if (!v || !v.medidoEn) return '';
+  const seg = (Date.now() - new Date(v.medidoEn).getTime()) / 1000;
+  if (!Number.isFinite(seg)) return '';
+  return `leída hace ${duracion(seg)}${seg >= 6 * 3600 ? ' · vieja' : ''}`;
+}
+
 function reloj(iso, prefijo = 'reinicia en ') {
   if (!iso) return '';
   const id = 'r' + relojes.length;
@@ -430,6 +442,7 @@ function medidor(v, proy, esLaProyectada) {
         `${v.porcentaje}% usado · ${100 - v.porcentaje}% libre`,
         `severidad: ${v.severidad}${v.activa ? ' · el servidor la marca activa' : ''}`,
         v.reinicia ? `reinicia: ${new Date(v.reinicia).toLocaleString('es-AR')}` : 'sin reinicio informado',
+        ...(v.medidoEn ? [`leída: ${new Date(v.medidoEn).toLocaleString('es-AR')}`] : []),
       ],
     }))}'>
     <div class="fila">
@@ -440,6 +453,7 @@ function medidor(v, proy, esLaProyectada) {
     <div class="pista"><div class="relleno" style="width:${p}%"></div></div>
     <div class="pie">
       <span>${reloj(v.reinicia)}</span>
+      ${edadPropia(v) ? `<span class="edad">· ${edadPropia(v)}</span>` : ''}
       ${proyBarra ? `<span class="ritmo ${proyBarra.chocasAntesDelReinicio ? 'choque' : ''}">${esc(fraseProy(proyBarra))}</span>` : ''}
     </div>
     ${esLaProyectada ? curva(historiaActual, n) : ''}
@@ -656,6 +670,7 @@ function heroe() {
       <div class="detalle">
         ${insignia(n)}
         <span class="sep">·</span>${reloj(v.reinicia, v.porcentaje >= 95 ? 'libre en ' : 'reinicia en ')}
+        ${edadPropia(v) ? `<span class="sep">·</span><span>${edadPropia(v)}</span>` : ''}
         ${proy ? `<span class="sep">·</span><span class="${proy.chocasAntesDelReinicio ? 'choque' : ''}">${esc(fraseProy(proy))}</span>` : ''}
       </div>
       ${curva(p.cuota.historia, n)}

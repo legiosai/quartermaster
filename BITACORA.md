@@ -2240,6 +2240,34 @@ en un clone: el tarball de npm no lleva `src/cli`, y brew y el .deb no llevan
 `dist/`. `bin/qm.mjs` (la entrada de npm, que también usa un `npm link`) aplica
 la misma regla delegando al lanzador.
 
+
+### Y los paneles dicen la edad de cada barra (2026-11-01)
+
+La superposición dejó las cuatro pantallas atrasadas: todas mostraban una sola
+edad por cuenta —«última hace 10s» en GNOME y Windows, el chip «cache …» del
+tablero, el «cache de hace …» de macOS—, y desde la statusline esa edad es la
+de la lectura MÁS NUEVA. En la cuenta Ultra eso decía «hace 10s» encima de
+`iguana_necktie` al 44 %, que era de hace 24 minutos y era justo la barra que
+frenaba.
+
+Ahora la barra que trae su propio `medidoEn` lo dice en su pie —«reinicia en
+3d7h · leída hace 24m», con «· vieja» pasadas las 6 h— en el panel de GNOME, la
+barra de macOS, la bandeja de Windows y el tablero (más una línea en su
+tooltip). La cabecera de GNOME y el héroe del tablero también, porque muestran
+la barra que frena, que suele ser la que sólo trae el endpoint. La que no lo
+trae no repite nada: su edad es la de la cuenta y ya está en el renglón de
+lecturas.
+
+Y el «viejo» del item de la barra pasó a medir lo que se DIBUJA: la ventana
+corta en GNOME, la sesión en el «~» de Windows, la más vieja de sesión y
+semanal en macOS. Medía la cuenta, y con la statusline encima una cuenta de
+recién puede traer una sesión de ayer (el caso de una Ultra cuyo endpoint no
+manda sesión).
+
+`scripts/gate-edades.py` lo comprueba —GNOME ejecutando el código, las otras
+tres por el texto— y va adentro de `gate-dibujo.sh`; `make gate-dibujo-rojo`
+suma sus dos rojos: el pie sin edad propia y el «viejo» midiendo la cuenta.
+
 ## El build, y por qué es opcional
 
 El repo lee el TypeScript directo: no hay paso de build y `make instalar`, el

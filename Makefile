@@ -307,7 +307,7 @@ gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
 
 .PHONY: gate-dibujo-rojo
-gate-dibujo-rojo:  ## los cinco rojos: la cabecera (sin frenaPrimero y encabezada por una dormida), el sello (la rotación de dos nombres y el reloj pelado) y la cuenta sin sesión
+gate-dibujo-rojo:  ## los siete rojos: la cabecera (sin frenaPrimero y encabezada por una dormida), el sello (la rotación de dos nombres y el reloj pelado), la cuenta sin sesión y la edad de cada barra (el pie sin edad propia y el «viejo» de la cuenta)
 	@cp test/fixtures/panel.json .panel.gate
 	@python3 -c "import json;d=json.load(open('test/fixtures/panel.json'));d.pop('frenaPrimero',None);json.dump(d,open('test/fixtures/panel.json','w'),indent=4)"
 	@if python3 scripts/gate-tarjetas.py >/dev/null 2>&1; then \
@@ -352,6 +352,24 @@ gate-dibujo-rojo:  ## los cinco rojos: la cabecera (sin frenaPrimero y encabezad
 	else \
 	  mv .indicador.gate bin/qm-indicator; \
 	  echo "✓ el gate falla en rojo con la barra leyendo la sesión a secas"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('pie = pie_de_barra(v)','pie = reinicio(faltan(v.get(\"reinicia\")))'))"
+	@if python3 scripts/gate-edades.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con el pie de la barra sin su edad propia. Es lo que el cambio vino a arreglar: con la statusline encima, un 44 % de hace media hora se dibujaba como de ahora."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con el pie de la barra sin su edad propia"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('(edad_de(corta, cuota) or 0)','(cuota.get(\"edadSegundos\") or 0)'))"
+	@if python3 scripts/gate-edades.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con el «viejo» del item midiendo la cuenta: una sesión de ayer al lado de una cuenta de recién no se marcaba."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con el «viejo» del item midiendo la cuenta y no la barra"; \
 	fi
 
 .PHONY: construir
