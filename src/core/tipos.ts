@@ -79,7 +79,13 @@ export type OrigenCuota =
   /** Se pidió al endpoint recién: el número es de ahora. */
   | 'endpoint'
   /** Lo dejó Claude Code en .claude.json. No cuesta nada y puede estar viejo. */
-  | 'cache';
+  | 'cache'
+  /**
+   * Se lo pasó Claude Code a `qm --statusline` en un redibujo: la cuota de la
+   * última respuesta de la API, sin red y sin credencial. Trae sólo la sesión
+   * y la semanal; ver src/adapters/statusline.ts.
+   */
+  | 'statusline';
 
 /**
  * Una barra de límite. El servidor manda varias y NO son sólo las dos obvias:
@@ -102,6 +108,12 @@ export interface VentanaCuota {
   readonly alcance: string | null;
   /** session | weekly, cuando viene. Sirve para no repetir la misma barra dos veces. */
   readonly grupo: string | null;
+  /**
+   * Cuándo se midió ESTA barra, sólo cuando no es el `medidoEn` de la lectura
+   * que la trae. Pasa cuando la statusline refresca la sesión y la semanal y
+   * el resto de las barras sigue siendo de una lectura anterior del endpoint.
+   */
+  readonly medidaEn?: Date;
 }
 
 /**
@@ -252,7 +264,12 @@ export function frase(r: ResultadoCuota, perfil: string): string {
     case 'vencida':
       return `credencial vencida — corré: CLAUDE_CONFIG_DIR=${perfil} claude auth login`;
     case 'sin-cache':
-      return 'Claude Code todavía no dejó cuota en .claude.json para este perfil (usalo una vez)';
+      // «Usalo una vez» era el consejo cuando Claude Code guardaba la cuota en
+      // cada uso. Ya no la guarda (ver src/adapters/statusline.ts), así que el
+      // consejo dejaba a una instalación nueva sin número y sin salida.
+      return perfil === 'codex'
+        ? 'Codex todavía no dejó cuota en sus sesiones (usalo una vez)'
+        : `no hay cuota guardada para este perfil — poné \`qm --statusline\` como statusLine de Claude Code (sin red ni credencial), o corré \`qm --refrescar\``;
     case 'sin-cuota-legible':
       return r.detalle;
     case 'no-consultada':

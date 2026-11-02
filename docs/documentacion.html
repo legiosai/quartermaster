@@ -261,6 +261,7 @@ footer a{color:var(--medio)}
     <tr><td>qm</td><td>Quota and usage for every profile. No network and no credential: the quota is the one Claude Code already left in <code>.claude.json</code>.</td></tr>
     <tr><td>--refrescar</td><td>Also asks the endpoint for the number. Needs a live token.</td></tr>
     <tr><td>--json</td><td>The same information as JSON, for scripts and statuslines. It is a contract: see below.</td></tr>
+    <tr><td>--statusline</td><td>The <code>--breve</code> line, for Claude Code's <code>statusLine</code>. It also reads what Claude Code passes on stdin and saves the session and weekly quota of the last response: a fresh number with no network and no credential.</td></tr>
     <tr><td>--breve</td><td>One line and nothing else. It does not read transcripts, so it takes ~85 ms instead of a second. This is what goes in a statusline.</td></tr>
     <tr><td>--watch [seg]</td><td>Redraws every N seconds. Minimum 30, 60 by default.</td></tr>
     <tr><td>--dias=N</td><td>The window for local usage. 7 by default.</td></tr>
@@ -455,7 +456,7 @@ personal 23/75%<span class="w">!</span> · teams 9/42% · codex 49/59%</pre>
 
   <h3>The statusline, in the profile's <code>settings.json</code></h3>
   <pre class="pre-mas">{
-  "statusLine": { "type": "command", "command": "qm --breve" }
+  "statusLine": { "type": "command", "command": "qm --statusline" }
 }</pre>
   <p style="margin-top:18px">
     Mind what it does <b>not</b> do: the cache is refreshed when that profile

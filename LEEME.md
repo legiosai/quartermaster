@@ -120,7 +120,9 @@ de morir con un error de sintaxis.
 
 ```sh
 qm                  # cuota y consumo de cada cuenta
-qm --breve          # un renglón — es lo que va en una statusline
+qm --statusline     # un renglón para el statusLine de Claude Code, que además
+                    # guarda la cuota que Claude Code le pasa: sin red ni credencial
+qm --breve          # el mismo renglón, sin leer stdin
 qm --json           # lo mismo, para scripts y paneles
 qm --refrescar      # además le pregunta al endpoint (necesita token vigente)
 qm --watch 60       # se redibuja cada N segundos
@@ -132,8 +134,21 @@ qm --desglose       # en qué se fue la cuota de la semana — sólo disco, nunc
 En el `settings.json` de Claude Code:
 
 ```json
-{ "statusLine": { "type": "command", "command": "qm --breve" } }
+{ "statusLine": { "type": "command", "command": "qm --statusline" } }
 ```
+
+**Ponelo aunque nunca mires el renglón.** Claude Code ya no deja la cuota en
+`.claude.json` en cada uso; lo que sí hace es pasarle al comando de la
+statusline un objeto `rate_limits` en cada redibujo —la sesión y la semanal de
+la última respuesta de la API—. `qm --statusline` lo guarda por perfil, y
+entonces todos los demás `qm` (la terminal, `--json`, los paneles) tienen un
+número de hace segundos que no costó ningún pedido. Trae sólo esas dos barras,
+así que se **superpone** a la última lectura del endpoint en vez de
+reemplazarla: una barra por modelo que la statusline no conoce conserva su
+valor y muestra su propia edad.
+
+¿Ya tenés un script de statusline? Pasale el evento y mostrá lo que devuelve:
+`echo "$input" | qm --statusline`.
 
 ```
 personal 23/75%! · teams 9/42% · codex 49/59%

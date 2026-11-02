@@ -105,7 +105,9 @@ get one, rather than dying with a syntax error.
 
 ```sh
 qm                  # quota and usage for every account
-qm --breve          # one line — this is what goes in a statusline
+qm --statusline     # one line, for Claude Code's statusLine — and it records
+                    # the quota Claude Code hands it, no network, no credential
+qm --breve          # the same line, without reading stdin
 qm --json           # the same, for scripts and panels
 qm --refrescar      # also ask the endpoint (needs a live token)
 qm --watch 60       # redraw every N seconds
@@ -118,8 +120,21 @@ qm --desglose       # where the week's quota went — disk only, never the netwo
 In Claude Code's `settings.json`:
 
 ```json
-{ "statusLine": { "type": "command", "command": "qm --breve" } }
+{ "statusLine": { "type": "command", "command": "qm --statusline" } }
 ```
+
+**Put it here even if you never look at the line.** Claude Code no longer
+leaves the quota in `.claude.json` on every use; what it does do is pass the
+statusline command a `rate_limits` object on every redraw — the session and
+weekly percentages from the last API response. `qm --statusline` saves that
+per profile, so every other `qm` (the terminal, `--json`, the panels) has a
+number that is seconds old and cost no request. It carries only those two
+bars, so it is laid **over** the last endpoint reading rather than replacing
+it: a model-scoped bar the statusline does not know about keeps its value and
+shows its own age.
+
+Already have a statusline script? Pipe the event through and print what comes
+back: `echo "$input" | qm --statusline`.
 
 ```
 personal 23/75%! · teams 9/42% · codex 49/59%

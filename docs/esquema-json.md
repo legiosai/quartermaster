@@ -219,7 +219,7 @@ When it worked:
 ```jsonc
 {
   "estado": "ok",
-  "origen": "cache" | "endpoint",
+  "origen": "cache" | "endpoint" | "statusline",   // of the NEWEST reading that went in
   "medidoEn": "2026-09-12T21:20:51.199Z",
   "edadSegundos": 7558,
   "ventanas":  [ … ],   // EVERY bar the server sent
@@ -266,11 +266,22 @@ Each window:
   "severidad": "normal" | "warning" | "critical",
   "activa": true,                // the server marked it as the binding one
   "reinicia": "2026-09-13T04:00:00.088Z",
+  "medidoEn": null,              // null = same as the account's `medidoEn`;
+                                 // a date when this bar is from an older reading
   "nombre": "weekly_scoped (Fable)",   // ready to draw
   "preocupa": true,              // the resolved "should this worry you"
   "vencida": false               // `reinicia` is already in the past
 }
 ```
+
+### `medidoEn` on a window — one account, two readings
+
+Since `qm --statusline`, one account can mix readings. The statusline brings
+only the session and the all-models weekly bar; every other bar (model-scoped
+weeklies, bars with no named key) still comes from the last endpoint or cache
+reading. Each bar takes the newest value for itself, the account's `medidoEn`
+and `origen` are those of the newest reading, and any bar that comes from an
+older one says when in its own `medidoEn`. Added in 0.1.21; `esquema` stays 1.
 
 ### `vencida` — the number is from a window that already closed
 

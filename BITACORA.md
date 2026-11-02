@@ -2120,9 +2120,12 @@ En el `settings.json` del perfil:
 
 ```json
 {
-  "statusLine": { "type": "command", "command": "qm --breve" }
+  "statusLine": { "type": "command", "command": "qm --statusline" }
 }
 ```
+
+(`qm --breve` dibuja el mismo renglón sin leer stdin; ver abajo por qué ahora
+conviene `--statusline`.)
 
 Sale así, con `!` para la barra que el servidor marcó con aviso y `~` para un
 cache de más de 6 horas:
@@ -2140,6 +2143,51 @@ Ojo con lo que **no** hace: el cache se refresca cuando ese perfil corre Claude
 Code, así que la statusline de un perfil se actualiza usándolo. Es suficiente
 para la mecánica que importa —enterarte de que vas al 75 % mientras trabajás—
 y no para vigilar un perfil que no estás usando.
+
+### La statusline pasó a ser la fuente (2026-11-01)
+
+El hallazgo que fundó el repo —la cuota está en el `.claude.json` de cada
+perfil, sin red ni credencial— se fue adelgazando sin avisar. Con Claude Code
+2.1.316, ninguno de los dos perfiles que se usan todos los días en esta máquina
+tenía `cachedUsageUtilization`. El binario todavía lo escribe, pero desde el
+camino que pide la cuota a mano (`/usage`), no en cada uso, y lo borra si la
+cuenta no coincide. Lo que se veía en pantalla salía entero de
+`~/.cache/quartermaster/endpoint.json`, o sea del `--calentar` de la barra: red
+y credencial.
+
+La consecuencia se midió con una casa de mentira (una cuenta, sin cache de qm):
+`qm` a secas no mostraba **ningún** número de Claude y decía «usalo una vez»,
+que ya no arregla nada. Una instalación nueva por npm, sin barra, era eso.
+
+Lo que sí llega en cada redibujo es la entrada de la statusline. El esquema
+está en el propio binario: `rate_limits.five_hour` y `rate_limits.seven_day`,
+cada uno con `used_percentage` y `resets_at` en segundos, presentes sólo para
+suscriptores y mientras el reinicio no pasó (más `spend_limit` detrás de un
+gateway). Es la cuota de la última respuesta de la API. `qm --statusline` lee
+ese stdin, lo guarda por perfil en `~/.cache/quartermaster/statusline.json`
+—el perfil sale de `CLAUDE_CONFIG_DIR`, que Claude Code le pasa al comando— y
+dibuja el renglón de siempre, ya con el número nuevo.
+
+**Se superpone, no reemplaza.** La statusline no trae `limits[]`: ni
+`weekly_scoped` ni las barras sin clave propia. El día que se escribió esto, la
+barra que mandaba en la cuenta Ultra era una de esas (`iguana_necktie`, 44 %,
+contra un `weekly_all` de 9 %). Si la lectura de la statusline pisara la del
+endpoint, `qm` mostraría 9 % y escondería el 44 %: el error de 67 puntos de
+SOUL.md otra vez, ahora por frescura. Así que `superponer()` decide barra por
+barra: la sesión y la semanal toman la medición más nueva, las demás se quedan
+con la suya, y **cada barra que viene de una lectura más vieja lleva su propia
+edad** (`medidaEn`; en la terminal, `· leída hace 2h`; en el JSON, `medidoEn`
+por ventana). El historial que alimenta la proyección también se anota con la
+hora de cada barra: con la hora de la statusline, un 44 % de hace dos horas
+entraba a la serie como si fuera de ahora y aplanaba el ritmo.
+
+`five_hour` y `seven_day` se guardan con los nombres de `limits[]` (`session`,
+`weekly_all`) por lo mismo: la serie se indexa por nombre de barra, y dos
+nombres para la misma barra partían el historial en dos mitades.
+
+Lo que no cambia: el número de un perfil se renueva cuando ESE perfil dibuja su
+statusline. Para vigilar un perfil que no estás usando sigue haciendo falta la
+barra, que calienta el endpoint.
 
 ## El build, y por qué es opcional
 
