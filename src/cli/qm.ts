@@ -74,6 +74,7 @@ import {
   peor,
   semanal,
   sesion,
+  sinNombre,
   totalTokens,
   vencida as vencidaVentana,
   type Perfil,
@@ -1117,8 +1118,14 @@ function pintarBreve(filas: readonly FilaPerfil[], o: Opciones, prefijo: readonl
       sesion === undefined || sesion.clave === v.clave
         ? `${cifraDe(v)}%`
         : `${cifraDe(sesion)}/${cifraDe(v)}%`;
+    // Qué barra es, cuando no es la que uno supone. «main 44%» al lado de una
+    // semanal al 13 % parece un número equivocado, y es otra barra: una de un
+    // modelo, o una que el servidor manda sin nombre (en la cuenta Ultra,
+    // `iguana_necktie`). Sin nombrarla no hay cómo ir a buscarla a la tabla. La
+    // sesión y la semanal general van sin nombre: son las que se esperan.
+    const cual = v.alcance ?? (sinNombre(v) ? v.clave : null);
     partes.push(
-      `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${cifra}${aviso}`)}`,
+      `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${cifra}${aviso}`)}${cual === null ? '' : ` ${tenue(cual)}`}`,
     );
   }
   const todo = [...prefijo, ...(partes.length === 0 ? [tr('sin cuota en cache', 'no quota in cache')] : partes)];

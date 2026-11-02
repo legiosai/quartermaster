@@ -28,6 +28,12 @@ out unless they changed what you see.
   10 and 11 use the Accessibility setting instead (5 s out of the box). On macOS
   nothing changed: it was already a temporary banner, and if it stays, Script
   Editor's notification style is set to Persistent or Alerts in System Settings.
+- **The statusline names the bar that stops you when it isn't the session or the
+  weekly.** On an account where Claude Code only sends the weekly (13 %) and the
+  bar that stops you first is one the server sends without a name, the line
+  said `main 44%`, which read like a wrong weekly. It now says
+  `main 44% iguana_necktie`, and a model-only bar says which model:
+  `main 75% Fable`. The session and the general weekly stay unlabeled.
 
 ## v0.1.21 — 2026-11-01
 
