@@ -323,7 +323,7 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
-<h2>Unreleased</h2>
+<h2 id="v0.1.21">v0.1.21 — 2026-11-01</h2>
 <h3>Added</h3>
 <ul>
 <li><strong><code>qm</code> speaks English.</strong> The README and landing page are in English, but everything <code>qm</code> printed was Spanish. It now picks the language from the locale like any terminal program — the first non-empty of <code>LC_ALL</code>, <code>LC_MESSAGES</code> and <code>LANG</code> (<code>es*</code> is Spanish, anything else, including <code>C.UTF-8</code>, is English), or the system's regional setting on Windows. <code>QM_IDIOMA=es|en</code> sets it for good and <code>--idioma=</code> for one run. The table, <code>--breve</code>/<code>--statusline</code>, <code>--help</code>, errors, <code>--esperar</code>, <code>--diagnostico</code>, <code>--desglose</code> (tips included), <code>--mejor</code>, the <code>--aviso</code> hook's message and number formatting (<code>5.8G</code>, not <code>5,8G</code>) all follow it. <code>--json</code> keeps its text in Spanish unless a language is asked for explicitly, because the panels draw it next to their own Spanish labels; its keys never change. A Spanish speaker on a machine with <code>LC_ALL=C.UTF-8</code> now gets English until they set <code>QM_IDIOMA=es</code>.</li>
