@@ -271,6 +271,34 @@ test('qm --statusline antepone el contexto y lo que le queda al cache', () => {
   assert.match(qm(['--breve', '--sin-codex', '--sin-antigravity'], env), /^main 12%$/m);
 });
 
+test('la statusline nombra la barra que frena cuando no es la sesión ni la semanal', () => {
+  // La cuenta Ultra de 2026-11-01: Claude Code sólo manda la semanal (13 %) y la
+  // que frena es una barra sin nombre del endpoint, al 44 %. «main 44%» sin más
+  // parecía una semanal equivocada.
+  const { env, dir } = casa();
+  const reinicia = new Date(Date.now() + 3 * 86_400_000).toISOString();
+  const barra = (clave: string, porcentaje: number, grupo: string | null, alcance: string | null) =>
+    ({ clave, porcentaje, reinicia, severidad: 'normal', activa: false, alcance, grupo });
+  const sembrar = (ventanas: unknown[]) => {
+    mkdirSync(join(dir, '.cache', 'quartermaster'), { recursive: true });
+    writeFileSync(join(dir, '.cache', 'quartermaster', 'endpoint.json'),
+      JSON.stringify({ '.claude': { medidoEn: new Date().toISOString(), ventanas } }));
+  };
+  const semana = Math.floor(Date.now() / 1000) + 3 * 86_400;
+  const entrada = JSON.stringify({ rate_limits: { seven_day: { used_percentage: 13, resets_at: semana } } });
+
+  sembrar([barra('weekly_all', 11, 'weekly', null), barra('weekly_scoped', 0, 'weekly', 'Fable'), barra('iguana_necktie', 44, null, null)]);
+  assert.match(qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, entrada), /^main 44% iguana_necktie$/m);
+
+  // Una barra de un modelo dice cuál.
+  sembrar([barra('weekly_all', 11, 'weekly', null), barra('weekly_scoped', 75, 'weekly', 'Fable')]);
+  assert.match(qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, entrada), /^main 75% Fable$/m);
+
+  // La semanal general no lleva nombre: es la que se espera.
+  sembrar([barra('weekly_all', 11, 'weekly', null), barra('weekly_scoped', 0, 'weekly', 'Fable')]);
+  assert.match(qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, entrada), /^main 13%$/m);
+});
+
 test('las cuentas dormidas van en un renglón cada una al pie, y --todas las muestra enteras', () => {
   const { env, dir } = casa();
   // Una segunda cuenta que nadie usa: sin transcripciones, sin credencial.

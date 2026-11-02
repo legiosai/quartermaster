@@ -157,6 +157,10 @@ the bar that stops you first. They answer different questions — "can I keep
 going right now?" and "do I make it to the end of the week?" — and either one
 alone is half an answer.
 
+When that second bar is not the one you would assume — a model-scoped bar, or
+one the server sends without a name — the line says which: `main 44%
+iguana_necktie` next to a weekly at 13 % is that bar, not a wrong weekly.
+
 ### Language
 
 `qm` speaks English or Spanish, picked from the locale the way any terminal
