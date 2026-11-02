@@ -268,7 +268,9 @@ Each window:
   "reinicia": "2026-09-13T04:00:00.088Z",
   "medidoEn": null,              // null = same as the account's `medidoEn`;
                                  // a date when this bar is from an older reading
-  "nombre": "weekly_scoped (Fable)",   // ready to draw
+  "nombre": "weekly_scoped (Fable)",   // ready to draw; a bar the server sends
+                                       // with no known name and no scope reads
+                                       // "otro límite (iguana_necktie)"
   "preocupa": true,              // the resolved "should this worry you"
   "vencida": false               // `reinicia` is already in the past
 }

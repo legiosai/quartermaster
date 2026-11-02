@@ -107,7 +107,8 @@ get one, rather than dying with a syntax error.
 qm                  # quota and usage for every account
 qm --statusline     # one line, for Claude Code's statusLine — and it records
                     # the quota Claude Code hands it, no network, no credential
-qm --breve          # the same line, without reading stdin
+qm --breve          # the quota part of that line, without reading stdin
+qm --todas          # dormant accounts in full, not one line each at the bottom
 qm --json           # the same, for scripts and panels
 qm --refrescar      # also ask the endpoint (needs a live token)
 qm --watch 60       # redraw every N seconds
@@ -137,8 +138,16 @@ Already have a statusline script? Pipe the event through and print what comes
 back: `echo "$input" | qm --statusline`.
 
 ```
-personal 23/75%! · teams 9/42% · codex 49/59%
+ctx 182k · caché 12m · personal 23/75%! · teams 9/42% · codex 49/59%
 ```
+
+The first two segments are the session drawing the line, and they are what the
+*next* prompt will cost: the context size (yellow from 400k — prompts that big
+were 35 % of a measured week's weighted cost with 16 % of the requests) and
+how long the prompt cache stays warm. Once it goes cold the line says
+`caché fría (+181k)`: the next request rewrites that many tokens of cache, so
+that is the moment to decide between `/clear` and carrying on. `--breve` prints
+only the quota part.
 
 **Two numbers per account, on purpose.** The first is the session; the second is
 the bar that stops you first. They answer different questions — "can I keep

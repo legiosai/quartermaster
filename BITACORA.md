@@ -2189,6 +2189,57 @@ Lo que no cambia: el número de un perfil se renueva cuando ESE perfil dibuja su
 statusline. Para vigilar un perfil que no estás usando sigue haciendo falta la
 barra, que calienta el endpoint.
 
+### Lo que cuesta el próximo prompt (2026-11-01)
+
+La misma entrada de la statusline trae `context_window` y `prompt_cache`
+(`warm`, `expires_at`, `recache_tokens_if_cold`). `qm --statusline` los pone
+adelante de la cuota: `ctx 182k · caché 12m · main 31/44%`. Es lo que hacía a
+mano `~/.claude/hooks/statusline.py` en la máquina donde se escribió esto, que
+adivinaba el vencimiento del cache con un `IDLE_MINUTES` fijo; el `expires_at`
+es el de verdad, y el TTL puede ser 5 minutos o una hora.
+
+Los umbrales no son de gusto: `qm --desglose` midió una semana en la que los
+prompts de 400k o más fueron el 35 % del costo ponderado con el 16 % de los
+requests, y reconstruir el cache después de una pausa otro 10 %. Por eso el
+contexto se pone amarillo desde 400k, y el cache frío dice cuánto reescribe el
+próximo request (`caché fría (+181k)`): es la cifra que decide entre `/clear` y
+seguir. Un proveedor que no cachea (`caching_observed: false`) no muestra nada:
+si no, diría «caché fría» para siempre.
+
+### Las cuentas dormidas, al pie (2026-11-01)
+
+En la tabla, cada cuenta dormida ocupaba cinco renglones para decir que no
+había nada: tres de seis cuentas, quince de treinta y cinco renglones en esta
+máquina. Ahora van al pie, un renglón cada una **con el motivo** —una cuenta que
+baja de lugar sin decir por qué sigue siendo indistinguible de un bug—, y
+`qm --todas` las vuelve a mostrar enteras. Si todas están dormidas se muestran
+enteras: una tabla vacía no es más clara.
+
+### Las barras que el servidor no nombra (2026-11-01)
+
+La barra que frenaba la cuenta Ultra se llamaba `iguana_necktie`: un nombre
+interno, sin alcance. Había dos problemas y uno era nuestro. `scope.surface` es
+un objeto `{ display_name }`, igual que `scope.model` —así lo declara el esquema
+adentro del binario de Claude Code—, y `alcanceDe()` lo leía como texto: una
+barra por superficie perdía su nombre. Está arreglado; si `iguana_necktie` era
+una de ésas, la próxima lectura del endpoint la va a nombrar. Si el servidor de
+verdad no la nombra, `nombreVentana()` la presenta como lo que se sabe —`otro
+límite (iguana_necktie)`— y conserva la clave, que es lo único que la distingue
+de otra igual. Los paneles leen `nombre` del JSON, así que el cambio llega a las
+cuatro pantallas sin tocarlas.
+
+### Un dist/ viejo ya no tapa al src/ (2026-11-01)
+
+`bin/qm` avisaba por stderr cuando el `dist/` era más viejo que el src/, y
+corría el `dist/` igual. El aviso no alcanzó: `npm test` dio dos rojos falsos
+porque los tests de punta a punta corren `bin/qm` y el `dist/` era de cinco
+semanas antes; adentro de un test nadie lee stderr. Ahora, si algún `.ts` de
+`src/` es más nuevo que el `dist/`, se corre el `src/` (con una línea a stderr).
+Comparar sólo `qm.ts`, como antes, no veía un cambio en un adaptador. Sólo pasa
+en un clone: el tarball de npm no lleva `src/cli`, y brew y el .deb no llevan
+`dist/`. `bin/qm.mjs` (la entrada de npm, que también usa un `npm link`) aplica
+la misma regla delegando al lanzador.
+
 ## El build, y por qué es opcional
 
 El repo lee el TypeScript directo: no hay paso de build y `make instalar`, el

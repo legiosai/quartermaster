@@ -44,7 +44,7 @@ import {
   ultimaActividadAntigravity,
 } from '../adapters/antigravity.ts';
 import { endpointEnCache, frenadoHasta, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
-import { guardarStatusline, leerStdin, perfilDeLaStatusline, statuslineEnCache, superponer } from '../adapters/statusline.ts';
+import { guardarStatusline, leerStdin, perfilDeLaStatusline, sesionDeStatusline, statuslineEnCache, superponer } from '../adapters/statusline.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import * as entorno from '../adapters/entorno.ts';
 import { cuentaPedida, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
@@ -101,6 +101,8 @@ interface Opciones {
   umbral: number | null;
   redactado: boolean;
   breve: boolean;
+  /** Mostrar enteras también las cuentas dormidas, en vez de un renglón cada una al pie. */
+  todas: boolean;
   /** Además de --breve: leer de stdin lo que Claude Code le pasa a la statusline. */
   statusline: boolean;
   codex: boolean;
@@ -148,8 +150,10 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
   qm --breve          un renglón y nada más. No lee transcripciones, así que
                       tarda milisegundos: es lo que va en una statusline
   qm --statusline     lo mismo que --breve, para el statusLine de Claude Code:
-                      lee lo que Claude Code le pasa por stdin y guarda la
-                      cuota de la última respuesta. Sin red ni credencial
+                      lee lo que Claude Code le pasa por stdin, guarda la
+                      cuota de la última respuesta (sin red ni credencial) y
+                      antepone el contexto y cuánto le queda al cache
+  qm --todas          las cuentas dormidas también enteras, no un renglón al pie
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
@@ -182,6 +186,7 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     umbral: null,
     redactado: false,
     breve: false,
+    todas: false,
     statusline: false,
     codex: true,
     antigravity: true,
@@ -192,6 +197,7 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     if (a === '--json') o.json = true;
     else if (a === '--redactado') o.redactado = true;
     else if (a === '--breve') o.breve = true;
+    else if (a === '--todas') o.todas = true;
     else if (a === '--statusline') {
       o.breve = true;
       o.statusline = true;
@@ -775,7 +781,7 @@ function sello(r: Extract<ResultadoCuota, { estado: 'ok' }>): string {
   return edadMs > 6 * 3600_000 ? amarillo(`${texto} — viejo`) : tenue(texto);
 }
 
-function pintarVentana(v: VentanaCuota, marca: boolean): void {
+function pintarVentana(v: VentanaCuota, marca: boolean, ancho = 24): void {
   const pct = `${v.porcentaje.toFixed(0)}%`.padStart(4);
   // Una ventana cuyo reinicio ya pasó lleva un número de la ventana ANTERIOR:
   // el 13 % de una sesión que cerró anteayer no dice nada de la de hoy. No se
@@ -791,7 +797,7 @@ function pintarVentana(v: VentanaCuota, marca: boolean): void {
   const medidor = vencida
     ? `${tenue(barraSinColor(v.porcentaje / 100))} ${tenue(pct)}`
     : `${barra(v.porcentaje / 100)} ${colorPct(v.porcentaje)(pct)}`;
-  console.log(`  ${relleno('', 17)}${flecha}${relleno(nombreVentana(v), 24)} ${medidor}${aviso}${resta}${edad}`);
+  console.log(`  ${relleno('', 17)}${flecha}${relleno(nombreVentana(v), ancho)} ${medidor}${aviso}${resta}${edad}`);
 }
 
 /**
@@ -815,7 +821,19 @@ function fraseProyeccion(p: Proyeccion): string {
 function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
   console.log(negrita(`\nqm · ${process.platform} · consumo de ${o.dias}d\n`));
 
+  // Las dormidas van en un renglón cada una, al pie. Enteras ocupaban cinco
+  // renglones por cuenta para decir «no hay nada acá»: en la máquina donde se
+  // escribió esto eran tres de seis cuentas y quince de treinta y cinco
+  // renglones. Siguen diciendo POR QUÉ están dormidas —eso no se esconde nunca—
+  // y si todas lo están, se muestran enteras: una tabla vacía no es más clara.
+  const hayDespiertas = filas.some((f) => !relevanciaDe(f, o).dormida);
+  const plegadas: FilaPerfil[] = [];
+
   for (const f of filas) {
+    if (!o.todas && hayDespiertas && relevanciaDe(f, o).dormida) {
+      plegadas.push(f);
+      continue;
+    }
     const cuenta = f.perfil.cuenta?.email ?? 'sin cuenta';
     const nombrePlan = planParaMostrar(f.perfil.cuenta);
     const plan = nombrePlan ? tenue(` · ${nombrePlan}`) : '';
@@ -833,7 +851,10 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
       const mostrar = paraMostrar(f.cuota.ventanas);
       const p = peor(mostrar);
       console.log(`  ${relleno('', 18)} ${sello(f.cuota)}`);
-      for (const v of mostrar) pintarVentana(v, p !== null && v.clave === p.clave);
+      // La columna crece con el nombre más largo: «otro límite (…)» no entra en
+      // 24 y correr un solo medidor rompe la lectura de la tabla entera.
+      const ancho = Math.max(24, ...mostrar.map((v) => nombreVentana(v).length + 1));
+      for (const v of mostrar) pintarVentana(v, p !== null && v.clave === p.clave, ancho);
     } else {
       // Sin número de cuota, una frase. Nunca un renglón en blanco.
       console.log(`  ${relleno('', 18)} ${tenue(`cuota: ${frase(f.cuota, f.perfil.directorio)}`)}`);
@@ -866,6 +887,15 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
     const rel = relevanciaDe(f, o);
     if (rel.dormida) {
       console.log(`  ${relleno('', 18)} ${tenue(`dormida: ${rel.porque.join(' · ')} — no encabeza`)}`);
+    }
+    console.log();
+  }
+
+  if (plegadas.length > 0) {
+    console.log(`  ${tenue(`dormidas · \`qm --todas\` las muestra enteras`)}`);
+    const anchoNombre = Math.max(18, ...plegadas.map((f) => f.perfil.nombre.length + 1));
+    for (const f of plegadas) {
+      console.log(`    ${relleno(f.perfil.nombre, anchoNombre)} ${tenue(relevanciaDe(f, o).porque.join(' · '))}`);
     }
     console.log();
   }
@@ -907,7 +937,37 @@ function nombreCorto(n: string): string {
  * cada perfil que tenga número. Los perfiles sin cuota no se listan — en una
  * línea de 80 columnas, decir «no sé» de tres perfiles tapa el que sí sabés.
  */
-function pintarBreve(filas: readonly FilaPerfil[], o: Opciones): void {
+/**
+ * Lo que va antes de la cuota en `--statusline`: el contexto y el cache del
+ * prompt de la sesión que dibuja. Los dos deciden cuánto cuesta el PRÓXIMO
+ * prompt, que es lo único que todavía se puede cambiar.
+ *
+ * Los umbrales salen de `qm --desglose` sobre una semana real: los prompts de
+ * 400k o más fueron el 35 % del costo ponderado con el 16 % de los requests, y
+ * reconstruir cache después de una pausa, otro 10 %.
+ */
+function segmentosDeSesion(entrada: unknown, ahora = Date.now()): string[] {
+  const s = sesionDeStatusline(entrada);
+  const partes: string[] = [];
+  if (s.contexto !== null) {
+    const texto = `ctx ${Math.round(s.contexto / 1000)}k`;
+    partes.push(s.contexto >= 400_000 ? amarillo(texto) : tenue(texto));
+  }
+  if (s.cache !== null) {
+    const quedan = s.cache.venceEn === null ? 0 : s.cache.venceEn.getTime() - ahora;
+    if (s.cache.caliente && quedan >= 60_000) {
+      partes.push(tenue(`caché ${Math.floor(quedan / 60_000)}m`));
+    } else if (s.cache.venceEn !== null || s.cache.recachear !== null) {
+      // Fría: el próximo prompt reescribe el contexto entero. Decir cuánto es
+      // lo que convierte el aviso en una decisión (¿/clear o seguir?).
+      const cuanto = s.cache.recachear === null ? '' : ` (+${Math.round(s.cache.recachear / 1000)}k)`;
+      partes.push(amarillo(`caché fría${cuanto}`));
+    }
+  }
+  return partes;
+}
+
+function pintarBreve(filas: readonly FilaPerfil[], o: Opciones, prefijo: readonly string[] = []): void {
   const partes: string[] = [];
   for (const f of filas) {
     if (f.cuota.estado !== 'ok') continue;
@@ -939,7 +999,8 @@ function pintarBreve(filas: readonly FilaPerfil[], o: Opciones): void {
       `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${cifra}${aviso}`)}`,
     );
   }
-  console.log(partes.length === 0 ? 'sin cuota en cache' : partes.join(tenue(' · ')));
+  const todo = [...prefijo, ...(partes.length === 0 ? ['sin cuota en cache'] : partes)];
+  console.log(todo.join(tenue(' · ')));
 }
 
 /** Las muestras recientes de la barra que frena, ya recortadas a la ventana de ajuste. */
@@ -1445,11 +1506,13 @@ if (opciones.desglose) {
 
 // --statusline: lo que Claude Code mandó por stdin se guarda ANTES de medir,
 // así este mismo renglón ya sale con la cuota de la última respuesta.
+let entradaStatusline: unknown = null;
 if (opciones.statusline) {
   const crudo = await leerStdin();
   if (crudo.trim() !== '') {
     try {
-      guardarStatusline(perfilDeLaStatusline(), JSON.parse(crudo));
+      entradaStatusline = JSON.parse(crudo);
+      guardarStatusline(perfilDeLaStatusline(), entradaStatusline);
     } catch {
       // Una entrada que no es JSON no es motivo para no dibujar la línea.
     }
@@ -1470,7 +1533,7 @@ const unaVuelta = async (): Promise<number> => {
     return 0;
   }
   if (opciones.json) console.log(JSON.stringify(comoJson(filas, opciones), null, 2));
-  else if (opciones.breve) pintarBreve(filas, opciones);
+  else if (opciones.breve) pintarBreve(filas, opciones, segmentosDeSesion(entradaStatusline));
   else pintar(filas, opciones);
   if (opciones.umbral !== null && maximo(filas, opciones) >= opciones.umbral) return 3;
   return 0;

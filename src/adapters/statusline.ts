@@ -218,3 +218,66 @@ export function leerStdin(ms = 500): Promise<string> {
     process.stdin.on('error', fin);
   });
 }
+
+// ── la sesión que está dibujando ────────────────────────────────────────
+// La misma entrada trae dos cosas más que deciden cuánta cuota se va en el
+// próximo prompt, y que `qm --desglose` mide después de gastada: el tamaño del
+// contexto (cada request lo manda entero) y si el cache del prompt sigue
+// caliente (si se enfrió, el próximo request lo vuelve a escribir entero, a
+// 1,25 o 2 veces el precio de entrada). Mostrarlas ANTES de mandar es la única
+// forma de que sirvan para algo.
+
+/** Lo que dice la entrada de la statusline sobre la sesión que la dibuja. */
+export interface SesionStatusline {
+  /** Tokens de entrada que hay hoy en el contexto. null si todavía no hubo respuesta. */
+  readonly contexto: number | null;
+  /**
+   * El cache del prompt. null si Claude Code no lo informa (proveedor sin cache,
+   * o todavía no hubo respuesta).
+   */
+  readonly cache: {
+    readonly caliente: boolean;
+    /** Cuándo se enfría. null si no hay nada cacheado. */
+    readonly venceEn: Date | null;
+    /** Cuántos tokens re-escribe el próximo request si llega con el cache frío. */
+    readonly recachear: number | null;
+  } | null;
+}
+
+const numero = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+export function sesionDeStatusline(entrada: unknown): SesionStatusline {
+  if (typeof entrada !== 'object' || entrada === null) return { contexto: null, cache: null };
+  const e = entrada as Record<string, unknown>;
+
+  let contexto: number | null = null;
+  const cw = e['context_window'];
+  if (typeof cw === 'object' && cw !== null) {
+    const c = cw as Record<string, unknown>;
+    contexto = numero(c['total_input_tokens']);
+    const uso = c['current_usage'];
+    if (contexto === null && typeof uso === 'object' && uso !== null) {
+      const u = uso as Record<string, unknown>;
+      const partes = ['input_tokens', 'cache_creation_input_tokens', 'cache_read_input_tokens'].map((k) => numero(u[k]) ?? 0);
+      const total = partes.reduce((a, b) => a + b, 0);
+      contexto = total > 0 ? total : null;
+    }
+  }
+
+  let cache: SesionStatusline['cache'] = null;
+  const pc = e['prompt_cache'];
+  if (typeof pc === 'object' && pc !== null) {
+    const p = pc as Record<string, unknown>;
+    // Sin cache observado no hay nada que se enfríe: decir «caché fría» en un
+    // proveedor que no cachea sería un aviso falso permanente.
+    if (p['caching_observed'] !== false) {
+      const vence = numero(p['expires_at']);
+      cache = {
+        caliente: p['warm'] === true,
+        venceEn: vence === null ? null : new Date(vence * 1000),
+        recachear: numero(p['recache_tokens_if_cold']),
+      };
+    }
+  }
+  return { contexto, cache };
+}

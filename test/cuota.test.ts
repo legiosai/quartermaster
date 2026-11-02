@@ -273,3 +273,27 @@ test('peor() no puede elegir una barra interna de 0 % porque las fechadas vencie
   assert.equal(p.clave, 'weekly_scoped');
   assert.equal(p.porcentaje, 75);
 });
+
+// ─── Barras sin nombre ─────────────────────────────────────────────────────
+
+test('una barra por superficie toma el nombre de la superficie', () => {
+  // `scope.surface` es un objeto { display_name }, como `scope.model`. Leído
+  // como texto, la barra quedaba con la clave interna del servidor a secas.
+  const [v] = parsearUtilizacion({
+    limits: [{ kind: 'iguana_necktie', group: null, percent: 44, severity: 'normal', resets_at: null, is_active: false,
+      scope: { model: null, surface: { display_name: 'Claude Design' } } }],
+  });
+  assert.equal(v!.alcance, 'Claude Design');
+  assert.equal(nombreVentana(v!), 'iguana_necktie (Claude Design)');
+});
+
+test('una barra que el servidor no nombra se presenta como otro límite, con su clave', () => {
+  const [v] = parsearUtilizacion({
+    limits: [{ kind: 'iguana_necktie', group: null, percent: 44, severity: 'normal', resets_at: null, is_active: false, scope: null }],
+  });
+  assert.equal(nombreVentana(v!), 'otro límite (iguana_necktie)');
+  // Las que ya dicen qué miden no cambian: los paneles las buscan por nombre.
+  for (const clave of ['session', 'weekly_all', 'weekly', 'five_hour', 'seven_day', 'seven_day_opus', 'spend_limit']) {
+    assert.equal(nombreVentana({ ...v!, clave }), clave);
+  }
+});

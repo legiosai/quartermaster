@@ -249,9 +249,27 @@ export function semanal(ventanas: readonly VentanaCuota[]): VentanaCuota | null 
   )[0]!;
 }
 
-/** Nombre legible de una ventana, con su alcance si lo tiene. */
+/**
+ * Claves cuyo nombre ya dice qué miden. Cualquier otra es un nombre interno
+ * del servidor —`iguana_necktie` fue la barra que frenaba una cuenta Ultra el
+ * 2026-11-01— y mostrarla a secas no le dice nada a nadie.
+ */
+const CLAVES_CONOCIDAS = /^(session|weekly(_all|_scoped)?|five_hour|seven_day(_[a-z]+)?|spend_limit|daily|monthly)$/;
+
+/** El servidor manda esta barra sin decir qué mide: ni nombre conocido ni alcance. */
+export function sinNombre(v: VentanaCuota): boolean {
+  return v.alcance === null && !CLAVES_CONOCIDAS.test(v.clave);
+}
+
+/**
+ * Nombre legible de una ventana, con su alcance si lo tiene. Una barra sin
+ * nombre se presenta como lo que se sabe de ella —que es otro límite— y conserva
+ * la clave entre paréntesis: es lo único que la distingue de otra igual y lo que
+ * hay que buscar si alguien quiere saber qué es.
+ */
 export function nombreVentana(v: VentanaCuota): string {
-  return v.alcance === null ? v.clave : `${v.clave} (${v.alcance})`;
+  if (v.alcance !== null) return `${v.clave} (${v.alcance})`;
+  return sinNombre(v) ? `otro límite (${v.clave})` : v.clave;
 }
 
 /** La frase que se le muestra al usuario para cada estado. Nunca vacía. */

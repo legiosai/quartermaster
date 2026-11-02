@@ -122,7 +122,8 @@ de morir con un error de sintaxis.
 qm                  # cuota y consumo de cada cuenta
 qm --statusline     # un renglón para el statusLine de Claude Code, que además
                     # guarda la cuota que Claude Code le pasa: sin red ni credencial
-qm --breve          # el mismo renglón, sin leer stdin
+qm --breve          # la parte de cuota de ese renglón, sin leer stdin
+qm --todas          # las cuentas dormidas enteras, no un renglón cada una al pie
 qm --json           # lo mismo, para scripts y paneles
 qm --refrescar      # además le pregunta al endpoint (necesita token vigente)
 qm --watch 60       # se redibuja cada N segundos
@@ -151,8 +152,16 @@ valor y muestra su propia edad.
 `echo "$input" | qm --statusline`.
 
 ```
-personal 23/75%! · teams 9/42% · codex 49/59%
+ctx 182k · caché 12m · personal 23/75%! · teams 9/42% · codex 49/59%
 ```
+
+Los dos primeros tramos son de la sesión que dibuja, y dicen cuánto va a costar
+el *próximo* prompt: el tamaño del contexto (amarillo desde 400k: los prompts de
+ese tamaño fueron el 35 % del costo ponderado de una semana medida, con el 16 %
+de los requests) y cuánto le queda caliente al cache del prompt. Cuando se
+enfría dice `caché fría (+181k)`: el próximo request reescribe esos tokens de
+cache, y ése es el momento de elegir entre `/clear` y seguir. `--breve` imprime
+sólo la parte de cuota.
 
 **Dos números por cuenta a propósito**: el primero es la sesión y el segundo la
 barra que te frena antes. Contestan preguntas distintas —«¿puedo seguir ahora?»
