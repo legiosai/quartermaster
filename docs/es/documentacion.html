@@ -262,6 +262,8 @@ footer a{color:var(--medio)}
     <tr><td>--refrescar</td><td>Además le pide el número al endpoint. Necesita un token vigente.</td></tr>
     <tr><td>--json</td><td>La misma información como JSON, para scripts y statuslines. Es un contrato: ver más abajo.</td></tr>
     <tr><td>--statusline</td><td>El renglón de <code>--breve</code>, para el <code>statusLine</code> de Claude Code. Además lee lo que Claude Code le pasa por stdin y guarda la cuota de sesión y semanal de la última respuesta: un número fresco sin red ni credencial.</td></tr>
+    <tr><td>--mejor</td><td>El directorio del perfil de Claude con más margen ahora. Para arrancar ahí, <code>qm --mejor -- claude</code>: el perfil por defecto se arranca <em>sin</em> <code>CLAUDE_CONFIG_DIR</code>. <code>--json</code> da el orden entero.</td></tr>
+    <tr><td>--aviso</td><td>Un hook de <code>UserPromptSubmit</code> para Claude Code: avisa cuando la barra que frena pasa el 90&nbsp;% (<code>--umbral=N</code>) o cuando la proyección llega al 100&nbsp;% en menos de 30 minutos, y dice qué perfil tiene lugar. Una vez por escalón y por ventana; nunca frena el prompt.</td></tr>
     <tr><td>--breve</td><td>Un renglón y nada más. No lee transcripciones, así que tarda ~85 ms en vez de un segundo. Es lo que va en una statusline.</td></tr>
     <tr><td>--watch [seg]</td><td>Se redibuja cada N segundos. Mínimo 30, por defecto 60.</td></tr>
     <tr><td>--dias=N</td><td>Ventana del consumo local. Por defecto 7.</td></tr>

@@ -20,7 +20,6 @@ import { correrDesglose } from './desglose.ts';
 import { descubrirPerfiles, planParaMostrar } from '../core/perfiles.ts';
 import { estadoCredencial } from '../adapters/credenciales.ts';
 import { consumoDesde, transcripciones, ultimaActividad } from '../adapters/transcripciones.ts';
-import { cuotaEnCache } from '../adapters/cache-cuota.ts';
 import { anotar, claveBarra, muestras, type Lectura } from '../adapters/historial.ts';
 import { proyectar, VENTANA_AJUSTE_MS, type Proyeccion } from '../core/proyeccion.ts';
 import { frasePresupuesto, presupuestoDiario, type Presupuesto } from '../core/presupuesto.ts';
@@ -45,6 +44,9 @@ import {
 } from '../adapters/antigravity.ts';
 import { endpointEnCache, frenadoHasta, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import { guardarStatusline, leerStdin, perfilDeLaStatusline, sesionDeStatusline, statuslineEnCache, superponer } from '../adapters/statusline.ts';
+import { cuotaGuardada } from '../adapters/cuota-guardada.ts';
+import { correrMejor } from './mejor.ts';
+import { correrAviso } from './aviso.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import * as entorno from '../adapters/entorno.ts';
 import { cuentaPedida, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
@@ -154,6 +156,15 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
                       cuota de la última respuesta (sin red ni credencial) y
                       antepone el contexto y cuánto le queda al cache
   qm --todas          las cuentas dormidas también enteras, no un renglón al pie
+  qm --mejor          el directorio del perfil de Claude con más margen ahora.
+                      Para arrancar ahí: qm --mejor -- claude (el perfil por
+                      defecto se arranca SIN CLAUDE_CONFIG_DIR, y $(…) no puede
+                      sacarla). --json da el orden entero y por qué
+  qm --aviso          hook de UserPromptSubmit: avisa en Claude Code cuando la
+                      barra que frena pasa el 90 % (--umbral=N) o cuando a este
+                      ritmo chocás en menos de 30 minutos, y a qué perfil
+                      pasarte. Una vez por escalón y por ventana; nunca frena
+                      el prompt
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
@@ -612,8 +623,9 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
       // vez que se consultó el endpoint.
       // Encima, lo que dejó la statusline: la sesión y la semanal de la última
       // respuesta, barra por barra y sin tapar las que sólo sabe el endpoint.
+      // La regla vive en cuotaGuardada(): la usan también --mejor y --aviso.
       const sensor = statuslineEnCache(perfil.nombre);
-      let cuota = superponer(masNueva(cuotaEnCache(perfil), endpointEnCache(perfil.nombre)), sensor);
+      let cuota = cuotaGuardada(perfil);
       let notaRefresco: string | null = null;
       if (o.refrescar) {
         const fresca = await consultarCuota(perfil);
@@ -1350,6 +1362,15 @@ function diagnostico(): string {
 
   l.push('');
   return `${l.join('\n')}\n`;
+}
+
+// --mejor y --aviso salen antes que todo: tienen sus propias banderas y, en
+// --mejor, un `--` después del cual viene el comando de otro programa, que el
+// parser de abajo rechazaría. Sólo cuenta lo que está antes del `--`.
+{
+  const antesDelCorte = ((c) => (c < 0 ? process.argv : process.argv.slice(0, c)))(process.argv.indexOf('--')).slice(2);
+  if (antesDelCorte.includes('--mejor')) process.exit(correrMejor(configEfectiva(), process.argv.slice(2)));
+  if (antesDelCorte.includes('--aviso')) process.exit(await correrAviso(configEfectiva(), process.argv.slice(2)));
 }
 
 // --diagnostico sale primero: tiene que contestar incluso cuando lo demás está

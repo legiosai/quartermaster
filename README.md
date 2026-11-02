@@ -114,6 +114,8 @@ qm --refrescar      # also ask the endpoint (needs a live token)
 qm --watch 60       # redraw every N seconds
 qm --umbral=80      # exit 3 if any bar is over N%
 qm --esperar        # block until quota drops:  qm --esperar && codex ...
+qm --mejor -- claude  # start claude in the profile with the most room left
+qm --aviso          # a UserPromptSubmit hook: warns inside Claude Code
 qm --diagnostico    # everything a bug report needs, already redacted
 qm --desglose       # where the week's quota went — disk only, never the network
 ```
@@ -153,6 +155,50 @@ only the quota part.
 the bar that stops you first. They answer different questions — "can I keep
 going right now?" and "do I make it to the end of the week?" — and either one
 alone is half an answer.
+
+## Before the wall
+
+**`qm --mejor`** picks the Claude profile with the most room right now: the
+lowest binding bar, then a projection that hits 100% before the reset counts
+against it, then the emptier session. A window whose reset already passed is
+*unknown*, not 0%. Profiles with no session or no stored number are left out.
+
+```sh
+qm --mejor -- claude        # start claude there
+qm --mejor                  # just print the directory, for scripts
+qm --mejor --json           # the whole ranking, and why
+```
+
+Use the `--` form to launch. `CLAUDE_CONFIG_DIR=$(qm --mejor) claude` is wrong
+for the default profile: with the variable set, even to `~/.claude`, Claude
+Code reads `~/.claude/.claude.json` instead of `~/.claude.json`, and on macOS
+it stops looking in the keychain — a different profile, with no session.
+`qm --mejor -- …` removes the variable for the default profile.
+
+**`qm --aviso`** is a hook that warns you *inside* Claude Code, where you are
+looking, before the bar stops you. In the profile's `settings.json`:
+
+```json
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "qm --aviso" }] }
+    ]
+  }
+}
+```
+
+```
+qm · main: iguana_necktie al 92 % · se reinicia en 3d7h. teams tiene 94 % libre: CLAUDE_CONFIG_DIR=~/.claude-teams claude
+```
+
+It speaks when the binding bar crosses 90% (`--umbral=N`), again at 95 and
+100, and when the projection says you hit 100% before the reset within 30
+minutes — once per step and per window, so it does not repeat on every
+prompt. The message goes in `systemMessage`, which Claude Code shows to you and
+not to the model; it never blocks the prompt and always exits 0. Disk only, like
+`--breve`: it reads what `qm --statusline` and the bar left, so it needs one of
+them to have a number.
 
 ## Where did it go?
 

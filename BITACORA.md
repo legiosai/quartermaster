@@ -816,6 +816,68 @@ cinco pantallas —`qm`, el tablero, la barra de menú de macOS, el panel de GNO
 el de la bandeja de Windows—, leyendo el mismo campo `presupuesto` del JSON: acá
 tampoco divide nadie.
 
+## Antes de la pared: `--mejor` y `--aviso` (2026-11-01)
+
+Tener varios perfiles sólo sirve si podés arrancar en el que tiene lugar sin
+leer la tabla. `qm --mejor` contesta eso con un directorio, y `qm --aviso` lo
+dice adentro de Claude Code cuando el perfil en el que estás se está por llenar.
+Las dos leen sólo disco, con la misma regla que la terminal: `cuotaGuardada()`
+(src/adapters/cuota-guardada.ts) es ahora el único lugar que decide qué lectura
+gana, y `medir()` también la usa.
+
+**El orden** vive en src/core/eleccion.ts, puro. Primero el nivel —`libre`,
+`desconocida`, `choca`, `llena`—, después el margen de la barra que frena, la
+sesión más vacía y el nombre, para que dos corridas seguidas contesten lo mismo.
+La barra que frena se calcula **sólo con las vigentes**: `peor()` a secas no
+filtra vencidas, con razón (contesta cuál barra importa), pero para comparar
+cuentas el 80 % de una sesión que cerró anteayer no dice nada del lugar que hay
+ahora. Una cuenta con todas sus barras reiniciadas es `desconocida`, no 0 %.
+
+**Un token de acceso vencido no descarta.** El pedido original decía «afuera las
+de credencial vencida», y en esta máquina eso dejaba afuera a cualquier perfil
+que no se usó hoy: el token de acceso dura ~8 h (`vigente (7h35m)`,
+`vigente (4h01m)` el mismo día) y Claude Code lo renueva solo con el refresh
+token al arrancar. Afuera quedan los perfiles **sin sesión** y los sin número.
+
+**`CLAUDE_CONFIG_DIR=$(qm --mejor)` está mal para el perfil por defecto**, y no
+por qm. Leído en el binario de Claude Code 2.1.316: con la variable puesta lee
+`<dir>/.claude.json` en vez de `~/.claude.json`, y la credencial sale del
+llavero sólo cuando la variable NO está. Así que `CLAUDE_CONFIG_DIR=~/.claude
+claude` es otro perfil —en esta máquina, el `~/.claude/.claude.json` viejo de
+Max 5x que ya había confundido a `rutasConfig()`—, y en macOS uno sin sesión.
+Por eso existe `qm --mejor -- claude`: arranca el comando con la variable puesta,
+o **sacada** para el perfil por defecto. Mientras el hijo vive, este proceso
+ignora SIGINT y SIGQUIT: el Ctrl-C que Claude Code usa para interrumpir le llega
+a todo el grupo, y si matara al padre la shell recuperaría una terminal que
+Claude Code todavía está leyendo.
+
+**El contrato del hook**, del mismo binario. `UserPromptSubmit` recibe por stdin
+`{session_id, transcript_path, cwd, hook_event_name, prompt, source, …}` y puede
+devolver `{continue, suppressOutput, stopReason, decision, systemMessage,
+terminalSequence, reason, hookSpecificOutput}`. `systemMessage` es «Display a
+message to the user (all hooks)»; `hookSpecificOutput.additionalContext`, o el
+texto pelado en stdout, le llega al **modelo**. El aviso es para la persona: va
+sólo en `systemMessage`, con `suppressOutput`, nunca con `continue` ni
+`decision`, y el proceso sale 0 pase lo que pase.
+
+**No repetir es la mitad del aviso.** Las claves son las de la barra —perfil,
+barra, minuto del reinicio, escalón— y los escalones son el umbral (90 por
+defecto), 95 y 100. Cruzar uno más alto vuelve a sonar; quedarse arriba, no;
+cuando la ventana se reinicia la clave cambia sola. El choque proyectado suena
+aparte (`|choque`) si es dentro de 30 minutos. La memoria va en
+`avisos-claude-code.json` y **no** comparte `avisados.json`: que la barra haya
+mandado una notificación del escritorio no quiere decir que la viste. Se poda lo
+de ventanas que se reiniciaron hace más de ocho días.
+
+Medido sobre los perfiles de verdad (con la memoria del aviso en un directorio
+aparte): `--mejor` eligió `.claude-teams` (94 % libre contra el 56 % de `.claude`,
+cuya barra que frena es `iguana_necktie`) y descartó `.claude-bedrock` y
+`.claude-personal` por no tener sesión. `--aviso --umbral=40` dijo una vez
+`qm · main: iguana_necktie al 44 % · se reinicia en 3d7h. teams tiene 94 % libre:
+CLAUDE_CONFIG_DIR=~/.claude-teams claude` y en el prompt siguiente se calló.
+~110 ms por prompt desde el TypeScript; el caso de siempre —nada que decir— no
+lee ninguna credencial.
+
 ## En el navegador
 
 El indicador de GNOME es la respuesta para GNOME. `qm-web` es la misma idea

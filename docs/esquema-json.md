@@ -340,6 +340,36 @@ is the shortest worked example, and it is in the repo.
 Use `--breve` for anything that redraws on a timer: it skips transcripts, so it
 costs milliseconds instead of a second.
 
+## `qm --mejor --json` — a separate document
+
+The ranking `qm --mejor` used. Exit code 0 with an `elegida`, 1 when nothing
+could be compared (and then `elegida` is `null`).
+
+```jsonc
+{
+  "esquema": 1,
+  "elegida": {
+    "perfil": ".claude-teams",
+    "directorio": "/home/you/.claude-teams",
+    "porDefecto": false,          // true: launch WITHOUT CLAUDE_CONFIG_DIR
+    "nivel": "libre" | "desconocida" | "choca" | "llena",
+    "libre": 94,                  // 100 - the binding bar; null when "desconocida"
+    "frena": { "clave", "alcance", "nombre", "porcentaje", "reinicia" } | null,
+    "sesion": 6,                  // the current session %, or null
+    "credencial": "vigente" | "vencida",   // an expired ACCESS token is not excluded:
+                                           // Claude Code renews it on start
+    "medidoEn": "…"
+  } | null,
+  "orden": [ … ],                 // every comparable profile, best first
+  "descartadas": [ { "perfil": ".claude-personal", "motivo": "sin sesión de Claude Code" } ]
+}
+```
+
+`nivel` is the first sort key, in that order: room and no hurry, then a profile
+whose every bar already reset (probably empty, not known), then one the
+projection says hits 100% before its reset, then one at 100% (soonest reset
+first). Ties break on room, then the emptier session, then the name.
+
 ## `qm --desglose --json` — a separate document
 
 Not the same contract. It answers a different question — what spent the quota,
