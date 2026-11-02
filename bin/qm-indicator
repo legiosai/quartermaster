@@ -414,6 +414,36 @@ def cada_cuanto(historia: list) -> float | None:
     return huecos[len(huecos) // 2] / 1000
 
 
+def edad_de(v: dict | None, cuota: dict) -> int | None:
+    """Los segundos desde que se leyó ESTA barra.
+
+    Desde `qm --statusline` una cuenta puede mezclar lecturas: la sesión y la
+    semanal recién llegadas por la statusline, y el resto de las barras de la
+    última lectura del endpoint. La barra que viene de una lectura más vieja
+    trae su propio `medidoEn`; las demás son de cuando dice la cuenta.
+    """
+    if v and v.get("medidoEn"):
+        s = faltan(v["medidoEn"])
+        if s is not None:
+            return max(0, -s)
+    return cuota.get("edadSegundos")
+
+
+def pie_de_barra(v: dict) -> str:
+    """«reinicia en 3d7h   ·   leída hace 24m». La edad sólo va cuando la barra
+    tiene la suya: si es de cuando dice la cuenta, ya la dice el renglón de
+    lecturas, y repetirla en cada barra es ruido."""
+    pie = reinicio(faltan(v.get("reinicia")))
+    if not v.get("medidoEn"):
+        return pie
+    s = faltan(v["medidoEn"])
+    if s is None:
+        return pie
+    e = max(0, -s)
+    edad = f"leída hace {duracion(e)}" + (" · vieja" if e >= VIEJO_SEGUNDOS else "")
+    return f"{pie}   ·   {edad}" if pie else edad
+
+
 def reinicio(segundos: int | None) -> str:
     """«reinicia en vencido» no es castellano. Cuando ya pasó, se dice que pasó."""
     if segundos is None:
@@ -689,7 +719,7 @@ class VistaCuenta:
 
         self.barras = []
         for v in (cuota.get("mostrar") or []) if self.hay_numero else []:
-            pie = reinicio(faltan(v.get("reinicia")))
+            pie = pie_de_barra(v)
             es_la_que_frena = bool(frena and v.get("clave") == frena.get("clave"))
             self.barras.append({
                 "nombre": nombre_ventana(v),
@@ -959,9 +989,14 @@ class VistaResumen:
     héroe del tablero —qué me frena primero, en toda la máquina— y que si no
     está acá hay que sacarla comparando las cuentas a ojo."""
 
-    def __init__(self, cuenta: str, barra: str, pct: float, nivel: str, reinicia) -> None:
+    def __init__(self, cuenta: str, barra: str, pct: float, nivel: str, reinicia,
+                 medido_en: str | None = None) -> None:
         self.cuenta, self.barra, self.pct = cuenta, barra, pct
         self.nivel, self.reinicia = nivel, reinicia
+        # La edad propia de la barra que encabeza, si es de una lectura más
+        # vieja que su cuenta. Suele serlo: la statusline refresca la sesión y la
+        # semanal, y lo que frena puede ser una barra que sólo trae el endpoint.
+        self.medido_en = medido_en
 
     @staticmethod
     def desde(datos: dict) -> "VistaResumen | None":
@@ -992,7 +1027,7 @@ class VistaResumen:
         nombre = p.get("perfil") or lider.get("perfil") or "?"
         return VistaResumen(corto(nombre), nombre_ventana(v), v["porcentaje"],
                             nivel_de(v["porcentaje"], v.get("preocupa", False) or choca),
-                            v.get("reinicia"))
+                            v.get("reinicia"), v.get("medidoEn"))
 
     def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
         color = TEMA.nivel(self.nivel)
@@ -1037,6 +1072,9 @@ class VistaResumen:
             texto, urgente = f"libre en {duracion(seg)}", True
         else:
             texto, urgente = reinicio(seg), False
+        edad = faltan(self.medido_en)
+        if edad is not None:
+            texto += f"  ·  leída hace {duracion(max(0, -edad))}"
         pluma.escribir(x, arriba + 54, texto, 11, color if urgente else TEMA.terciario,
                        Pango.Weight.MEDIUM if urgente else Pango.Weight.NORMAL,
                        ancho=ANCHO_PANEL - MARGEN - x, elipsis=True)
@@ -1141,7 +1179,10 @@ def piezas_de(datos, avisar=None) -> list[dict]:
             # cuenta al 2 % que está quieta de una al 2 % que estás gastando
             # ahora mismo: el número de la segunda se mueve, el de la primera no.
             "ultimo_uso": p.get("ultimoUso"),
-            "viejo": (cuota.get("edadSegundos") or 0) >= VIEJO_SEGUNDOS,
+            # La edad de la barra que se DIBUJA, no la de la cuenta: con la
+            # statusline encima, la cuenta puede ser de recién y la ventana
+            # corta venir de una lectura de ayer.
+            "viejo": (edad_de(corta, cuota) or 0) >= VIEJO_SEGUNDOS,
         })
         if avisar is not None and not dormida:
             # Todas las barras, no sólo la que frena: la semanal puede estar
