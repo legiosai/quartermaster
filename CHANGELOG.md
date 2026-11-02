@@ -34,6 +34,22 @@ out unless they changed what you see.
 - **An account with no stored quota now says how to get one** — set up
   `qm --statusline`, or run `qm --refrescar` — instead of "use it once".
 
+- **The statusline also says what the next prompt will cost.** `qm
+  --statusline` now starts with the session's context size and how long its
+  prompt cache stays warm — `ctx 182k · caché 12m · main 31/44%` — read from
+  the same input Claude Code passes it. The context turns yellow from 400k
+  (prompts that size were 35 % of a measured week's weighted cost with 16 % of
+  the requests), and once the cache goes cold the line says how much the next
+  request rewrites, `caché fría (+181k)`: the number that decides between
+  `/clear` and carrying on. `--breve` is unchanged.
+- **The panels say how old each bar is when it isn't as fresh as its account.**
+  Since `qm --statusline`, one account can mix a session and weekly bar from
+  seconds ago with other bars from the last endpoint reading, and the panels
+  only showed the newest age — labelling a 44 % bar from half an hour ago as
+  current. In the GNOME panel, the macOS menu bar, the Windows tray and
+  `qm-web`, such a bar now reads `reinicia en 3d7h · leída hace 24m`
+  (`· vieja` after 6 h), and so does the "what stops you first" header when it
+  shows one. The stale mark in the top-bar item follows the bar it draws.
 - **`qm --desglose`: where the quota went, not just how much is left.** It
   reads the same transcripts as the local-usage line and breaks the last
   7 days (`--dias=N`) down per account: cost by token class, by prompt size,
@@ -47,8 +63,23 @@ out unless they changed what you see.
   week of two busy profiles (~2 GB). Codex is included; opencode and
   Antigravity are not, because they do not keep per-request cache usage.
 
+### Changed
+
+- **Dormant accounts fold into one line each at the bottom of the table.**
+  Each used to take five lines to say there was nothing there — on the machine
+  this was written on, three of six accounts and fifteen of thirty-five lines.
+  The reason each one is dormant is still printed; `qm --todas` shows them in
+  full, and if every account is dormant they are shown in full anyway.
+- **A bar the server doesn't name reads `otro límite (iguana_necktie)`** instead
+  of the server's internal key alone. The key stays, because it is the only
+  thing that tells two such bars apart. The panels get the same name.
+
 ### Fixed
 
+- **A bar scoped to a surface lost its name.** The usage endpoint describes a
+  bar's scope as a model *or a surface*, each with a display name; the surface
+  one was read as plain text, so it never matched and the bar showed only its
+  internal key.
 - **A Claude Max 20x or Ultra account showed up as `claude_max`.** For an
   individual account the plan came from `organizationType`, which is
   `claude_max` for Max 5x, Max 20x and Ultra alike, so upgrading changed
