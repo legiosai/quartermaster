@@ -39,6 +39,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { CONSUMO_VACIO, type Consumo, type EstadoCredencial, type Perfil } from '../core/tipos.ts';
+import { tr } from '../core/idioma.ts';
 
 export const DIRECTORIO_GEMINI = join(homedir(), '.gemini');
 export const DIRECTORIO_ANTIGRAVITY = join(DIRECTORIO_GEMINI, 'antigravity');
@@ -118,7 +119,7 @@ export function estadoCredencialAntigravity(dirGemini = DIRECTORIO_GEMINI): Esta
       ubicacion,
       expiraEn: null,
       vencida: false,
-      error: e instanceof Error ? e.message : 'credencial ilegible',
+      error: e instanceof Error ? e.message : tr('credencial ilegible', 'unreadable credential'),
     };
   }
 }

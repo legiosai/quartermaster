@@ -10,6 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { servicioLlavero } from '../core/perfiles.ts';
 import type { EstadoCredencial, Perfil } from '../core/tipos.ts';
+import { tr } from '../core/idioma.ts';
 
 interface BlobOAuth {
   readonly accessToken?: string;
@@ -86,7 +87,7 @@ export function estadoCredencial(perfil: Perfil): EstadoCredencial {
       error: null,
     };
   } catch (e) {
-    const error = e instanceof Error ? e.message.split('\n')[0]! : 'error desconocido';
+    const error = e instanceof Error ? e.message.split('\n')[0]! : tr('error desconocido', 'unknown error');
     return { presente: false, ubicacion, expiraEn: null, vencida: false, error };
   }
 }

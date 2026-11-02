@@ -35,6 +35,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { RUTA_CONFIG } from '../core/config.ts';
+import { tr } from '../core/idioma.ts';
 
 /** Lo que hace falta saber de la máquina para decidir si se pregunta. */
 export interface Situacion {
@@ -385,12 +386,15 @@ export async function ofrecerBarra(raiz: string, modoNormal: boolean): Promise<v
   if (!debeOfrecer(s)) return;
 
   const donde = s.bandeja
-    ? 'la bandeja'
-    : process.platform === 'linux' ? 'la barra de arriba' : 'la barra de menú';
+    ? tr('la bandeja', 'the tray')
+    : process.platform === 'linux' ? tr('la barra de arriba', 'the top bar') : tr('la barra de menú', 'the menu bar');
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   let texto: string;
   try {
-    texto = await rl.question(`¿Mostrar esto en ${donde}, y que arranque solo al iniciar sesión? [S/n] `);
+    texto = await rl.question(tr(
+      `¿Mostrar esto en ${donde}, y que arranque solo al iniciar sesión? [S/n] `,
+      `Show this in ${donde}, and start it automatically at login? [Y/n] `,
+    ));
   } catch {
     // Ctrl-D o ctrl-c: la pregunta se aborta y readline tira ABORT_ERR. Eso no
     // es un «no» —nadie contestó—, así que no se anota y se vuelve a ofrecer la
@@ -404,18 +408,20 @@ export async function ofrecerBarra(raiz: string, modoNormal: boolean): Promise<v
   const a = comoArrancar(raiz, process.platform, s.bandeja);
   const comando = a.via === 'brew' ? 'brew services start quartermaster' : `${a.lanzador} --instalar-arranque`;
   const listo = s.bandeja
-    ? ' listo: abajo a la derecha, al lado del reloj.'
-    : process.platform === 'linux' ? ' listo: arriba, en la barra.' : ' listo: arriba a la derecha.';
+    ? tr(' listo: abajo a la derecha, al lado del reloj.', ' done: bottom right, next to the clock.')
+    : process.platform === 'linux'
+      ? tr(' listo: arriba, en la barra.', ' done: up top, in the bar.')
+      : tr(' listo: arriba a la derecha.', ' done: top right.');
 
   if (/^\s*n/i.test(texto)) {
     anotar('no');
-    console.log(`Listo, no se vuelve a preguntar. Si cambiás de idea: ${comando}`);
+    console.log(tr(`Listo, no se vuelve a preguntar. Si cambiás de idea: ${comando}`, `OK, won't ask again. If you change your mind: ${comando}`));
     return;
   }
   anotar('si');
   const hecho = arrancar(a, s);
   if (!hecho.pudo) {
-    console.log(`No pude arrancarla. A mano: ${comando}`);
+    console.log(tr(`No pude arrancarla. A mano: ${comando}`, `Couldn't start it. By hand: ${comando}`));
     return;
   }
   // En macOS la primera vez compila bin/qm-barra.swift, que tarda unos
@@ -427,12 +433,20 @@ export async function ofrecerBarra(raiz: string, modoNormal: boolean): Promise<v
   // en la barra» ahí sería mentir sobre la única cosa que se vino a hacer.
   const vuelta = hecho.pideVolverAEntrar
     ? (s.hostDelItem
-      ? ' listo: arriba, en la barra. El panel completo aparece cuando vuelvas a'
-        + ' entrar: GNOME no carga extensiones nuevas en Wayland.'
-      : ' listo, pero el item aparece cuando vuelvas a entrar: GNOME no carga'
-        + ' extensiones nuevas en Wayland.')
+      ? tr(
+        ' listo: arriba, en la barra. El panel completo aparece cuando vuelvas a'
+          + ' entrar: GNOME no carga extensiones nuevas en Wayland.',
+        ' done: up top, in the bar. The full panel appears after you log out and'
+          + ' back in: GNOME does not load new extensions on Wayland.',
+      )
+      : tr(
+        ' listo, pero el item aparece cuando vuelvas a entrar: GNOME no carga'
+          + ' extensiones nuevas en Wayland.',
+        ' done, but the item appears after you log out and back in: GNOME does'
+          + ' not load new extensions on Wayland.',
+      ))
     : listo;
-  process.stdout.write(`arrancando ${donde}…`);
+  process.stdout.write(tr(`arrancando ${donde}…`, `starting ${donde}…`));
   // La bandeja se mira con menos vueltas a propósito: cada consulta cuesta un
   // powershell.exe —casi un segundo— así que sesenta serían un minuto de
   // procesos. Y no hace falta: acá no se compila nada, a diferencia de macOS,
@@ -446,5 +460,8 @@ export async function ofrecerBarra(raiz: string, modoNormal: boolean): Promise<v
     }
     await new Promise((r) => setTimeout(r, 1000));
   }
-  console.log(` no la veo corriendo después de un minuto. Probá: ${comando}`);
+  console.log(tr(
+    ` no la veo corriendo después de un minuto. Probá: ${comando}`,
+    ` I don't see it running after a minute. Try: ${comando}`,
+  ));
 }

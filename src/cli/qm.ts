@@ -46,6 +46,7 @@ import {
 import { endpointEnCache, frenadoHasta, guardarEndpoint, masNueva } from '../adapters/cache-endpoint.ts';
 import { guardarStatusline, leerStdin, perfilDeLaStatusline, sesionDeStatusline, statuslineEnCache, superponer } from '../adapters/statusline.ts';
 import { decidirConsulta } from '../core/pedir.ts';
+import { idiomaPedido, tr } from '../core/idioma.ts';
 import * as entorno from '../adapters/entorno.ts';
 import { cuentaPedida, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
 import {
@@ -117,6 +118,20 @@ interface Opciones {
  */
 const CODEX_FRESCO_MS = 5 * 60_000;
 
+// ── el idioma, antes que nada ───────────────────────────────────────────
+// Se fija acá arriba porque `--diagnostico`, `--calentar` y `--esperar` salen
+// antes de parsear el resto de las opciones, y todos imprimen.
+//
+// `--idioma=es|en` es lo mismo que QM_IDIOMA, para una sola corrida.
+const idiomaArg = process.argv.find((a) => a.startsWith('--idioma='))?.slice('--idioma='.length).trim().toLowerCase();
+if (idiomaArg === 'es' || idiomaArg === 'en') process.env['QM_IDIOMA'] = idiomaArg;
+// El JSON lo leen los cuatro paneles, que tienen sus propios rótulos en
+// castellano y dibujan las frases del JSON al lado (`frase`, `nombre`,
+// `credencial`, `porque`). Un panel con la mitad de las palabras en cada idioma
+// se lee peor que uno entero en castellano, así que el JSON sigue en castellano
+// salvo que alguien pida otro idioma a propósito. Las claves no cambian nunca.
+if (process.argv.includes('--json') && idiomaPedido() === null) process.env['QM_IDIOMA'] = 'es';
+
 /**
  * La versión del paquete, leída del package.json que está al lado.
  *
@@ -128,13 +143,16 @@ const CODEX_FRESCO_MS = 5 * 60_000;
 export const VERSION: string = (() => {
   try {
     const json = readFileSync(new URL('../../package.json', import.meta.url), 'utf8');
-    return (JSON.parse(json) as { version?: string }).version ?? 'desconocida';
+    return (JSON.parse(json) as { version?: string }).version ?? tr('desconocida', 'unknown');
   } catch {
-    return 'desconocida';
+    return tr('desconocida', 'unknown');
   }
 })();
 
-const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Code
+/** La ayuda, en el idioma de esta corrida. Función y no constante: el idioma se decide al llamarla. */
+const ayuda = (): string =>
+  tr(
+    `qm · cuánta cuota te queda, en todos tus perfiles de Claude Code
 
   qm                  cuota y consumo de cada perfil. Sin red y sin credencial:
                       lee la cuota que Claude Code ya dejó en .claude.json
@@ -154,6 +172,9 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
                       cuota de la última respuesta (sin red ni credencial) y
                       antepone el contexto y cuánto le queda al cache
   qm --todas          las cuentas dormidas también enteras, no un renglón al pie
+  qm --idioma=es|en   el idioma de esta corrida. Por defecto sale del locale
+                      (LANG); QM_IDIOMA hace lo mismo para siempre. El JSON
+                      queda en castellano salvo que se pida otro a propósito
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
   qm --sin-codex      no mira la cuenta de Codex
@@ -174,7 +195,52 @@ const AYUDA = `qm · cuánta cuota te queda, en todos tus perfiles de Claude Cod
                       proyectos), --solo/--ocultar y --sin-codex
 
 Nunca refresca un token. Si una credencial venció, lo dice y sigue con el
-resto de los perfiles — la cuota igual se lee, porque sale del disco.`;
+resto de los perfiles — la cuota igual se lee, porque sale del disco.`,
+    `qm · how much quota you have left, in every Claude Code profile
+
+  qm                  quota and usage for every profile. No network and no
+                      credential: it reads the quota already on disk
+  qm --refrescar      also asks the endpoint for the number (needs a valid token)
+  qm --json           the same, for scripts and statuslines
+  qm --watch [sec]    redraw every N seconds (minimum 30, default 60)
+  qm --dias=N         window for local usage, in days (default 7)
+  qm --umbral=N       exit with code 3 if any bar is over N %
+  qm --esperar        don't return until the quota drops below the threshold
+                      (80 by default). To chain: qm --esperar && codex ...
+  qm --cuenta=NAME    with --esperar: watch only that account (codex, personal…)
+  qm --redactado      with --json, strips emails and home paths: safe to commit
+  qm --breve          one line and nothing else. It skips transcripts, so it
+                      takes milliseconds: this is what goes in a statusline
+  qm --statusline     the same as --breve, for Claude Code's statusLine: reads
+                      what Claude Code passes on stdin, saves the quota of the
+                      last response (no network, no credential) and puts the
+                      context size and the time left on the prompt cache first
+  qm --todas          dormant accounts in full, not one line each at the bottom
+  qm --idioma=es|en   the language for this run. By default it comes from the
+                      locale (LANG); QM_IDIOMA does the same for good. JSON
+                      stays in Spanish unless another language is asked for
+  qm --solo=a,b       show ONLY those accounts (personal, teams, codex…)
+  qm --ocultar=a,b    show all but those
+  qm --sin-codex      leave the Codex account out
+  qm --sin-antigravity  leave the Antigravity account out
+  qm --version        the version, and nothing else
+  qm --calentar       refreshes the endpoint of every profile, Codex's and
+                      z.ai's (if opencode has an account), saves what comes
+                      back and prints nothing. It is what the bar runs
+  qm --cuentas=a,b    with --calentar: only those accounts. Every one skipped
+                      is one request fewer to an endpoint that isn't ours
+  qm --calentar-codex the same but only Codex, without touching the keychain
+  qm --diagnostico    everything a bug report needs, in one command and
+                      already redacted: paste it as is into the issue
+  qm --desglose       where the quota went: weighted cost by token class,
+                      prompt size, rebuilt cache, subagents and the most
+                      expensive sessions. Disk only. Takes --dias=N (7 by
+                      default), --json, --redactado (also hides project
+                      names), --solo/--ocultar and --sin-codex
+
+It never refreshes a token. If a credential expired it says so and goes on with
+the rest of the profiles — the quota is read anyway, because it comes from disk.`,
+  );
 
 function parsearArgs(argv: readonly string[]): Opciones | string {
   const o: Opciones = {
@@ -215,22 +281,26 @@ function parsearArgs(argv: readonly string[]): Opciones | string {
     else if (a === '--watch' || a.startsWith('--watch=')) {
       const crudo = a.includes('=') ? a.split('=')[1]! : argv[++i];
       const n = crudo === undefined ? 60 : Number(crudo);
-      if (!Number.isFinite(n)) return `--watch espera segundos, no "${crudo}"`;
+      if (!Number.isFinite(n)) return tr(`--watch espera segundos, no "${crudo}"`, `--watch expects seconds, not "${crudo}"`);
       // Menos de 30 s no aporta nada y castiga un endpoint que no es nuestro.
       o.watch = Math.max(30, n);
     } else if (a.startsWith('--dias=')) {
       const n = Number(a.split('=')[1]);
-      if (!Number.isFinite(n) || n <= 0) return '--dias espera un número de días';
+      if (!Number.isFinite(n) || n <= 0) return tr('--dias espera un número de días', '--dias expects a number of days');
       o.dias = n;
     } else if (a.startsWith('--umbral=')) {
       const n = Number(a.split('=')[1]);
-      if (!Number.isFinite(n) || n < 0 || n > 100) return '--umbral espera un porcentaje 0..100';
+      if (!Number.isFinite(n) || n < 0 || n > 100) return tr('--umbral espera un porcentaje 0..100', '--umbral expects a percentage 0..100');
       o.umbral = n;
-    } else if (a === '-h' || a === '--help') return AYUDA;
+    } else if (a.startsWith('--idioma=')) {
+      // Ya se aplicó arriba de todo; acá sólo se valida.
+      const v = a.slice('--idioma='.length).trim().toLowerCase();
+      if (v !== 'es' && v !== 'en') return tr(`--idioma espera es o en, no "${v}"`, `--idioma expects es or en, not "${v}"`);
+    } else if (a === '-h' || a === '--help') return ayuda();
     // Lo primero que tipea todo el mundo, y lo primero que se pide en un bug
     // report. Salía «opción desconocida» con código 2.
     else if (a === '-V' || a === '--version') return `quartermaster ${VERSION}`;
-    else return `opción desconocida: ${a}\n\n${AYUDA}`;
+    else return `${tr('opción desconocida', 'unknown option')}: ${a}\n\n${ayuda()}`;
   }
   return o;
 }
@@ -349,7 +419,9 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     // La credencial la administra codex: desde acá no se puede saber si venció.
     credencialVencida: false,
     perfil,
-    veredicto: info === null ? 'la pone codex' : `la pone codex · ${info.creditosReset} reset(s) sin usar`,
+    veredicto: info === null
+      ? tr('la pone codex', 'managed by codex')
+      : tr(`la pone codex · ${info.creditosReset} reset(s) sin usar`, `managed by codex · ${info.creditosReset} unused reset(s)`),
     cuota,
     notaRefresco,
     proyeccion,
@@ -393,7 +465,10 @@ function filaAntigravity(o: Opciones): FilaPerfil | null {
   const cuota: ResultadoCuota = local?.formaRota
     ? {
         estado: 'sin-cuota-legible',
-        detalle: 'el formato de Antigravity cambió: los tokens no se pueden leer',
+        detalle: tr(
+          'el formato de Antigravity cambió: los tokens no se pueden leer',
+          "Antigravity's format changed: the tokens can't be read",
+        ),
       }
     : {
         estado: 'sin-cuota-legible',
@@ -401,7 +476,10 @@ function filaAntigravity(o: Opciones): FilaPerfil | null {
         // Decirlo con el nombre del plan adelante es la diferencia entre «no
         // se sabe» y «no se miró»: en `adapters/antigravity.ts` está dónde se
         // buscó —las 120 claves del estado, el leveldb, el .pbtxt y los logs.
-        detalle: `${perfil.cuenta?.plan ?? 'plan de Google'}: Antigravity no deja el porcentaje en disco`,
+        detalle: tr(
+          `${perfil.cuenta?.plan ?? 'plan de Google'}: Antigravity no deja el porcentaje en disco`,
+          `${perfil.cuenta?.plan ?? 'Google plan'}: Antigravity doesn't leave the percentage on disk`,
+        ),
       };
 
   return {
@@ -497,7 +575,10 @@ async function filasOpencode(o: Opciones): Promise<FilaPerfil[]> {
       // abajo, que es su lugar.
       cuenta: { email: null, organizacion: 'opencode', plan: prov },
     },
-    veredicto: `vía opencode · último uso hace ${duracion(Date.now() - cuando.getTime())}`,
+    veredicto: tr(
+      `vía opencode · último uso hace ${duracion(Date.now() - cuando.getTime())}`,
+      `via opencode · last used ${duracion(Date.now() - cuando.getTime())} ago`,
+    ),
     cuota: await cuotaDeOpencode(prov, limites.get(prov), o),
     notaRefresco: null,
     proyeccion: null,
@@ -572,7 +653,10 @@ async function cuotaDeOpencode(
 function cuotaDeLimite(prov: string, lim: LimiteOpencode | undefined): ResultadoCuota {
   const sinBarra = (extra: string): ResultadoCuota => ({
     estado: 'sin-cuota-legible',
-    detalle: `plan por API key: el porcentaje no está en esta máquina${extra}`,
+    detalle: tr(
+      `plan por API key: el porcentaje no está en esta máquina${extra}`,
+      `API key plan: the percentage is not on this machine${extra}`,
+    ),
   });
   if (lim === undefined) return sinBarra('');
   if (lim.reinicia !== null && lim.reinicia.getTime() > Date.now()) {
@@ -594,7 +678,8 @@ function cuotaDeLimite(prov: string, lim: LimiteOpencode | undefined): Resultado
       ],
     };
   }
-  return sinBarra(` · último límite hace ${duracion(Date.now() - lim.cuando.getTime())}`);
+  const hace = duracion(Date.now() - lim.cuando.getTime());
+  return sinBarra(tr(` · último límite hace ${hace}`, ` · last limit ${hace} ago`));
 }
 
 async function medir(o: Opciones): Promise<FilaPerfil[]> {
@@ -775,10 +860,12 @@ function sello(r: Extract<ResultadoCuota, { estado: 'ok' }>): string {
   const edadMs = Date.now() - r.medidoEn.getTime();
   // Menos de un minuto es «ahora» y no «hace 3s»: el segundero no le sirve a
   // nadie y hace que la pantalla parezca cambiar cuando no cambió nada.
-  const texto = edadMs < 60_000 ? `${r.origen} · ahora` : `${r.origen} · hace ${duracion(edadMs)}`;
+  const texto = edadMs < 60_000
+    ? tr(`${r.origen} · ahora`, `${r.origen} · now`)
+    : tr(`${r.origen} · hace ${duracion(edadMs)}`, `${r.origen} · ${duracion(edadMs)} ago`);
   // Seis horas es más que cualquier ventana de 5 h: a esa altura el número
   // puede describir una ventana que ya se reinició.
-  return edadMs > 6 * 3600_000 ? amarillo(`${texto} — viejo`) : tenue(texto);
+  return edadMs > 6 * 3600_000 ? amarillo(`${texto} — ${tr('viejo', 'stale')}`) : tenue(texto);
 }
 
 function pintarVentana(v: VentanaCuota, marca: boolean, ancho = 24): void {
@@ -791,7 +878,8 @@ function pintarVentana(v: VentanaCuota, marca: boolean, ancho = 24): void {
   const vencida = vencidaVentana(v);
   const resta = v.reinicia ? tenue(` ${reinicio(v.reinicia.getTime() - Date.now())}`) : '';
   // La edad propia de una barra más vieja que el resto de su cuenta.
-  const edad = v.medidaEn === undefined ? '' : tenue(` · leída hace ${duracion(Date.now() - v.medidaEn.getTime())}`);
+  const leida = v.medidaEn === undefined ? '' : duracion(Date.now() - v.medidaEn.getTime());
+  const edad = v.medidaEn === undefined ? '' : tenue(tr(` · leída hace ${leida}`, ` · read ${leida} ago`));
   const aviso = !vencida && v.severidad !== 'normal' ? ` ${amarillo(v.severidad)}` : '';
   const flecha = marca ? negrita('▸ ') : '  ';
   const medidor = vencida
@@ -808,18 +896,21 @@ function pintarVentana(v: VentanaCuota, marca: boolean, ancho = 24): void {
 function fraseProyeccion(p: Proyeccion): string {
   switch (p.estado) {
     case 'sube': {
-      const cuando = `${p.ritmo.toFixed(1)} pts/h · 100 % en ${duracion(p.techo.getTime() - Date.now())}`;
-      return p.chocas ? rojo(`${cuando} — antes del reinicio`) : tenue(`${cuando} — después del reinicio`);
+      const falta = duracion(p.techo.getTime() - Date.now());
+      const cuando = tr(`${p.ritmo.toFixed(1)} pts/h · 100 % en ${falta}`, `${p.ritmo.toFixed(1)} pts/h · 100 % in ${falta}`);
+      return p.chocas
+        ? rojo(tr(`${cuando} — antes del reinicio`, `${cuando} — before the reset`))
+        : tenue(tr(`${cuando} — después del reinicio`, `${cuando} — after the reset`));
     }
     case 'plano':
-      return tenue(`no sube (${p.muestras} lecturas)`);
+      return tenue(tr(`no sube (${p.muestras} lecturas)`, `not rising (${p.muestras} readings)`));
     case 'sin-datos':
-      return tenue(`todavía no sé el ritmo: ${p.motivo}`);
+      return tenue(tr(`todavía no sé el ritmo: ${p.motivo}`, `not known yet: ${p.motivo}`));
   }
 }
 
 function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
-  console.log(negrita(`\nqm · ${process.platform} · consumo de ${o.dias}d\n`));
+  console.log(negrita(`\nqm · ${process.platform} · ${tr('consumo de', 'usage over')} ${o.dias}d\n`));
 
   // Las dormidas van en un renglón cada una, al pie. Enteras ocupaban cinco
   // renglones por cuenta para decir «no hay nada acá»: en la máquina donde se
@@ -834,18 +925,18 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
       plegadas.push(f);
       continue;
     }
-    const cuenta = f.perfil.cuenta?.email ?? 'sin cuenta';
+    const cuenta = f.perfil.cuenta?.email ?? tr('sin cuenta', 'no account');
     const nombrePlan = planParaMostrar(f.perfil.cuenta);
     const plan = nombrePlan ? tenue(` · ${nombrePlan}`) : '';
     const colorCred = f.producto === 'codex'
       ? tenue
-      : f.veredicto.startsWith('vigente')
+      : f.veredicto.startsWith(tr('vigente', 'valid'))
         ? verde
-        : f.veredicto === 'vencida'
+        : f.veredicto === tr('vencida', 'expired')
           ? amarillo
           : rojo;
     console.log(`  ${negrita(relleno(f.perfil.nombre, 18))} ${relleno(cuenta, 30)}${plan}`);
-    console.log(`  ${relleno('', 18)} ${tenue('credencial: ')}${colorCred(f.veredicto)}`);
+    console.log(`  ${relleno('', 18)} ${tenue(tr('credencial: ', 'credential: '))}${colorCred(f.veredicto)}`);
 
     if (f.cuota.estado === 'ok') {
       const mostrar = paraMostrar(f.cuota.ventanas);
@@ -857,28 +948,31 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
       for (const v of mostrar) pintarVentana(v, p !== null && v.clave === p.clave, ancho);
     } else {
       // Sin número de cuota, una frase. Nunca un renglón en blanco.
-      console.log(`  ${relleno('', 18)} ${tenue(`cuota: ${frase(f.cuota, f.perfil.directorio)}`)}`);
+      console.log(`  ${relleno('', 18)} ${tenue(`${tr('cuota', 'quota')}: ${frase(f.cuota, f.perfil.directorio)}`)}`);
     }
     if (f.proyeccion !== null) {
-      console.log(`  ${relleno('', 18)} ${tenue('ritmo: ')}${fraseProyeccion(f.proyeccion)}`);
+      console.log(`  ${relleno('', 18)} ${tenue(tr('ritmo: ', 'pace: '))}${fraseProyeccion(f.proyeccion)}`);
     }
     // El ritmo dice hacia dónde vas; el presupuesto, a cuánto tenés que ir.
     if (f.cuota.estado === 'ok') {
       const pre = presupuestoDiario(f.cuota.ventanas, Date.now(), historialDe(f.cuota, f.perfil.nombre));
       console.log(
-        `  ${relleno('', 18)} ${tenue('presupuesto: ')}` +
+        `  ${relleno('', 18)} ${tenue(tr('presupuesto: ', 'budget: '))}` +
           (pre.estado === 'ok'
             ? `${frasePresupuesto(pre)}${tenue(` · ${nombreVentana(pre.ventana)}`)}`
             : tenue(pre.motivo)),
       );
     }
     if (f.notaRefresco !== null) {
-      console.log(`  ${relleno('', 18)} ${tenue(`--refrescar no sirvió: ${f.notaRefresco}`)}`);
+      console.log(`  ${relleno('', 18)} ${tenue(`${tr('--refrescar no sirvió', "--refrescar didn't help")}: ${f.notaRefresco}`)}`);
     }
 
     if (f.localMedido) {
       console.log(
-        `  ${relleno('', 18)} ${tenue(`local: ${tokens(f.tokens)} en ${o.dias}d · ${tokens(f.tokensVentana)} en ${o.ventanaH}h · ${f.requests} requests`)}`,
+        `  ${relleno('', 18)} ${tenue(tr(
+          `local: ${tokens(f.tokens)} en ${o.dias}d · ${tokens(f.tokensVentana)} en ${o.ventanaH}h · ${f.requests} requests`,
+          `local: ${tokens(f.tokens)} in ${o.dias}d · ${tokens(f.tokensVentana)} in ${o.ventanaH}h · ${f.requests} requests`,
+        ))}`,
       );
     }
     // Por qué esta cuenta quedó al fondo. Una cuenta que baja de lugar sin
@@ -886,13 +980,16 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
     // indistinguible de un bug.
     const rel = relevanciaDe(f, o);
     if (rel.dormida) {
-      console.log(`  ${relleno('', 18)} ${tenue(`dormida: ${rel.porque.join(' · ')} — no encabeza`)}`);
+      console.log(`  ${relleno('', 18)} ${tenue(tr(
+        `dormida: ${rel.porque.join(' · ')} — no encabeza`,
+        `dormant: ${rel.porque.join(' · ')} — not ranked first`,
+      ))}`);
     }
     console.log();
   }
 
   if (plegadas.length > 0) {
-    console.log(`  ${tenue(`dormidas · \`qm --todas\` las muestra enteras`)}`);
+    console.log(`  ${tenue(tr('dormidas · `qm --todas` las muestra enteras', 'dormant · `qm --todas` shows them in full'))}`);
     const anchoNombre = Math.max(18, ...plegadas.map((f) => f.perfil.nombre.length + 1));
     for (const f of plegadas) {
       console.log(`    ${relleno(f.perfil.nombre, anchoNombre)} ${tenue(relevanciaDe(f, o).porque.join(' · '))}`);
@@ -908,7 +1005,7 @@ function pintar(filas: readonly FilaPerfil[], o: Opciones): void {
   const top = lider === null ? undefined : { f: lider, v: frenaDe(lider)! };
   if (top) {
     console.log(
-      `  ${negrita('lo primero que te frena:')} ${top.f.perfil.nombre} · ${nombreVentana(top.v)} ${colorPct(top.v.porcentaje)(`${top.v.porcentaje.toFixed(0)}%`)}` +
+      `  ${negrita(tr('lo primero que te frena:', 'first to stop you:'))} ${top.f.perfil.nombre} · ${nombreVentana(top.v)} ${colorPct(top.v.porcentaje)(`${top.v.porcentaje.toFixed(0)}%`)}` +
         (top.v.reinicia ? tenue(` · ${reinicio(top.v.reinicia.getTime() - Date.now())}`) : ''),
     );
     console.log();
@@ -956,12 +1053,13 @@ function segmentosDeSesion(entrada: unknown, ahora = Date.now()): string[] {
   if (s.cache !== null) {
     const quedan = s.cache.venceEn === null ? 0 : s.cache.venceEn.getTime() - ahora;
     if (s.cache.caliente && quedan >= 60_000) {
-      partes.push(tenue(`caché ${Math.floor(quedan / 60_000)}m`));
+      const min = Math.floor(quedan / 60_000);
+      partes.push(tenue(tr(`caché ${min}m`, `cache ${min}m`)));
     } else if (s.cache.venceEn !== null || s.cache.recachear !== null) {
       // Fría: el próximo prompt reescribe el contexto entero. Decir cuánto es
       // lo que convierte el aviso en una decisión (¿/clear o seguir?).
       const cuanto = s.cache.recachear === null ? '' : ` (+${Math.round(s.cache.recachear / 1000)}k)`;
-      partes.push(amarillo(`caché fría${cuanto}`));
+      partes.push(amarillo(tr(`caché fría${cuanto}`, `cold cache${cuanto}`)));
     }
   }
   return partes;
@@ -999,7 +1097,7 @@ function pintarBreve(filas: readonly FilaPerfil[], o: Opciones, prefijo: readonl
       `${nombreCorto(f.perfil.nombre)} ${colorPct(v.porcentaje)(`${viejo}${cifra}${aviso}`)}`,
     );
   }
-  const todo = [...prefijo, ...(partes.length === 0 ? ['sin cuota en cache'] : partes)];
+  const todo = [...prefijo, ...(partes.length === 0 ? [tr('sin cuota en cache', 'no quota in cache')] : partes)];
   console.log(todo.join(tenue(' · ')));
 }
 
@@ -1057,7 +1155,9 @@ function historialDe(cuota: ResultadoCuota, perfil: string): { t: number; porcen
 }
 
 function presupuestoJson(cuota: ResultadoCuota, perfil: string): Record<string, unknown> {
-  if (cuota.estado !== 'ok') return { estado: 'sin-datos', motivo: 'esta cuenta no tiene número de cuota' };
+  if (cuota.estado !== 'ok') {
+    return { estado: 'sin-datos', motivo: tr('esta cuenta no tiene número de cuota', 'this account has no quota number') };
+  }
   const p: Presupuesto = presupuestoDiario(cuota.ventanas, Date.now(), historialDe(cuota, perfil));
   if (p.estado !== 'ok') return { estado: 'sin-datos', motivo: p.motivo };
   const un = (n: number): number => Number(n.toFixed(1));
@@ -1265,27 +1365,50 @@ function veredictoExtension(x: ReturnType<typeof entorno.extension>, e: ReturnTy
 
   if (enError && masNuevaQueLaSesion) {
     const horas = ((x.tocadoMs! - e.arrancoMs!) / 3_600_000).toFixed(1);
-    return [
-      '',
-      `  ⚠ extension.js es ${horas} h MÁS NUEVO que la sesión gráfica.`,
-      '    El shell carga el módulo una vez y lo deja en memoria: lo que está',
-      '    corriendo es el archivo viejo, y el ERROR de arriba es de ESE. En',
-      '    Wayland no hay forma de recargarlo —`ReloadExtension` está declarado',
-      '    en DBus y devuelve UnknownMethod— así que:',
-      '',
-      '      → cerrá sesión y volvé a entrar. Es el único paso que falta.',
-      '',
-      '    Hasta entonces el item lo dibuja AppIndicator y el panel es un menú de',
-      '    GTK, que no sostiene el agarre y se cierra apenas lo tocás.',
-    ];
+    return tr(
+      [
+        '',
+        `  ⚠ extension.js es ${horas} h MÁS NUEVO que la sesión gráfica.`,
+        '    El shell carga el módulo una vez y lo deja en memoria: lo que está',
+        '    corriendo es el archivo viejo, y el ERROR de arriba es de ESE. En',
+        '    Wayland no hay forma de recargarlo —`ReloadExtension` está declarado',
+        '    en DBus y devuelve UnknownMethod— así que:',
+        '',
+        '      → cerrá sesión y volvé a entrar. Es el único paso que falta.',
+        '',
+        '    Hasta entonces el item lo dibuja AppIndicator y el panel es un menú de',
+        '    GTK, que no sostiene el agarre y se cierra apenas lo tocás.',
+      ].join('\n'),
+      [
+        '',
+        `  ⚠ extension.js is ${horas} h NEWER than the graphical session.`,
+        '    The shell loads the module once and keeps it in memory: what is',
+        '    running is the old file, and the ERROR above is from THAT one. On',
+        '    Wayland there is no way to reload it —`ReloadExtension` is declared',
+        '    on DBus and returns UnknownMethod— so:',
+        '',
+        '      → log out and back in. It is the only step left.',
+        '',
+        '    Until then AppIndicator draws the item and the panel is a GTK menu,',
+        '    which does not hold the grab and closes as soon as you touch it.',
+      ].join('\n'),
+    ).split('\n');
   }
   if (enError) {
-    return [
-      '',
-      '  ⚠ la extensión está en ERROR y su archivo NO es más nuevo que la sesión:',
-      '    el error de arriba es del código que está corriendo ahora. Esto es un',
-      '    bug de verdad — pegá este diagnóstico en un issue.',
-    ];
+    return tr(
+      [
+        '',
+        '  ⚠ la extensión está en ERROR y su archivo NO es más nuevo que la sesión:',
+        '    el error de arriba es del código que está corriendo ahora. Esto es un',
+        '    bug de verdad — pegá este diagnóstico en un issue.',
+      ].join('\n'),
+      [
+        '',
+        '  ⚠ the extension is in ERROR and its file is NOT newer than the session:',
+        '    the error above is from the code running right now. This is a real',
+        '    bug — paste this diagnostic into an issue.',
+      ].join('\n'),
+    ).split('\n');
   }
   return [];
 }
@@ -1308,44 +1431,47 @@ function diagnostico(): string {
   const titulo = (s: string) => l.push('', `── ${s} ${'─'.repeat(Math.max(0, 62 - s.length))}`);
   const campo = (k: string, v: string) => l.push(`  ${k.padEnd(18)} ${v}`);
 
-  l.push(`quartermaster ${VERSION} · diagnóstico`);
-  l.push(`generado ${new Date().toISOString()} · redactado: sin rutas de casa, sin mails, sin tokens`);
+  l.push(`quartermaster ${VERSION} · ${tr('diagnóstico', 'diagnostic')}`);
+  l.push(tr(
+    `generado ${new Date().toISOString()} · redactado: sin rutas de casa, sin mails, sin tokens`,
+    `generated ${new Date().toISOString()} · redacted: no home paths, no emails, no tokens`,
+  ));
 
-  titulo('la máquina');
+  titulo(tr('la máquina', 'the machine'));
   const e = entorno.escritorio();
   campo('node', process.version);
-  campo('sistema', e.so);
-  campo('escritorio', t(e.escritorio));
-  campo('sesión', t(e.sesion));
+  campo(tr('sistema', 'system'), e.so);
+  campo(tr('escritorio', 'desktop'), t(e.escritorio));
+  campo(tr('sesión', 'session'), t(e.sesion));
   campo('shell', t(e.shell).split('\n')[0] ?? '—');
-  campo('sesión arrancó', t(e.arrancoLaSesion));
+  campo(tr('sesión arrancó', 'session started'), t(e.arrancoLaSesion));
 
-  titulo('la extensión de GNOME');
+  titulo(tr('la extensión de GNOME', 'the GNOME extension'));
   const x = entorno.extension();
-  campo('instalada', x.instalada ? 'sí' : 'NO');
-  campo('estado', t(x.estado));
+  campo(tr('instalada', 'installed'), x.instalada ? tr('sí', 'yes') : 'NO');
+  campo(tr('estado', 'state'), t(x.estado));
   campo('extension.js', t(x.archivoTocado));
-  campo('latido', t(x.latido));
+  campo(tr('latido', 'heartbeat'), t(x.latido));
   if ('valor' in x.ultimoError) {
-    l.push('  último error que guardó el shell:');
+    l.push(tr('  último error que guardó el shell:', '  last error the shell kept:'));
     for (const linea of x.ultimoError.valor.split('\n')) l.push(`    ${linea}`);
   } else {
-    campo('último error', t(x.ultimoError));
+    campo(tr('último error', 'last error'), t(x.ultimoError));
   }
   // La conclusión, CALCULADA y no insinuada. Es el caso que costó una tarde:
   // el arreglo estaba en el disco, el shell corría el módulo viejo, y desde
   // afuera se veía igual que «el arreglo no sirvió».
   for (const linea of veredictoExtension(x, e)) l.push(linea);
 
-  titulo('el indicador');
+  titulo(tr('el indicador', 'the indicator'));
   l.push(`  ${t(entorno.indicador()).split('\n').join('\n  ')}`);
 
-  titulo('el cache');
+  titulo(tr('el cache', 'the cache'));
   const c = entorno.cache();
-  if (c.length === 0) l.push('  (vacío o inaccesible)');
+  if (c.length === 0) l.push(tr('  (vacío o inaccesible)', '  (empty or unreachable)'));
   for (const f of c) campo(f.nombre, f.edad);
 
-  titulo('lo que anotó el sistema');
+  titulo(tr('lo que anotó el sistema', 'what the system logged'));
   l.push(`  ${t(entorno.journal()).split('\n').join('\n  ')}`);
 
   l.push('');
@@ -1389,8 +1515,11 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
       if (!decision.consultar) {
         bien = true;
         if (decision.porque === 'frenada') {
-          fallas.push(`${perfil.nombre}: el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ` +
-            decision.hasta.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
+          const a = decision.hasta.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+          fallas.push(`${perfil.nombre}: ${tr(
+            `el endpoint pidió esperar (HTTP 429): se vuelve a preguntar a las ${a}`,
+            `the endpoint asked to wait (HTTP 429): asking again at ${a}`,
+          )}`);
         }
         continue;
       }
@@ -1427,7 +1556,7 @@ if (process.argv.includes('--calentar') || process.argv.includes('--calentar-cod
     fallas.push(`codex: ${frase(c.cuota, 'codex')}`);
   }
   const codigo = c.cuota.estado === 'ok' || bien ? 0 : 1;
-  if (codigo !== 0 && fallas.length === 0) fallas.push('no hay ninguna cuenta a la que preguntarle');
+  if (codigo !== 0 && fallas.length === 0) fallas.push(tr('no hay ninguna cuenta a la que preguntarle', 'there is no account to ask'));
   for (const f of fallas) console.error(`calentar · ${f}`);
   process.exit(codigo);
 }
@@ -1452,7 +1581,9 @@ if (process.argv.includes('--esperar')) {
   for (;;) {
     const filas = (await medir(opts)).filter((f) => cuenta === null || f.perfil.nombre.includes(cuenta));
     if (filas.length === 0) {
-      console.error(cuenta === null ? 'no hay ninguna cuenta' : `no encontré la cuenta "${cuenta}"`);
+      console.error(cuenta === null
+        ? tr('no hay ninguna cuenta', 'there are no accounts')
+        : tr(`no encontré la cuenta "${cuenta}"`, `couldn't find the account "${cuenta}"`));
       process.exit(2);
     }
     // Las dormidas no hacen esperar a nadie. Si `--cuenta=` dejó SÓLO dormidas,
@@ -1472,14 +1603,17 @@ if (process.argv.includes('--esperar')) {
       }
     }
     if (peorPct < umbral) {
-      console.log(`libre: la barra que más apremia va ${peorPct} % (umbral ${umbral} %)`);
+      console.log(tr(
+        `libre: la barra que más apremia va ${peorPct} % (umbral ${umbral} %)`,
+        `free: the most pressing bar is at ${peorPct} % (threshold ${umbral} %)`,
+      ));
       process.exit(0);
     }
     // Dormir hasta el reinicio, no sondear a ciegas.
     const faltan = cuando === null ? 60_000 : Math.max(60_000, cuando.getTime() - Date.now() + 5_000);
     console.error(
-      `${peorPct} % · esperando ${duracion(faltan)}` +
-        (cuando === null ? '' : ` (reinicia ${cuando.toLocaleTimeString()})`),
+      tr(`${peorPct} % · esperando ${duracion(faltan)}`, `${peorPct} % · waiting ${duracion(faltan)}`) +
+        (cuando === null ? '' : tr(` (reinicia ${cuando.toLocaleTimeString()})`, ` (resets ${cuando.toLocaleTimeString()})`)),
     );
     await new Promise((r) => setTimeout(r, faltan));
   }
@@ -1490,7 +1624,7 @@ if (typeof opciones === 'string') {
   console.log(opciones);
   // La ayuda y la versión son respuestas, no errores: salen 0. Lo único que
   // sale 2 es una opción que no existe.
-  process.exit(opciones === AYUDA || opciones.startsWith('quartermaster ') ? 0 : 2);
+  process.exit(opciones === ayuda() || opciones.startsWith('quartermaster ') ? 0 : 2);
 }
 
 // --desglose es otro informe, no otra forma de dibujar el mismo: no mira la
@@ -1528,7 +1662,10 @@ const unaVuelta = async (): Promise<number> => {
     // máquina donde todavía no hay nada instalado — que es la primera vez que
     // alguien lo corre.
     if (opciones.json) console.log(JSON.stringify(comoJson(filas, opciones), null, 2));
-    else console.log('No se encontró ninguna cuenta de Claude Code ni de Codex en esta máquina.');
+    else console.log(tr(
+      'No se encontró ninguna cuenta de Claude Code ni de Codex en esta máquina.',
+      'No Claude Code or Codex account found on this machine.',
+    ));
     // Y no es un error: que no haya cuentas es una respuesta, no una falla.
     return 0;
   }
@@ -1554,6 +1691,6 @@ const limpiar = process.stdout.isTTY === true;
 for (;;) {
   if (limpiar) process.stdout.write('\x1b[2J\x1b[H');
   await unaVuelta();
-  console.log(tenue(`  actualiza cada ${opciones.watch}s · ctrl-c para salir`));
+  console.log(tenue(tr(`  actualiza cada ${opciones.watch}s · ctrl-c para salir`, `  refreshes every ${opciones.watch}s · ctrl-c to quit`)));
   await new Promise((r) => setTimeout(r, opciones.watch! * 1000));
 }

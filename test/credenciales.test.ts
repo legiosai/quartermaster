@@ -7,6 +7,10 @@ import { estadoCredencial, tokenDeAcceso, ubicacionCredencial } from '../src/ada
 import { servicioLlavero, directorioPorDefecto } from '../src/core/perfiles.ts';
 import type { Perfil } from '../src/core/tipos.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 // El módulo que toca secretos, por fin con tests.
 //
 // Es el único lugar del repo que lee un token, y no tenía ninguno. Lo que se

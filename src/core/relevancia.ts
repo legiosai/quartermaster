@@ -31,6 +31,8 @@
 // una cuenta paga que estás esperando que se libere se iría al fondo — y
 // enterarte de que se liberó es el aviso más útil que da este programa.
 
+import { tr } from './idioma.ts';
+
 /** Cuántos días sin usarse hacen que una cuenta cuente como quieta. */
 export const DIAS_DORMIDA = 7;
 
@@ -94,16 +96,16 @@ export function relevancia(s: Señales, diasCorte = DIAS_DORMIDA, ahora = new Da
   if (s.ultimoUso !== null) {
     const d = dias(ahora.getTime() - s.ultimoUso.getTime());
     if (d < diasCorte) return DESPIERTA;
-    sinUso = `sin usar hace ${d} día${d === 1 ? '' : 's'}`;
+    sinUso = tr(`sin usar hace ${d} día${d === 1 ? '' : 's'}`, `unused for ${d} day${d === 1 ? '' : 's'}`);
   } else if (s.requests === 0 && s.ventanaDias !== null && s.ventanaDias >= diasCorte) {
-    sinUso = `0 requests en ${s.ventanaDias} días`;
+    sinUso = tr(`0 requests en ${s.ventanaDias} días`, `0 requests in ${s.ventanaDias} days`);
   }
   if (sinUso === null) return DESPIERTA;
 
   // ── 2. ¿Hay algo pago esperando del otro lado? ───────────────────────
   const nadaEnJuego: string[] = [];
-  if (sinPagar(s.plan)) nadaEnJuego.push(s.plan === null ? 'sin plan informado' : `plan ${s.plan}`);
-  if (s.credencialVencida) nadaEnJuego.push('credencial vencida');
+  if (sinPagar(s.plan)) nadaEnJuego.push(s.plan === null ? tr('sin plan informado', 'no plan reported') : `plan ${s.plan}`);
+  if (s.credencialVencida) nadaEnJuego.push(tr('credencial vencida', 'credential expired'));
 
   if (nadaEnJuego.length === 0) return DESPIERTA;
   return { dormida: true, porque: [sinUso, ...nadaEnJuego] };

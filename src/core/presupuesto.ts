@@ -29,6 +29,7 @@
 // la regla de toda la herramienta: el silencio es el bug.
 
 import { semanal, type VentanaCuota } from './tipos.ts';
+import { tr } from './idioma.ts';
 
 export type Presupuesto =
   | {
@@ -211,19 +212,34 @@ export function presupuestoDiario(
 ): Presupuesto {
   const v = semanal(ventanas);
   if (v === null) {
-    return { estado: 'sin-datos', motivo: 'esta cuenta no informa una ventana larga que repartir' };
+    return {
+      estado: 'sin-datos',
+      motivo: tr('esta cuenta no informa una ventana larga que repartir', 'this account reports no long window to spread'),
+    };
   }
   if (v.reinicia === null) {
-    return { estado: 'sin-datos', motivo: `${v.clave} no dice cuándo se reinicia` };
+    return { estado: 'sin-datos', motivo: tr(`${v.clave} no dice cuándo se reinicia`, `${v.clave} doesn't say when it resets`) };
   }
 
   const msRestantes = v.reinicia.getTime() - ahora;
   if (msRestantes <= 0) {
-    return { estado: 'sin-datos', motivo: 'la ventana ya se reinició: el número que hay es del período anterior' };
+    return {
+      estado: 'sin-datos',
+      motivo: tr(
+        'la ventana ya se reinició: el número que hay es del período anterior',
+        'the window already reset: the number on hand is from the previous period',
+      ),
+    };
   }
   const horasRestantes = msRestantes / 3600_000;
   if (horasRestantes < MINIMO_HORAS) {
-    return { estado: 'sin-datos', motivo: 'la ventana se reinicia en menos de una hora: repartirla por día no dice nada' };
+    return {
+      estado: 'sin-datos',
+      motivo: tr(
+        'la ventana se reinicia en menos de una hora: repartirla por día no dice nada',
+        'the window resets in under an hour: a daily split says nothing',
+      ),
+    };
   }
 
   const restante = Math.max(0, 100 - v.porcentaje);
@@ -286,16 +302,22 @@ export function presupuestoDiario(
  * mostrar otro número al lado dejaba una resta que no cerraba a la vista.
  */
 export function frasePresupuesto(p: Presupuesto): string {
-  if (p.estado === 'sin-datos') return `presupuesto diario: ${p.motivo}`;
-  const dia = `podés gastar ${p.porDiaHoy.toFixed(1)} %/día`;
+  if (p.estado === 'sin-datos') return tr(`presupuesto diario: ${p.motivo}`, `daily budget: ${p.motivo}`);
+  const pd = p.porDiaHoy.toFixed(1);
+  const dia = tr(`podés gastar ${pd} %/día`, `you can spend ${pd} %/day`);
   if (p.gastadoHoy !== null && p.restanteHoy !== null) {
-    return `${dia} · gastaste ${p.gastadoHoy.toFixed(1)} % hoy · te queda ${p.restanteHoy.toFixed(1)} %`;
+    const g = p.gastadoHoy.toFixed(1);
+    const r = p.restanteHoy.toFixed(1);
+    return tr(`${dia} · gastaste ${g} % hoy · te queda ${r} %`, `${dia} · spent ${g} % today · ${r} % left`);
   }
   if (p.gastadoMedido !== null && p.medidoDesde !== null && p.restanteMedido !== null) {
-    return `${dia} · gastaste ${p.gastadoMedido.toFixed(1)} % desde las ${horaCorta(p.medidoDesde)}`
-      + ` · te queda ${p.restanteMedido.toFixed(1)} %`;
+    const g = p.gastadoMedido.toFixed(1);
+    const h = horaCorta(p.medidoDesde);
+    const r = p.restanteMedido.toFixed(1);
+    return tr(`${dia} · gastaste ${g} % desde las ${h} · te queda ${r} %`, `${dia} · spent ${g} % since ${h} · ${r} % left`);
   }
-  return `${dia} · de acá a medianoche te toca ${p.quedaHoy.toFixed(1)} %`;
+  const q = p.quedaHoy.toFixed(1);
+  return tr(`${dia} · de acá a medianoche te toca ${q} %`, `${dia} · ${q} % is yours until midnight`);
 }
 
 /** La hora local en HH:MM, que es toda la precisión que esta frase necesita. */

@@ -2268,6 +2268,52 @@ manda sesión).
 tres por el texto— y va adentro de `gate-dibujo.sh`; `make gate-dibujo-rojo`
 suma sus dos rojos: el pie sin edad propia y el «viejo» midiendo la cuenta.
 
+### qm habla inglés (2026-11-01)
+
+El README y la landing están en inglés y casi todo el que llega, llega por
+ahí. Hasta acá, lo primero que veía después de instalar era «reinicia en»,
+«podés gastar», «credencial: vigente». Ahora `qm` elige el idioma por el
+locale, como cualquier programa de terminal: el primero no vacío de `LC_ALL`,
+`LC_MESSAGES` y `LANG`; `es*` es castellano y todo lo demás —incluidos `C` y
+`C.UTF-8`— es inglés. Sin ninguna de las tres (Windows) decide el locale de
+`Intl`. `QM_IDIOMA=es|en` gana sobre todo, y `--idioma=` vale para una corrida.
+
+**Las frases quedan en el lugar donde se usan**, con `tr(es, en)` de
+`src/core/idioma.ts`, y no en un catálogo de claves. Quien revisa un cambio ve
+las dos versiones juntas; una frase que cambia de sentido en un idioma cambia
+en el otro en el mismo diff. `idioma()` no cachea: lee el entorno en cada
+llamada, así que lo puede fijar cualquiera antes de imprimir —`--idioma=` arriba
+de todo en qm.ts, la regla del JSON, un test después de sus imports—. Por eso
+la ayuda pasó de constante a función: una constante se calculaba al importar,
+antes de mirar `--idioma=`.
+
+**El JSON sigue en castellano.** Los cuatro paneles dibujan sus frases
+(`frase`, `nombre`, `credencial`, `porque`) al lado de rótulos propios que están
+en castellano, y un panel mitad y mitad se lee peor que uno entero en
+castellano. Así que con `--json` y sin un idioma pedido a propósito, `qm` fija
+`es` antes de imprimir nada. Las claves y los valores de enumeración no cambian
+nunca. Traducir los paneles es otro trabajo, y cuando se haga alcanza con que
+le pidan a `qm` el idioma del usuario.
+
+Lo que se rompía en silencio: el color de la credencial en la tabla salía de
+comparar el TEXTO del veredicto con `'vigente'` y `'vencida'`. En inglés esas
+comparaciones fallaban y toda credencial vigente salía en rojo. Ahora compara
+contra `tr()` del mismo idioma, que es el mismo texto que produjo el
+veredicto. Y la coma decimal: `5,8G` en inglés se lee como miles, así que
+`tokens()` pasa a `5.8G`.
+
+**Lo que quedó afuera a propósito:** `--desglose` (sus tres archivos se estaban
+cambiando en paralelo), los cuatro paneles, `preflight.ts` y `demo-h1.ts`
+(demos de desarrollo), y los comentarios, que siguen en castellano.
+
+**Los tests** fijan `QM_IDIOMA=es` después de sus imports, porque leen frases
+en castellano y el locale de CI es `C.UTF-8`. El inglés se prueba en
+`test/idioma.test.ts`: la precedencia, `--idioma=` en las dos direcciones, la
+regla del JSON y corridas de punta a punta de la tabla, `--statusline`,
+`--help` y la frase de una instalación nueva. Ningún gate miraba el texto de
+`qm` —miran códigos de salida y que la salida no esté vacía—, así que ninguno
+cambió.
+
 ## El build, y por qué es opcional
 
 El repo lee el TypeScript directo: no hay paso de build y `make instalar`, el

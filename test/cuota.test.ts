@@ -5,6 +5,10 @@ import { parsearUtilizacion, aFecha } from '../src/adapters/utilizacion.ts';
 import { frase, peor, paraMostrar, nombreVentana, esPreocupante, vencida, type ResultadoCuota } from '../src/core/tipos.ts';
 import { anchoVisible, duracion, reinicio, relleno, tenue } from '../src/render/barras.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 // Las fixtures son respuestas REALES de dos cuentas de distinto tipo, sacadas
 // de `cachedUsageUtilization` en .claude.json y redactadas sólo en accountUuid.
 const max = JSON.parse(readFileSync(new URL('./fixtures/cached-usage-max.json', import.meta.url), 'utf8'));

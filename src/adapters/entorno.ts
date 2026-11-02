@@ -22,6 +22,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { homedir, release, type as tipoSO } from 'node:os';
 import { join } from 'node:path';
+import { tr } from '../core/idioma.ts';
 
 export const CACHE = join(homedir(), '.cache', 'quartermaster');
 const UUID_EXTENSION = 'quartermaster@legios';
@@ -48,9 +49,9 @@ function correr(cmd: string, args: readonly string[]): Dato {
       stdio: ['ignore', 'pipe', 'ignore'],
     });
     const limpio = salida.trim();
-    return limpio === '' ? no(`${cmd} no dijo nada`) : val(limpio);
+    return limpio === '' ? no(tr(`${cmd} no dijo nada`, `${cmd} said nothing`)) : val(limpio);
   } catch {
-    return no(`no se pudo correr ${cmd}`);
+    return no(tr(`no se pudo correr ${cmd}`, `couldn't run ${cmd}`));
   }
 }
 
@@ -70,9 +71,9 @@ export function mtime(ruta: string): number | null {
 export function edad(ruta: string): Dato {
   try {
     const seg = Math.round((Date.now() - statSync(ruta).mtimeMs) / 1000);
-    return val(`hace ${duracionCorta(seg)}`);
+    return val(tr(`hace ${duracionCorta(seg)}`, `${duracionCorta(seg)} ago`));
   } catch {
-    return no('no existe');
+    return no(tr('no existe', 'does not exist'));
   }
 }
 
@@ -106,9 +107,9 @@ export interface Escritorio {
  * se confunde con «el arreglo no sirvió».
  */
 function arranqueDelShell(): { readonly dato: Dato; readonly ms: number | null } {
-  if (process.platform !== 'linux') return { dato: no('sólo se mira en Linux'), ms: null };
+  if (process.platform !== 'linux') return { dato: no(tr('sólo se mira en Linux', 'only checked on Linux')), ms: null };
   const pid = correr('pgrep', ['-x', 'gnome-shell']);
-  if (!('valor' in pid)) return { dato: no('no hay gnome-shell corriendo'), ms: null };
+  if (!('valor' in pid)) return { dato: no(tr('no hay gnome-shell corriendo', 'no gnome-shell running')), ms: null };
   const primero = pid.valor.split('\n')[0]!.trim();
   const cuando = correr('ps', ['-o', 'lstart=', '-p', primero]);
   if (!('valor' in cuando)) return { dato: cuando, ms: null };
@@ -122,12 +123,12 @@ export function escritorio(): Escritorio {
     so: `${tipoSO()} ${release()} (${process.platform})`,
     escritorio: process.env['XDG_CURRENT_DESKTOP']
       ? val(process.env['XDG_CURRENT_DESKTOP'])
-      : no('XDG_CURRENT_DESKTOP vacío'),
+      : no(tr('XDG_CURRENT_DESKTOP vacío', 'XDG_CURRENT_DESKTOP empty')),
     sesion: process.env['XDG_SESSION_TYPE']
       ? val(process.env['XDG_SESSION_TYPE'])
-      : no('XDG_SESSION_TYPE vacío'),
+      : no(tr('XDG_SESSION_TYPE vacío', 'XDG_SESSION_TYPE empty')),
     shell:
-      process.platform === 'linux' ? correr('gnome-shell', ['--version']) : no('no es Linux'),
+      process.platform === 'linux' ? correr('gnome-shell', ['--version']) : no(tr('no es Linux', 'not Linux')),
     arrancoLaSesion: arranque.dato,
     arrancoMs: arranque.ms,
   };
@@ -157,9 +158,9 @@ export function extension(): Extension {
   if (!instalada) {
     return {
       instalada: false,
-      estado: no('no está instalada'),
-      ultimoError: no('no está instalada'),
-      archivoTocado: no('no está instalada'),
+      estado: no(tr('no está instalada', 'not installed')),
+      ultimoError: no(tr('no está instalada', 'not installed')),
+      archivoTocado: no(tr('no está instalada', 'not installed')),
       tocadoMs: null,
       latido: latidoExtension(),
     };
@@ -172,7 +173,7 @@ export function extension(): Extension {
             .split('\n')
             .filter((l) => /^\s*(Enabled|State):/.test(l))
             .map((l) => l.trim())
-            .join(' · ') || 'sin Enabled/State en la salida',
+            .join(' · ') || tr('sin Enabled/State en la salida', 'no Enabled/State in the output'),
         )
       : info;
   const errores = correr('gdbus', [
@@ -189,7 +190,7 @@ export function extension(): Extension {
       'valor' in errores
         ? errores.valor.includes('\\n') || errores.valor.length > 8
           ? val(sinCasa(errores.valor))
-          : no('el shell no guardó ningún error')
+          : no(tr('el shell no guardó ningún error', 'the shell kept no error'))
         : errores,
     archivoTocado: edad(join(dir, 'extension.js')),
     tocadoMs: mtime(join(dir, 'extension.js')),
@@ -208,7 +209,10 @@ export function extension(): Extension {
 function latidoExtension(): Dato {
   const viva = join(CACHE, 'extension-viva');
   if (!existsSync(viva)) {
-    return no('sin latido: el item lo dibuja AppIndicator, y ese panel es el menú de GTK');
+    return no(tr(
+      'sin latido: el item lo dibuja AppIndicator, y ese panel es el menú de GTK',
+      'no heartbeat: AppIndicator draws the item, and that panel is the GTK menu',
+    ));
   }
   return edad(viva);
 }
@@ -216,14 +220,14 @@ function latidoExtension(): Dato {
 // ── el indicador ─────────────────────────────────────────────────────────
 
 export function indicador(): Dato {
-  if (process.platform !== 'linux') return no('sólo se mira en Linux');
+  if (process.platform !== 'linux') return no(tr('sólo se mira en Linux', 'only checked on Linux'));
   const pid = correr('pgrep', ['-af', 'qm-indicator']);
-  if (!('valor' in pid)) return no('no está corriendo');
+  if (!('valor' in pid)) return no(tr('no está corriendo', 'not running'));
   const lineas = pid.valor
     .split('\n')
     .filter((l) => !/pgrep|zsh|bash|-c /.test(l))
     .map((l) => sinCasa(l.trim()));
-  return lineas.length === 0 ? no('no está corriendo') : val(lineas.join('\n'));
+  return lineas.length === 0 ? no(tr('no está corriendo', 'not running')) : val(lineas.join('\n'));
 }
 
 // ── el cache ─────────────────────────────────────────────────────────────
@@ -242,7 +246,7 @@ export function cache(): { readonly nombre: string; readonly edad: string }[] {
 
 /** Lo que el sistema anotó sobre quartermaster en este arranque. */
 export function journal(lineas = 20): Dato {
-  if (process.platform !== 'linux') return no('sólo se mira en Linux');
+  if (process.platform !== 'linux') return no(tr('sólo se mira en Linux', 'only checked on Linux'));
   const salida = correr('journalctl', ['--user', '-b', '--no-pager', '-o', 'cat']);
   if (!('valor' in salida)) return salida;
   // `grep quartermaster` a secas trae ruido que no es del programa: líneas de
@@ -254,5 +258,5 @@ export function journal(lineas = 20): Dato {
     .split('\n')
     .filter((l) => /quartermaster|qm-indicator/i.test(l) && !RUIDO.test(l))
     .slice(-lineas);
-  return suyas.length === 0 ? no('el journal no tiene nada de quartermaster') : val(sinCasa(suyas.join('\n')));
+  return suyas.length === 0 ? no(tr('el journal no tiene nada de quartermaster', 'the journal has nothing from quartermaster')) : val(sinCasa(suyas.join('\n')));
 }

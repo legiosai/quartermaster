@@ -3,6 +3,10 @@ import assert from 'node:assert/strict';
 import { presupuestoDiario, frasePresupuesto, gastadoDesdeMedianoche } from '../src/core/presupuesto.ts';
 import type { VentanaCuota } from '../src/core/tipos.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const H = 3600_000;
 /** Mediodía local, para que «lo que queda del día» sean 12 h en cualquier zona. */
 const AHORA = new Date(2026, 8, 9, 12, 0, 0).getTime();

@@ -320,6 +320,14 @@ the tray red and fires the "you are blocked" warning for something that ended.
 - New fields may appear. **Ignore what you do not know.**
 - `frase` and `relevancia.porque` are prose for humans: read them, show them,
   do not parse them.
+- **The prose is in Spanish by default, whatever the locale.** Since `qm`
+  speaks English, every human string in the JSON (`frase`, `nombre`,
+  `credencial`, `relevancia.porque`, `presupuesto.motivo`, `proyeccion.motivo`)
+  follows the language only when one is asked for explicitly — `QM_IDIOMA=en`
+  or `--idioma=en`. Without that it stays Spanish, because the four panels in
+  this repo draw those strings next to Spanish labels of their own. The keys
+  and the enum values (`estado`, `origen`, `clave`, `severidad`…) never change
+  with the language.
 - The order of `perfiles` is meaningful (see above). It was not before
   `frenaPrimero` existed; nothing may reorder it now.
 - `--redactado` removes emails and home paths, and nothing else changes shape.

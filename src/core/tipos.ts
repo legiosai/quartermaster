@@ -1,6 +1,8 @@
 // Los tipos que cruzan la frontera entre adaptadores y núcleo. Un adaptador
 // puede saber de llaveros, de JSONL o de HTTP; el núcleo sólo sabe de esto.
 
+import { tr } from './idioma.ts';
+
 /** Un perfil de Claude Code: un directorio de configuración y la cuenta que vive adentro. */
 export interface Perfil {
   /** Ruta absoluta del directorio de configuración (lo que CLAUDE_CONFIG_DIR apunta). */
@@ -269,34 +271,49 @@ export function sinNombre(v: VentanaCuota): boolean {
  */
 export function nombreVentana(v: VentanaCuota): string {
   if (v.alcance !== null) return `${v.clave} (${v.alcance})`;
-  return sinNombre(v) ? `otro límite (${v.clave})` : v.clave;
+  return sinNombre(v) ? tr(`otro límite (${v.clave})`, `other limit (${v.clave})`) : v.clave;
 }
 
 /** La frase que se le muestra al usuario para cada estado. Nunca vacía. */
 export function frase(r: ResultadoCuota, perfil: string): string {
   switch (r.estado) {
     case 'ok':
-      return `${r.ventanas.length} ventana(s) de cuota`;
+      return tr(`${r.ventanas.length} ventana(s) de cuota`, `${r.ventanas.length} quota window(s)`);
     case 'sin-credencial':
-      return `sin credencial — corré: CLAUDE_CONFIG_DIR=${perfil} claude auth login`;
+      return tr(
+        `sin credencial — corré: CLAUDE_CONFIG_DIR=${perfil} claude auth login`,
+        `no credential — run: CLAUDE_CONFIG_DIR=${perfil} claude auth login`,
+      );
     case 'vencida':
-      return `credencial vencida — corré: CLAUDE_CONFIG_DIR=${perfil} claude auth login`;
+      return tr(
+        `credencial vencida — corré: CLAUDE_CONFIG_DIR=${perfil} claude auth login`,
+        `credential expired — run: CLAUDE_CONFIG_DIR=${perfil} claude auth login`,
+      );
     case 'sin-cache':
       // «Usalo una vez» era el consejo cuando Claude Code guardaba la cuota en
       // cada uso. Ya no la guarda (ver src/adapters/statusline.ts), así que el
       // consejo dejaba a una instalación nueva sin número y sin salida.
       return perfil === 'codex'
-        ? 'Codex todavía no dejó cuota en sus sesiones (usalo una vez)'
-        : `no hay cuota guardada para este perfil — poné \`qm --statusline\` como statusLine de Claude Code (sin red ni credencial), o corré \`qm --refrescar\``;
+        ? tr(
+          'Codex todavía no dejó cuota en sus sesiones (usalo una vez)',
+          'Codex has not left any quota in its sessions yet (use it once)',
+        )
+        : tr(
+          'no hay cuota guardada para este perfil — poné `qm --statusline` como statusLine de Claude Code (sin red ni credencial), o corré `qm --refrescar`',
+          'no stored quota for this profile — set `qm --statusline` as Claude Code\'s statusLine (no network, no credential), or run `qm --refrescar`',
+        );
     case 'sin-cuota-legible':
       return r.detalle;
     case 'no-consultada':
-      return 'no se consultó el endpoint (--sin-red)';
+      return tr('no se consultó el endpoint (--sin-red)', 'the endpoint was not asked (--sin-red)');
     case 'sin-suscripcion':
-      return 'la cuenta no tiene límites de suscripción que reportar (API key o enterprise)';
+      return tr(
+        'la cuenta no tiene límites de suscripción que reportar (API key o enterprise)',
+        'this account has no subscription limits to report (API key or enterprise)',
+      );
     case 'ilegible':
-      return `no sé leer lo que vino: ${r.detalle}`;
+      return tr(`no sé leer lo que vino: ${r.detalle}`, `can't read what came back: ${r.detalle}`);
     case 'error':
-      return `no se pudo consultar la cuota: ${r.detalle}`;
+      return tr(`no se pudo consultar la cuota: ${r.detalle}`, `couldn't get the quota: ${r.detalle}`);
   }
 }

@@ -51,8 +51,12 @@ def por_typescript():
         f"const c={json.dumps([s for s, _ in CASOS])};"
         "console.log(JSON.stringify(c.map(s=>duracion(s*1000))));"
     )
+    # Las cuatro escaleras se comparan en castellano: los paneles hablan
+    # castellano y el CLI, desde que habla inglés, lo elige por el locale (el de
+    # CI es C.UTF-8). Se fija acá para comparar la misma frase.
     r = subprocess.run(["node", "--experimental-strip-types", "-e", guion],
-                       cwd=RAIZ, capture_output=True, text=True, timeout=60)
+                       cwd=RAIZ, capture_output=True, text=True, timeout=60,
+                       env={**os.environ, "QM_IDIOMA": "es"})
     if r.returncode != 0:
         raise RuntimeError(r.stderr.strip().splitlines()[-1] if r.stderr else "node falló")
     return json.loads(r.stdout)

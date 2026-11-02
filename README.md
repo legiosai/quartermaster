@@ -116,6 +116,7 @@ qm --umbral=80      # exit 3 if any bar is over N%
 qm --esperar        # block until quota drops:  qm --esperar && codex ...
 qm --diagnostico    # everything a bug report needs, already redacted
 qm --desglose       # where the week's quota went — disk only, never the network
+qm --idioma=es      # this run in Spanish (or =en); QM_IDIOMA does it for good
 ```
 
 In Claude Code's `settings.json`:
@@ -138,14 +139,14 @@ Already have a statusline script? Pipe the event through and print what comes
 back: `echo "$input" | qm --statusline`.
 
 ```
-ctx 182k · caché 12m · personal 23/75%! · teams 9/42% · codex 49/59%
+ctx 182k · cache 12m · personal 23/75%! · teams 9/42% · codex 49/59%
 ```
 
 The first two segments are the session drawing the line, and they are what the
 *next* prompt will cost: the context size (yellow from 400k — prompts that big
 were 35 % of a measured week's weighted cost with 16 % of the requests) and
 how long the prompt cache stays warm. Once it goes cold the line says
-`caché fría (+181k)`: the next request rewrites that many tokens of cache, so
+`cold cache (+181k)`: the next request rewrites that many tokens of cache, so
 that is the moment to decide between `/clear` and carrying on. `--breve` prints
 only the quota part.
 
@@ -153,6 +154,22 @@ only the quota part.
 the bar that stops you first. They answer different questions — "can I keep
 going right now?" and "do I make it to the end of the week?" — and either one
 alone is half an answer.
+
+### Language
+
+`qm` speaks English or Spanish, picked from the locale the way any terminal
+program does: the first non-empty of `LC_ALL`, `LC_MESSAGES` and `LANG` — `es*`
+is Spanish, anything else (including `C` and `C.UTF-8`) is English — and on
+Windows, where those are usually unset, the system's regional setting.
+`QM_IDIOMA=es` or `QM_IDIOMA=en` overrides it for good, `--idioma=` for one run.
+A Spanish speaker on a machine with `LC_ALL=C.UTF-8` gets English until they set
+`QM_IDIOMA=es`.
+
+`--json` is the exception. The four panels draw its sentences (`frase`,
+`nombre`, `credencial`, `porque`) next to labels of their own that are still in
+Spanish, and a panel with half its words in each language reads worse than one
+in Spanish. So the JSON's text stays Spanish unless you ask for a language on
+purpose with `QM_IDIOMA` or `--idioma`. Its keys never change.
 
 ## Where did it go?
 
@@ -216,10 +233,10 @@ the cache directory, and `ps` for when the graphical session started — and it
 prompted it:
 
 ```
-  ⚠ extension.js es 12.9 h MÁS NUEVO que la sesión gráfica.
-    El shell carga el módulo una vez y lo deja en memoria: lo que está
-    corriendo es el archivo viejo …
-      → cerrá sesión y volvé a entrar. Es el único paso que falta.
+  ⚠ extension.js is 12.9 h NEWER than the graphical session.
+    The shell loads the module once and keeps it in memory: what is
+    running is the old file …
+      → log out and back in. It is the only step left.
 ```
 
 Anything it cannot find out it says so — it never omits and never guesses. It

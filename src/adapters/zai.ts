@@ -36,6 +36,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { DIR_OPENCODE } from './opencode.ts';
 import type { ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
+import { tr } from '../core/idioma.ts';
 
 export const ENDPOINT_ZAI = 'https://api.z.ai/api/monitor/usage/quota/limit';
 
@@ -192,14 +193,17 @@ export async function consultarCuotaZai(proveedor: string, ms = 10_000): Promise
       signal: AbortSignal.timeout(ms),
     });
   } catch (e) {
-    return { estado: 'error', detalle: e instanceof Error ? e.message : 'error de red' };
+    return { estado: 'error', detalle: e instanceof Error ? e.message : tr('error de red', 'network error') };
   }
 
   if (respuesta.status === 401 || respuesta.status === 403) {
     // No se dice «vencida»: una API key no vence como un token OAuth, y la
     // frase de ese estado manda a correr `claude auth login`, que acá no
     // arregla nada.
-    return { estado: 'error', detalle: `HTTP ${respuesta.status} — la clave de ${proveedor} en auth.json no la acepta z.ai` };
+    return { estado: 'error', detalle: tr(
+        `HTTP ${respuesta.status} — la clave de ${proveedor} en auth.json no la acepta z.ai`,
+        `HTTP ${respuesta.status} — z.ai rejects the ${proveedor} key in auth.json`,
+      ) };
   }
   if (!respuesta.ok) return { estado: 'error', detalle: `HTTP ${respuesta.status}` };
 
@@ -207,7 +211,7 @@ export async function consultarCuotaZai(proveedor: string, ms = 10_000): Promise
   try {
     cuerpo = await respuesta.json();
   } catch {
-    return { estado: 'ilegible', detalle: 'la respuesta de z.ai no es JSON' };
+    return { estado: 'ilegible', detalle: tr('la respuesta de z.ai no es JSON', 'the z.ai response is not JSON') };
   }
 
   const ventanas = parsearCuotaZai(cuerpo);
@@ -219,7 +223,10 @@ export async function consultarCuotaZai(proveedor: string, ms = 10_000): Promise
     if (Array.isArray(datos['limits']) && datos['limits'].length === 0) {
       return { estado: 'sin-suscripcion' };
     }
-    return { estado: 'ilegible', detalle: `sin barras reconocibles en {${Object.keys(c).slice(0, 8).join(', ')}}` };
+    return { estado: 'ilegible', detalle: tr(
+        `sin barras reconocibles en {${Object.keys(c).slice(0, 8).join(', ')}}`,
+        `no recognizable bars in {${Object.keys(c).slice(0, 8).join(', ')}}`,
+      ) };
   }
   return { estado: 'ok', origen: 'endpoint', medidoEn: new Date(), ventanas };
 }

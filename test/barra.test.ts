@@ -9,6 +9,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { comoArrancar, debeOfrecer, type Situacion } from '../src/adapters/barra.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const MAC_NUEVA: Situacion = {
   plataforma: 'darwin',
   terminal: true,

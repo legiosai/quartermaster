@@ -276,6 +276,7 @@ footer a{color:var(--medio)}
     <tr><td>--cuentas=a,b</td><td>With <code>--calentar</code>: only those. Every account skipped is one request fewer to an endpoint that is not ours.</td></tr>
     <tr><td>--calentar-codex</td><td>The same, but only Codex and without touching the keychain.</td></tr>
     <tr><td>--diagnostico</td><td>Everything a bug report needs, in one command and already redacted: machine, desktop, the state of the extension, the indicator and the cache, and what the journal recorded. No e-mail, no tokens, no account ids.</td></tr>
+    <tr><td>--idioma=es|en</td><td>The language for this run. By default it comes from the locale (<code>LC_ALL</code>, <code>LC_MESSAGES</code>, <code>LANG</code>: <code>es*</code> is Spanish, anything else is English); <code>QM_IDIOMA</code> sets it for good. <code>--json</code> keeps its text in Spanish, because the panels draw it next to their own Spanish labels, unless a language is asked for on purpose.</td></tr>
     <tr><td>-V, --version</td><td>The version, and nothing else.</td></tr>
     <tr><td>--red / --sin-red</td><td>Force or forbid the network probe. <b>--offline</b> is a synonym for <b>--sin-red</b>.</td></tr>
     <tr><td>-h, --help</td><td>The same list, in the terminal.</td></tr>

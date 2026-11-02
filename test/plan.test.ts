@@ -14,6 +14,10 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { leerCuenta, nombrePlan, planParaMostrar } from '../src/core/perfiles.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const RAIZ = new URL('..', import.meta.url).pathname;
 
 /** Una cuenta individual en Ultra: así quedó `oauthAccount` después del cambio de plan. */
@@ -151,6 +155,7 @@ function casaConUltra(): NodeJS.ProcessEnv {
     XDG_CONFIG_HOME: join(casa, 'config'),
     XDG_DATA_HOME: join(casa, 'data'),
     NO_COLOR: '1',
+    QM_IDIOMA: 'es',
   };
 }
 

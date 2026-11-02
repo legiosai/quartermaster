@@ -8,6 +8,10 @@ import { test, describe } from 'node:test';
 import { veredictoCredencial } from '../src/render/barras.ts';
 import type { EstadoCredencial } from '../src/core/tipos.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 function cred(parcial: Partial<EstadoCredencial>): EstadoCredencial {
   return {
     presente: true,

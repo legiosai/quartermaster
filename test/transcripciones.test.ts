@@ -6,6 +6,10 @@ import { join } from 'node:path';
 import { consumoDesde, transcripciones } from '../src/adapters/transcripciones.ts';
 import type { Perfil } from '../src/core/tipos.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 // El piso, por fin con tests.
 //
 // SOUL.md dice que el adaptador de transcripciones «nunca es opcional»: es el

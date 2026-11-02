@@ -130,6 +130,7 @@ qm --watch 60       # se redibuja cada N segundos
 qm --umbral=80      # sale 3 si alguna barra pasa el N %
 qm --esperar        # no vuelve hasta que baje:  qm --esperar && codex ...
 qm --desglose       # en qué se fue la cuota de la semana — sólo disco, nunca red
+qm --idioma=en      # esta corrida en inglés (o =es); QM_IDIOMA lo deja fijo
 ```
 
 En el `settings.json` de Claude Code:
@@ -166,6 +167,24 @@ sólo la parte de cuota.
 **Dos números por cuenta a propósito**: el primero es la sesión y el segundo la
 barra que te frena antes. Contestan preguntas distintas —«¿puedo seguir ahora?»
 y «¿llego al final de la semana?»— y una sola de las dos es media respuesta.
+
+### Idioma
+
+`qm` habla castellano o inglés, y lo elige por el locale como cualquier
+programa de terminal: el primero que no esté vacío de `LC_ALL`, `LC_MESSAGES` y
+`LANG` —`es*` es castellano, cualquier otro (incluidos `C` y `C.UTF-8`) es
+inglés— y en Windows, donde esas variables suelen no estar, la configuración
+regional del sistema. `QM_IDIOMA=es` o `QM_IDIOMA=en` lo fija para siempre, y
+`--idioma=` para una corrida. **Ojo:** una máquina con `LC_ALL=C.UTF-8` o
+`LANG=en_US.UTF-8` —muy común aunque quien la usa hable castellano— ve `qm` en
+inglés hasta que se le pone `QM_IDIOMA=es`.
+
+`--json` es la excepción. Los cuatro paneles dibujan sus frases (`frase`,
+`nombre`, `credencial`, `porque`) al lado de rótulos propios que siguen en
+castellano, y un panel con la mitad de las palabras en cada idioma se lee peor
+que uno entero en castellano. Así que el texto del JSON queda en castellano
+salvo que se pida otro idioma a propósito con `QM_IDIOMA` o `--idioma`. Las
+claves no cambian nunca.
 
 ## ¿En qué se fue?
 

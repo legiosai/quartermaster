@@ -4,6 +4,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { nombreCorto, seleccionar } from '../src/core/config.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const f = (nombre: string) => ({ perfil: { nombre } });
 const TODAS = [f('.claude'), f('.claude-personal'), f('.claude-teams'), f('codex')];
 const nombres = (xs: { perfil: { nombre: string } }[]) => xs.map((x) => nombreCorto(x.perfil.nombre));

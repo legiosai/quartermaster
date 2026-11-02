@@ -14,6 +14,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const RAIZ = new URL('..', import.meta.url).pathname;
 
 /** Una máquina sin nada, de verdad.
@@ -34,6 +38,7 @@ function entornoVacio(casa: string): NodeJS.ProcessEnv {
     XDG_CACHE_HOME: join(casa, 'cache'),
     XDG_CONFIG_HOME: join(casa, 'config'),
     XDG_DATA_HOME: join(casa, 'data'),
+    QM_IDIOMA: 'es',
   };
 }
 

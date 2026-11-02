@@ -4,6 +4,10 @@ import { strictEqual } from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { fechaDeReinicio } from '../src/adapters/opencode.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 describe('fechaDeReinicio · el 429 que guarda opencode', () => {
   it('la hora del mensaje es de Beijing, no la de la máquina', () => {
     // Antes se leía como hora local. Las dos puntas del mismo dato lo cerraron:

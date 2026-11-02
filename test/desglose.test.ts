@@ -31,6 +31,10 @@ import { hiloDe, usosDesde } from '../src/adapters/transcripciones.ts';
 import { usosDeRollout } from '../src/adapters/codex.ts';
 import type { Perfil } from '../src/core/tipos.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 const MINUTO = 60_000;
 const HORA = 60 * MINUTO;
 // Mediodía local de un día fijo: así el día de cada request no depende del
@@ -543,6 +547,7 @@ function qm(casa: string, args: string[]): { salida: string; codigo: number | nu
       XDG_CONFIG_HOME: join(casa, 'config'),
       XDG_DATA_HOME: join(casa, 'data'),
       NO_COLOR: '1',
+      QM_IDIOMA: 'es',
     },
     timeout: 30_000,
   });

@@ -4,6 +4,10 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 // El adaptador lee XDG_CACHE_HOME en cada llamada, así que alcanza con
 // apuntarlo a un directorio temporal antes de usarlo.
 const caja = mkdtempSync(join(tmpdir(), 'qm-hist-'));

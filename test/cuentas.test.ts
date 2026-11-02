@@ -11,6 +11,10 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { cuentaPedida } from '../src/core/config.ts';
 
+// Estos tests leen las frases en castellano. El idioma sale del locale, y el
+// de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
+process.env['QM_IDIOMA'] = 'es';
+
 test('el nombre completo sigue sirviendo: es lo que manda el indicador de GNOME', () => {
   assert.strictEqual(cuentaPedida(new Set(['.claude-personal', 'codex']), '.claude-personal'), true);
   assert.strictEqual(cuentaPedida(new Set(['.claude-personal', 'codex']), 'codex'), true);
