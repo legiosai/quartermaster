@@ -549,6 +549,12 @@ func leer() -> Lectura {
 // ── avisos ───────────────────────────────────────────────────────────────
 /// Sin bundle no hay UNUserNotificationCenter, y osascript sí anda: es la vía
 // que no obliga a empaquetar una .app para decir una frase.
+//
+// Se va sola, como en GNOME y Windows (AVISO_MS de bin/qm-indicator): macOS lo
+// muestra como el banner temporal de Script Editor, unos 5 s, y lo deja en el
+// centro de notificaciones. No hay urgencia que lo clave. Si se queda en
+// pantalla es porque el estilo de Script Editor está en «Persistente» o
+// «Alertas» en Ajustes › Notificaciones; sin bundle no hay API para cerrarlo.
 func notificar(titulo: String, cuerpo: String) {
     let limpio: (String) -> String = { $0.replacingOccurrences(of: "\"", with: "'") }
     let p = Process()

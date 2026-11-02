@@ -117,6 +117,15 @@ ICONO_OK = "utilities-system-monitor-symbolic"
 ICONO_AVISO = "dialog-warning-symbolic"
 ICONO_GRAVE = "dialog-error-symbolic"
 
+# Cuánto queda un aviso en pantalla. Todos se van solos, también el grave: la
+# urgencia `critical` hace que GNOME lo deje clavado hasta que lo cerrás, y un
+# aviso de cuota que tapa la esquina de la pantalla durante horas se termina
+# cerrando sin leer. Lo grave se distingue por el ícono, no por quedarse. GNOME
+# usa su propio tiempo para los normales (unos 4 s, y espera a que vuelvas si
+# no estás tocando nada); KDE, dunst y mako respetan este. Queda en la lista de
+# notificaciones igual.
+AVISO_MS = 8_000
+
 
 _ULTIMO_SELLO = 0
 
@@ -1723,8 +1732,9 @@ class Avisos:
                         titulo,
                         cuerpo,
                         [],
-                        {"urgency": GLib.Variant("y", 2 if urgente else 1)},
-                        0 if urgente else 10_000,
+                        # 1 = normal, nunca 2: ver AVISO_MS.
+                        {"urgency": GLib.Variant("y", 1)},
+                        AVISO_MS,
                     ),
                 ),
                 GLib.VariantType("(u)"),
