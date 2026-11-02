@@ -327,6 +327,7 @@ footer a:hover{color:var(--texto)}
 <h3>Changed</h3>
 <ul>
 <li><strong>Desktop notifications leave the screen on their own, the urgent one too.</strong> On GNOME the «stopped» / «you hit the wall before the reset» notification went out with <code>critical</code> urgency and no expiry, and GNOME keeps those on screen until you close them. Every notification is now normal urgency with an 8-second expiry: GNOME takes it down after its own few seconds (it waits for you if you are away), and it stays in the notification list. The urgent one still has the error icon. On Windows both kinds ask for the same 8 s; Windows 10 and 11 use the Accessibility setting instead (5 s out of the box). On macOS nothing changed: it was already a temporary banner, and if it stays, Script Editor's notification style is set to Persistent or Alerts in System Settings.</li>
+<li><strong>The statusline names the bar that stops you when it isn't the session or the weekly.</strong> On an account where Claude Code only sends the weekly (13 %) and the bar that stops you first is one the server sends without a name, the line said <code>main 44%</code>, which read like a wrong weekly. It now says <code>main 44% iguana_necktie</code>, and a model-only bar says which model: <code>main 75% Fable</code>. The session and the general weekly stay unlabeled.</li>
 </ul>
 <h2 id="v0.1.21">v0.1.21 — 2026-11-01</h2>
 <h3>Added</h3>
