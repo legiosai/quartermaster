@@ -19,7 +19,7 @@ numero-h5:  ## H5 · comitea la cuota leída del cache, sin mails ni rutas de ca
 	@echo "numeros/h5-cuota.json escrito"
 
 .PHONY: instalar
-instalar:  ## enlaza bin/qm en ~/.local/bin
+instalar:  ## enlaza bin/qm en ~/.local/bin, y el completado de bash y zsh
 	@mkdir -p $(HOME)/.local/bin
 	@ln -sf "$(CURDIR)/bin/qm" "$(HOME)/.local/bin/qm"
 	@ln -sf "$(CURDIR)/bin/qm-web" "$(HOME)/.local/bin/qm-web"
@@ -27,6 +27,15 @@ instalar:  ## enlaza bin/qm en ~/.local/bin
 	@grep -qi microsoft /proc/version 2>/dev/null && ln -sf "$(CURDIR)/bin/qm-tray" "$(HOME)/.local/bin/qm-tray" || true
 	@echo "qm -> $(HOME)/.local/bin/qm"
 	@echo "qm-web -> $(HOME)/.local/bin/qm-web"
+	@# El completado, enlazado como los bin: un git pull lo pone al día solo.
+	@# bash-completion levanta el de bash sin que nadie lo configure; zsh sólo
+	@# mira los directorios de su fpath, y éste no viene en ninguno.
+	@mkdir -p $(HOME)/.local/share/bash-completion/completions $(HOME)/.local/share/zsh/site-functions
+	@ln -sf "$(CURDIR)/paquetes/completions/qm.bash" "$(HOME)/.local/share/bash-completion/completions/qm"
+	@ln -sf "$(CURDIR)/paquetes/completions/_qm" "$(HOME)/.local/share/zsh/site-functions/_qm"
+	@echo "completado -> $(HOME)/.local/share/bash-completion/completions/qm"
+	@echo "completado -> $(HOME)/.local/share/zsh/site-functions/_qm"
+	@case "$$SHELL" in *zsh) echo "ojo: en zsh, fpath+=(~/.local/share/zsh/site-functions) antes del compinit del .zshrc";; esac
 	@command -v qm >/dev/null || echo "ojo: ~/.local/bin no está en tu PATH"
 
 .PHONY: web

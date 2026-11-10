@@ -323,6 +323,11 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2>Unreleased</h2>
+<h3>Added</h3>
+<ul>
+<li><strong>Shell completion for bash and zsh.</strong> <code>qm --&lt;Tab&gt;</code> completes the flags, and <code>--solo=</code>, <code>--ocultar=</code>, <code>--cuentas=</code> and <code>--cuenta=</code> complete your account names, read from <code>qm --json --breve</code>. The <code>.deb</code> installs both files where bash-completion and zsh find them on their own, and <code>make instalar</code> links them under <code>~/.local/share/</code> (zsh needs that directory in its <code>fpath</code>).</li>
+</ul>
 <h2 id="v0.1.23">v0.1.23 — 2026-11-02</h2>
 <h3>Changed</h3>
 <ul>
