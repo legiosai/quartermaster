@@ -101,7 +101,7 @@ echo "deb [signed-by=/etc/apt/keyrings/legios.asc] \
 sudo apt update && sudo apt install quartermaster
 ```
 
-**Arch:** hay un `PKGBUILD` en [`paquetes/aur/`](paquetes/aur/PKGBUILD).
+**Arch:** hay un `PKGBUILD` en [`paquetes/aur/`](paquetes/aur/PKGBUILD) — todavía no está en el AUR.
 **Nix:** `nix run github:legiosai/quartermaster`.
 
 O desde el repo, sin instalar nada global:
@@ -340,7 +340,7 @@ configurado — y deja dicho en el log cuáles se salteó y por qué.
 | **`.deb`** | `sudo apt install ./quartermaster_*.deb` | el mismo paquete, suelto | colgado de la release |
 | **Instalador de Windows** | `quartermaster-<v>-setup.exe` | por usuario, sin UAC: `qm` en el `PATH` y la bandeja en el menú Inicio | colgado de la release |
 | **scoop** | `scoop install quartermaster` | el zip portable, sin instalador | el tag, solo |
-| **AUR** | `yay -S quartermaster` | el `PKGBUILD`, con un `nodejs>=22.6` de verdad | el tag, solo |
+| **AUR** | todavía no está — `makepkg -si` desde [`paquetes/aur/`](paquetes/aur/PKGBUILD) | el `PKGBUILD`, con un `nodejs>=22.6` de verdad | todavía no: apagado hasta que exista la cuenta del AUR |
 | **Nix** | `nix run github:legiosai/quartermaster` | el flake, con su Node adentro del cierre | no hay nada que publicar |
 | **GNOME Extensions** | desde la app de Extensiones | la extensión del Shell | **a mano** — no tiene API de subida |
 | **waybar** | copiar `paquetes/waybar/` | un módulo para Hyprland, Sway y river | se copia a mano |

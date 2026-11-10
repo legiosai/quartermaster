@@ -93,7 +93,7 @@ you leave the box ticked — the tray in startup.
 **Debian and Ubuntu:** the `.deb` from the same release, or the signed apt repo
 ([two lines](LEEME.md#instalar)).
 
-**Arch:** a `PKGBUILD` in [`paquetes/aur/`](paquetes/aur/PKGBUILD).
+**Arch:** a `PKGBUILD` in [`paquetes/aur/`](paquetes/aur/PKGBUILD) — not on the AUR yet.
 **Nix:** `nix run github:legiosai/quartermaster`.
 
 Needs **Node >= 22.6**: `qm` reads its own TypeScript with no build step, and
@@ -419,7 +419,7 @@ secret configured — and says in the log which ones it skipped and why.
 | **`.deb`** | `sudo apt install ./quartermaster_*.deb` | the same package, standalone | attached to the release |
 | **Windows installer** | `quartermaster-<v>-setup.exe` | per-user, no UAC: `qm` on `PATH`, tray in the Start menu | attached to the release |
 | **scoop** | `scoop install quartermaster` | the portable zip, no installer | the tag, automatically |
-| **AUR** | `yay -S quartermaster` | `PKGBUILD`, with a real `nodejs>=22.6` | the tag, automatically |
+| **AUR** | not available yet — `makepkg -si` from [`paquetes/aur/`](paquetes/aur/PKGBUILD) | `PKGBUILD`, with a real `nodejs>=22.6` | not yet: off until the AUR account exists |
 | **Nix** | `nix run github:legiosai/quartermaster` | the flake, with its own Node in the closure | nothing to publish |
 | **GNOME Extensions** | from the Extensions app | the Shell extension | **by hand** — no upload API |
 | **waybar** | copy `paquetes/waybar/` | a module for Hyprland, Sway, river | copied by hand |

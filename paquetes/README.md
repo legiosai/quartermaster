@@ -15,7 +15,7 @@ sale una versión.
 | release de GitHub | `.deb`, `setup.exe`, los dos zips | la release | sí | — |
 | scoop | el zip portable | `legiosai/scoop-bucket` | sí | `TOKEN_PAQUETES` |
 | winget | el instalador | PR a `microsoft/winget-pkgs` | **apagado desde el 2026-10-13** (ver abajo) | `TOKEN_WINGET` |
-| AUR | el `PKGBUILD` | `aur.archlinux.org` | sí, cuando exista la cuenta | `AUR_SSH` |
+| AUR | el `PKGBUILD` | `aur.archlinux.org` | **apagado** hasta la variable `AUR_ENABLED=true` (ver abajo) | `AUR_SSH` |
 | extensions.gnome.org | el zip de la extensión | el sitio | **no: no tiene API** | — |
 | Nix | `flake.nix` | nada: se instala del repo | — | — |
 | waybar | `paquetes/waybar/` | se copia a mano | — | — |
@@ -36,6 +36,7 @@ gh secret set TOKEN_WINGET    # winget: un PAT CLASSIC con public_repo (y nada m
 gh secret set GPG_PRIVADA     # apt: gpg --export-secret-subkeys --armor <ID>, SIN FRASE
 gh secret set GPG_CLAVE_ID    # opcional: el ID de la clave, si no es el default
 gh secret set AUR_SSH         # AUR: una clave SSH dedicada, no la de uso general
+gh variable set AUR_ENABLED --body true   # AUR: recién cuando la clave esté en la cuenta
 ```
 
 Por qué son dos tokens de GitHub y no uno, que es la parte que no se ve:
@@ -245,11 +246,24 @@ No hay cola manual ni forma de apurarlo, y ellos mismos piden no reintentar por
 script. Se anuncia cuando reabre en `aur-general` y en el feed de noticias de
 Arch.
 
-Mientras tanto el canal queda a medio configurar a propósito, y eso está
-contemplado: el job corre, el clone por SSH es rechazado, deja un warning con el
-error del servidor y sale 0 — y el resumen lo muestra como **«success, pero NO
-publicó»**, que es distinto de haber publicado. Cuando reabra: crear la cuenta,
-pegar la clave pública del perfil, y el paquete se crea solo en el primer push.
+Así quedó desde la 0.1.16 hasta la 0.1.23: el job corría, el clone por SSH era
+rechazado (`Permission denied (publickey)`) y el `resumen` salía en rojo en
+cada release, con razón — un canal con su secreto puesto que no publica es un
+canal roto. Por eso el AUR ahora pide además **la variable del repo
+`AUR_ENABLED=true`**: sin ella el job no corre y el resumen dice «apagado», que
+es una decisión y no un olvido, sin tener que borrar la clave.
+
+Para prenderlo: crear la cuenta, pegar la clave pública de `AUR_SSH` en el
+perfil, probar que el clone entra, y recién ahí la variable. El paquete se crea
+solo en el primer push.
+
+```sh
+ssh -i <la clave> aur@aur.archlinux.org help     # tiene que contestar, no «Permission denied»
+gh variable set AUR_ENABLED --body true -R legiosai/quartermaster
+```
+
+Para dejarlo apagado no hay que hacer nada: el README ya dice que el paquete
+todavía no está.
 
 ## Nix
 

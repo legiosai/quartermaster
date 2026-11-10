@@ -191,9 +191,12 @@ ManifestVersion: 1.6.0
 // ── scoop ───────────────────────────────────────────────────────────────
 // scoop no quiere instaladores: descomprime, arma shims y desinstala borrando
 // el directorio. Por eso apunta al zip portable y no al .exe.
+//
+// En inglés, como el locale en-US de winget y el README: es la vidriera de un
+// catálogo, y scoop no tiene campo por idioma.
 const scoop = {
   version,
-  description: 'Cuánta cuota te queda en todos los perfiles de Claude Code de la máquina, más Codex y opencode.',
+  description: 'How much quota you have left, in every agent account on the machine: every Claude Code profile, plus Codex, Antigravity and opencode.',
   homepage: 'https://quartermaster.legios.com.ar/',
   license: 'MIT',
   // El piso es 22.6 y nodejs-lts lo pasa. Sin esto el shim se instala y no
@@ -208,9 +211,9 @@ const scoop = {
   ],
   shortcuts: [['bin\\qm-tray.cmd', 'quartermaster (bandeja)', '', 'bin\\quartermaster.ico']],
   notes: [
-    'La bandeja no arranca sola: `qm-tray` la levanta, y el acceso directo del menú Inicio también.',
-    'Para que arranque al iniciar sesión, poné ese acceso directo en la carpeta Inicio (shell:startup).',
-    'El tablero en el navegador: `qm-web`.',
+    'The tray does not start by itself: `qm-tray` starts it, and so does the Start menu shortcut.',
+    'To start it when you sign in, put that shortcut in the Startup folder (shell:startup).',
+    'The dashboard in the browser: `qm-web`.',
   ],
   checkver: { github: 'https://github.com/legiosai/quartermaster' },
   autoupdate: {
