@@ -14,6 +14,16 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **Shell completion for bash and zsh.** `qm --<Tab>` completes the flags, and
+  `--solo=`, `--ocultar=`, `--cuentas=` and `--cuenta=` complete your account
+  names, read from `qm --json --breve`. The `.deb` installs both files where
+  bash-completion and zsh find them on their own, and `make instalar` links them
+  under `~/.local/share/` (zsh needs that directory in its `fpath`).
+
 ## v0.1.23 — 2026-11-02
 
 ### Changed

@@ -116,6 +116,10 @@ recién existe desde ahí. El lanzador lo busca en el `PATH`, en nvm, en fnm y e
 volta; si no encuentra uno que sirva, lo dice y explica cómo conseguirlo en vez
 de morir con un error de sintaxis.
 
+**El completado** de bash y zsh —las banderas, y los nombres de tus cuentas
+para `--solo=`, `--ocultar=` y `--cuentas=`— viene con el `.deb` y con `make
+instalar`. Los archivos están en [`paquetes/completions/`](paquetes/completions/).
+
 ## Uso
 
 ```sh

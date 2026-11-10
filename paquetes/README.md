@@ -273,6 +273,24 @@ todavía no está.
 nix run github:legiosai/quartermaster
 ```
 
+## completado de bash y zsh
+
+`paquetes/completions/` tiene `qm.bash` y `_qm`. Los instalan el `.deb` (en
+`/usr/share/bash-completion/completions/` y `/usr/share/zsh/vendor-completions/`)
+y `make instalar` (enlazados en `~/.local/share/`; zsh necesita ese directorio
+en el `fpath`, y `make instalar` lo dice).
+
+Las banderas están escritas a mano en los dos, y eso es una copia de las de
+`qm --help`. Lo que impide que se quede vieja en silencio es
+`test/completado.test.ts`: compara las tres listas y sale en rojo si una
+bandera de la ayuda falta en un archivo, o si un archivo ofrece una que la
+ayuda ya no tiene. Los nombres de las cuentas no se copian: salen de
+`qm --json --breve`.
+
+Falta en Homebrew y en el `PKGBUILD`: los dos instalan desde el tarball del
+tag, y los archivos recién van a estar en el de la versión que siga. Ahí son
+dos líneas en cada uno.
+
 ## waybar
 
 `paquetes/waybar/` tiene el módulo (`qm-waybar`), el pedazo de config y el CSS.

@@ -101,6 +101,10 @@ type stripping starts there. The launcher looks for a usable Node on the `PATH`
 and in nvm, fnm and volta; if it cannot find one it says so and explains how to
 get one, rather than dying with a syntax error.
 
+**Shell completion** for bash and zsh — the flags, and your account names for
+`--solo=`, `--ocultar=` and `--cuentas=` — comes with the `.deb` and with
+`make instalar`. The files are in [`paquetes/completions/`](paquetes/completions/).
+
 ## Use
 
 ```sh

@@ -29,6 +29,11 @@ mkdir -p "$arma/DEBIAN" "$arma/usr/lib/quartermaster" "$arma/usr/bin" \
 
 cp -r bin src scripts extension Makefile package.json "$arma/usr/lib/quartermaster/"
 cp README.md LICENSE "$arma/usr/share/doc/quartermaster/"
+# El completado, en las dos rutas donde bash-completion y el zsh de Debian lo
+# levantan solos, sin que nadie toque un .bashrc.
+mkdir -p "$arma/usr/share/bash-completion/completions" "$arma/usr/share/zsh/vendor-completions"
+cp paquetes/completions/qm.bash "$arma/usr/share/bash-completion/completions/qm"
+cp paquetes/completions/_qm "$arma/usr/share/zsh/vendor-completions/_qm"
 # El lanzador sigue los symlinks para encontrar el src/, así que un enlace
 # alcanza y no hay que duplicar el árbol.
 #

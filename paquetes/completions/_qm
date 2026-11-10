@@ -1,0 +1,77 @@
+#compdef qm
+# El completado de qm para zsh.
+#
+# Las banderas de abajo son una copia de las que documenta `qm --help`, y una
+# copia se queda vieja en silencio: se agrega una bandera, el TAB no la ofrece y
+# nadie se entera. test/completado.test.ts compara las dos listas y sale en rojo
+# si difieren, así que una bandera nueva sin completado es un test roto.
+#
+# Los nombres de las cuentas, en cambio, no se copian: salen de
+# `qm --json --breve`, que es la superficie para scripts y el camino rápido (no
+# lee transcripciones). El campo es `perfil`, el mismo nombre que comparan
+# --solo, --ocultar y --cuentas.
+#
+# Se instala en /usr/share/zsh/vendor-completions/_qm (el .deb y el PKGBUILD)
+# o en ~/.local/share/zsh/site-functions/_qm (`make instalar`, que dice qué
+# agregar al fpath).
+#
+# Las que esperan un valor van con `=-`: qm sólo las entiende pegadas
+# (`--solo=a,b`, no `--solo a,b`). --watch es la excepción y acepta las dos.
+
+_qm_nombres() {
+  local -a nombres
+  nombres=(${(f)"$(qm --json --breve 2>/dev/null | sed -n 's/.*"perfil": *"\([^"]*\)".*/\1/p' | sort -u)"})
+  print -rl -- $nombres
+}
+
+# Una lista separada por comas: --solo, --ocultar, --cuentas.
+_qm_cuentas() {
+  local -a nombres
+  nombres=(${(f)"$(_qm_nombres)"})
+  (( $#nombres )) || return 1
+  # _values lee `nombre[descripción]`: un `:` o un `[` en el nombre se escapa.
+  _values -s , cuentas ${${nombres//:/\\:}//\[/\\[}
+}
+
+# Una sola cuenta: --cuenta, la de --esperar.
+_qm_cuenta() {
+  local -a nombres
+  nombres=(${(f)"$(_qm_nombres)"})
+  _describe -t cuentas cuenta nombres
+}
+
+# Después de `--` viene un comando (`qm --mejor -- claude`): eso no es de qm.
+local corte=${words[(i)--]}
+if (( corte < CURRENT )); then
+  shift $corte words
+  (( CURRENT -= corte ))
+  _normal
+  return
+fi
+
+_arguments -s -S \
+  '(- *)'{-h,--help}'[the help]' \
+  '(- *)'{-V,--version}'[the version, and nothing else]' \
+  '--refrescar[also ask the endpoint for the number]' \
+  '--json[the same, for scripts and statuslines]' \
+  '--watch=[redraw every N seconds]:seconds:' \
+  '--dias=-[window for local usage, in days]:days:' \
+  '--umbral=-[exit with code 3 over this percentage]:percentage:' \
+  '--esperar[wait until the quota drops below the threshold]' \
+  '--cuenta=-[with --esperar: watch only that account]:account:_qm_cuenta' \
+  '--redactado[with --json, strip emails and home paths]' \
+  '--breve[one line, no transcripts]' \
+  '--statusline[for the statusLine of Claude Code]' \
+  '--todas[dormant accounts in full]' \
+  '--mejor[the profile with the most room right now]' \
+  '--aviso[UserPromptSubmit hook]' \
+  '--idioma=-[the language for this run]:language:(es en)' \
+  '--solo=-[show only these accounts]:accounts:_qm_cuentas' \
+  '--ocultar=-[show all but these accounts]:accounts:_qm_cuentas' \
+  '--sin-codex[leave the Codex account out]' \
+  '--sin-antigravity[leave the Antigravity account out]' \
+  '--calentar[refresh every endpoint and print nothing]' \
+  '--cuentas=-[with --calentar: only these accounts]:accounts:_qm_cuentas' \
+  '--calentar-codex[the same, only Codex]' \
+  '--diagnostico[everything a bug report needs, redacted]' \
+  '--desglose[where the quota went]'
