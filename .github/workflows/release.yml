@@ -32,6 +32,11 @@
 # `canales` dice al principio cuáles van a correr, y el `resumen` dice al final
 # qué se publicó y qué no — silencio es el bug también acá.
 #
+# El AUR, además, se prende a mano: corre sólo con la variable del repo
+# AUR_ENABLED=true. La clave puede estar cargada antes de que exista la cuenta
+# (el registro estuvo cerrado), y una clave sin cuenta tumbaba el resumen en
+# cada release. Sin la variable es «apagado», que es una decisión y se lee así.
+#
 # La excepción es extensions.gnome.org: no tiene API de subida. Ese sigue siendo
 # a mano, y el resumen lo recuerda con el link al artefacto.
 
@@ -74,15 +79,26 @@ jobs:
           TOKEN_WINGET: ${{ secrets.TOKEN_WINGET }}
           GPG_PRIVADA: ${{ secrets.GPG_PRIVADA }}
           AUR_SSH: ${{ secrets.AUR_SSH }}
+          AUR_ENABLED: ${{ vars.AUR_ENABLED }}
         run: |
-          di() { echo "$1=$2" >> "$GITHUB_OUTPUT"; printf '  %-8s %s\n' "$1" "$([ "$2" = si ] && echo 'configurado' || echo 'SIN SECRETO — se saltea')"; }
+          di() {
+            echo "$1=$2" >> "$GITHUB_OUTPUT"
+            case "$2" in
+              si) estado='configurado' ;;
+              apagado) estado='APAGADO — falta la variable AUR_ENABLED=true' ;;
+              *) estado='SIN SECRETO — se saltea' ;;
+            esac
+            printf '  %-8s %s\n' "$1" "$estado"
+          }
           echo "canales:"
           di npm    "$([ -n "$NPM_TOKEN" ] && echo si || echo no)"
           di brew   "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
           di scoop  "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
           di winget "$([ -n "$TOKEN_WINGET" ] && echo si || echo no)"
           di apt    "$([ -n "$GPG_PRIVADA" ] && echo si || echo no)"
-          di aur    "$([ -n "$AUR_SSH" ] && echo si || echo no)"
+          # El AUR pide las dos cosas: la clave y la decisión de prenderlo.
+          if [ "$AUR_ENABLED" != true ]; then di aur apagado
+          else di aur "$([ -n "$AUR_SSH" ] && echo si || echo no)"; fi
           echo ""
           echo "extensions.gnome.org no tiene API: ése siempre es a mano."
 
@@ -539,9 +555,11 @@ jobs:
           #
           # El escape es explícito y es el correcto: si un canal no se va a
           # sostener, se le saca el secreto y vuelve a ser «se saltea», que es
-          # una decisión y no un olvido.
+          # una decisión y no un olvido. Para el AUR hay uno más, que no obliga
+          # a borrar la clave: dejar AUR_ENABLED sin poner.
           malos=0
-          estado() { # $1=result  $2=configurado(si/no)  $3=publicado(si/no/vacío)
+          estado() { # $1=result  $2=configurado(si/no/apagado)  $3=publicado(si/no/vacío)
+            if [ "$2" = apagado ]; then echo "apagado — sin la variable AUR_ENABLED"; return; fi
             if [ "$2" != si ]; then echo "sin secreto — se saltea"; return; fi
             case "$1" in
               success)
