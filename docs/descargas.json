@@ -1,27 +1,27 @@
 {
-  "generado": "2026-11-10T19:16:24.786Z",
+  "generado": "2026-11-11T19:13:42.676Z",
   "resumen": {
     "humanasHastaHoy": {
-      "npm": 760,
+      "npm": 772,
       "github": 140
     },
     "estaSemana": {
-      "desde": "2026-11-03",
-      "npm": 253,
+      "desde": "2026-11-04",
+      "npm": 226,
       "github": 1
     },
     "sinContador": {
-      "brew": 11,
-      "scoop": 78
+      "brew": 20,
+      "scoop": 79
     },
-    "llegaron": 12,
+    "llegaron": 13,
     "estrellas": 11,
-    "cobertura": "faltan 1 de 56 días",
+    "cobertura": "faltan 1 de 57 días",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 3698,
-    "enDiasSinPublicar": 760,
+    "total": 3710,
+    "enDiasSinPublicar": 772,
     "porPublicacion": 140,
     "dias": [
       {
@@ -386,6 +386,12 @@
       },
       {
         "dia": "2026-11-10",
+        "descargas": 12,
+        "publicaciones": 0,
+        "humanas": 12
+      },
+      {
+        "dia": "2026-11-11",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
@@ -859,14 +865,9 @@
   "interes": {
     "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
     "vistas": {
-      "total": 31,
-      "unicos": 12,
+      "total": 30,
+      "unicos": 13,
       "dias": [
-        {
-          "dia": "2026-10-27",
-          "vistas": 3,
-          "unicos": 2
-        },
         {
           "dia": "2026-10-28",
           "vistas": 2,
@@ -931,14 +932,19 @@
           "dia": "2026-11-09",
           "vistas": 1,
           "unicos": 1
+        },
+        {
+          "dia": "2026-11-10",
+          "vistas": 2,
+          "unicos": 2
         }
       ]
     },
     "referentes": [
       {
         "sitio": "github.com",
-        "vistas": 5,
-        "unicos": 5
+        "vistas": 4,
+        "unicos": 4
       }
     ],
     "estrellas": {
@@ -977,18 +983,11 @@
     "canalesSinContador": {
       "brew": {
         "repo": "legiosai/homebrew-tap",
-        "total": 33,
-        "unicos": 19,
-        "enDiasSinRelease": 11,
+        "total": 48,
+        "unicos": 28,
+        "enDiasSinRelease": 20,
         "diasSinRelease": 13,
         "dias": [
-          {
-            "dia": "2026-10-27",
-            "clones": 0,
-            "unicos": 0,
-            "huboRelease": false,
-            "quietos": 0
-          },
           {
             "dia": "2026-10-28",
             "clones": 0,
@@ -1079,23 +1078,23 @@
             "unicos": 0,
             "huboRelease": false,
             "quietos": 0
+          },
+          {
+            "dia": "2026-11-10",
+            "clones": 15,
+            "unicos": 9,
+            "huboRelease": false,
+            "quietos": 9
           }
         ]
       },
       "scoop": {
         "repo": "legiosai/scoop-bucket",
-        "total": 116,
-        "unicos": 90,
-        "enDiasSinRelease": 78,
+        "total": 117,
+        "unicos": 91,
+        "enDiasSinRelease": 79,
         "diasSinRelease": 13,
         "dias": [
-          {
-            "dia": "2026-10-27",
-            "clones": 4,
-            "unicos": 4,
-            "huboRelease": false,
-            "quietos": 4
-          },
           {
             "dia": "2026-10-28",
             "clones": 5,
@@ -1186,6 +1185,13 @@
             "unicos": 4,
             "huboRelease": false,
             "quietos": 4
+          },
+          {
+            "dia": "2026-11-10",
+            "clones": 5,
+            "unicos": 5,
+            "huboRelease": false,
+            "quietos": 5
           }
         ]
       }
@@ -1197,8 +1203,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 56,
-    "anotados": 55,
+    "esperados": 57,
+    "anotados": 56,
     "faltan": [
       "2026-10-05"
     ]
@@ -1477,6 +1483,11 @@
     {
       "fecha": "2026-11-10",
       "npm": 760,
+      "github": 140
+    },
+    {
+      "fecha": "2026-11-11",
+      "npm": 772,
       "github": 140
     }
   ]
