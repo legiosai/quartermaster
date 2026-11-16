@@ -64,7 +64,8 @@ def main() -> int:
                   "sesion": sesion, "semanal": semanal},
     }
     vista = qmi.VistaCuenta(cuenta, 0)
-    pies = {b["nombre"]: b["pie"] for b in vista.barras}
+    # Lo que se dibuja abajo de cada medidor, no una frase armada aparte.
+    pies = {b["nombre"]: b["edad"] or "" for b in vista.barras}
     if "leída hace 24m" not in pies.get("iguana_necktie", ""):
         fallas.append(f"GNOME: la barra de la lectura vieja no dice su edad: {pies.get('iguana_necktie')!r}")
     if any("leída" in pies.get(k, "") for k in ("session", "weekly_all")):

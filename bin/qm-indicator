@@ -441,19 +441,17 @@ def edad_de(v: dict | None, cuota: dict) -> int | None:
     return cuota.get("edadSegundos")
 
 
-def pie_de_barra(v: dict) -> str:
-    """«reinicia en 3d7h   ·   leída hace 24m». La edad sólo va cuando la barra
-    tiene la suya: si es de cuando dice la cuenta, ya la dice el renglón de
-    lecturas, y repetirla en cada barra es ruido."""
-    pie = reinicio(faltan(v.get("reinicia")))
+def edad_de_barra(v: dict) -> str | None:
+    """«leída hace 24m», sólo cuando la barra tiene su propia lectura: si es de
+    cuando dice la cuenta, ya lo dice la cabecera de la tarjeta, y repetirlo en
+    cada barra es ruido. Pasada la hora de vieja, lo dice."""
     if not v.get("medidoEn"):
-        return pie
+        return None
     s = faltan(v["medidoEn"])
     if s is None:
-        return pie
+        return None
     e = max(0, -s)
-    edad = f"leída hace {duracion(e)}" + (" · vieja" if e >= VIEJO_SEGUNDOS else "")
-    return f"{pie}   ·   {edad}" if pie else edad
+    return f"leída hace {duracion(e)}" + (" · vieja" if e >= VIEJO_SEGUNDOS else "")
 
 
 def reinicio(segundos: int | None) -> str:
@@ -924,13 +922,7 @@ class VistaCuenta:
         self.barras = []
         for v in (cuota.get("mostrar") or []) if self.hay_numero else []:
             seg = faltan(v.get("reinicia"))
-            # La edad propia, sólo si la barra la trae: si es de cuando dice la
-            # cuenta, ya la dice la cabecera de la tarjeta.
-            edad_propia = None
-            if v.get("medidoEn"):
-                s = faltan(v["medidoEn"])
-                if s is not None:
-                    edad_propia = max(0, -s)
+            edad_barra = edad_de_barra(v)
             self.barras.append({
                 "nombre": nombre_ventana(v),
                 "etiqueta": etiqueta_de(v),
@@ -940,12 +932,10 @@ class VistaCuenta:
                 "activa": bool(v.get("activa")),
                 "frena": es_la_que_frena(v),
                 "reinicio": None if seg is None else ("vencido" if seg < 0 else duracion(seg)),
-                "edad": None if edad_propia is None else f"leída hace {duracion(edad_propia)}"
-                        + (" · vieja" if edad_propia >= VIEJO_SEGUNDOS else ""),
-                "vieja": edad_propia is not None and edad_propia >= VIEJO_SEGUNDOS,
-                # El renglón entero, como lo dicen las otras pantallas. El
-                # dibujo lo parte en dos lugares, pero es la misma frase.
-                "pie": pie_de_barra(v),
+                # Lo que se dibuja abajo del medidor: la edad propia de la
+                # barra, si la tiene.
+                "edad": edad_barra,
+                "vieja": bool(edad_barra and edad_barra.endswith("· vieja")),
             })
 
         self.ritmo = None
