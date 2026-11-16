@@ -363,7 +363,7 @@ gate-dibujo-rojo:  ## los diez rojos: la cabecera (sin frenaPrimero y encabezada
 	  echo "✓ el gate falla en rojo con la barra leyendo la sesión a secas"; \
 	fi
 	@cp bin/qm-indicator .indicador.gate
-	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('pie = pie_de_barra(v)','pie = reinicio(faltan(v.get(\"reinicia\")))'))"
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('edad_barra = edad_de_barra(v)','edad_barra = None'))"
 	@if python3 scripts/gate-edades.py >/dev/null 2>&1; then \
 	  mv .indicador.gate bin/qm-indicator; \
 	  echo "✗ el gate NO falló con el pie de la barra sin su edad propia. Es lo que el cambio vino a arreglar: con la statusline encima, un 44 % de hace media hora se dibujaba como de ahora."; exit 1; \

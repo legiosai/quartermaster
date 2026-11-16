@@ -14,9 +14,36 @@ out unless they changed what you see.
 
 ---
 
-## Unreleased
+## v0.1.24 — 2026-11-16
+
+### Changed
+
+- **The full GNOME panel, redesigned.** The bars have names you can read —
+  *Sesión*, *Semanal*, *Semanal (Fable)* — instead of the API keys; the
+  terminal keeps the keys, which is what you search a log for. Each bar is one
+  line with the time to its reset next to the percentage, and the one that
+  stops the account is marked in the margin, as in the terminal. The header is
+  a card tinted with the colour of the state, and it gives the reset as a local
+  time too (`reinicia en 3d1h · jue 22:30`). Each card says on top how old its
+  number is and how often it is read. The trend and the daily budget sit under
+  a rule, apart from the bars, and the budget carries a small ring with how
+  much of today's share is spent: the same meter the account shows in the top
+  bar, which the panel never explained. A curve that didn't move is said in
+  words instead of drawn flat, commands inside a message are set in monospace
+  and no longer break across lines, and the panel is a bit shorter.
 
 ### Added
+
+- **A minimalist look for the GNOME panel.** `qm --apariencia=minimalista`
+  swaps the full panel for one that answers only «how much is left, and when
+  does it come back»: a ring with what stops you first, then one row per bar
+  with its letter (`s` session, `w` weekly, `wf` the Fable weekly), a meter,
+  the percentage and the time to the reset. Accounts with no number and dormant
+  ones are named in one line at the bottom. The full panel stays the default:
+  if you change nothing, nothing changes, and `qm --apariencia=basica` goes
+  back. The setting lives in `~/.config/quartermaster/config.json` (`qm` won't overwrite
+  that file if it can't parse it) and reaches the panel as `apariencia` in
+  `qm --json`. Designed by knighthw in #27.
 
 - **Shell completion for bash and zsh.** `qm --<Tab>` completes the flags, and
   `--solo=`, `--ocultar=`, `--cuentas=` and `--cuenta=` complete your account

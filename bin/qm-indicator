@@ -31,7 +31,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 # El panel se abre pegado a la barra, y para eso hay que poder decir DÓNDE va la
@@ -253,7 +253,7 @@ def pct_diario(pre: dict | None) -> float | None:
     return max(0.0, min(100.0, gastado / por_dia * 100.0))
 
 
-def renglones_presupuesto(pre: dict) -> list[str]:
+def renglones_presupuesto(pre: dict, nombre: str | None = None) -> list[str]:
     """Las mismas tres ramas que `frasePresupuesto` en el núcleo, en dos
     renglones: el del terminal entra en una línea de 100 y acá hay 308 px.
 
@@ -271,7 +271,8 @@ def renglones_presupuesto(pre: dict) -> list[str]:
     # Con el nombre de la barra pegado, como en el terminal y en el tablero: la
     # tarjeta muestra tres ventanas y el número reparte UNA, y sin decir cuál
     # queda un 24.1 que no cierra con ninguno de los tres porcentajes de arriba.
-    barra = pre.get("barra")
+    # `nombre` es cómo la llama el panel («Semanal (Fable)»); la frase es la misma.
+    barra = nombre or pre.get("barra")
     # `porDiaHoy` y `restanteMedido`: el presupuesto fijado al arrancar la
     # medición y la resta ya hecha por el núcleo. Restar de `porDia` contaba dos
     # veces lo gastado hoy. Los de antes quedan para un qm anterior.
@@ -330,7 +331,9 @@ MARGEN = 12
 PAD_TARJETA = 14
 RADIO_TARJETA = 12
 ENTRE_TARJETAS = 8
-ALTO_CABECERA = 76
+# La cabecera es una tarjeta más: el margen de arriba, la tarjeta y el aire de
+# abajo hasta la primera cuenta.
+ALTO_CABECERA = 94
 # El renglón de abajo de todo: cuándo vuelve a preguntar.
 ALTO_PIE_LECTURA = 26
 VIEJO_SEGUNDOS = 6 * 3600
@@ -438,19 +441,17 @@ def edad_de(v: dict | None, cuota: dict) -> int | None:
     return cuota.get("edadSegundos")
 
 
-def pie_de_barra(v: dict) -> str:
-    """«reinicia en 3d7h   ·   leída hace 24m». La edad sólo va cuando la barra
-    tiene la suya: si es de cuando dice la cuenta, ya la dice el renglón de
-    lecturas, y repetirla en cada barra es ruido."""
-    pie = reinicio(faltan(v.get("reinicia")))
+def edad_de_barra(v: dict) -> str | None:
+    """«leída hace 24m», sólo cuando la barra tiene su propia lectura: si es de
+    cuando dice la cuenta, ya lo dice la cabecera de la tarjeta, y repetirlo en
+    cada barra es ruido. Pasada la hora de vieja, lo dice."""
     if not v.get("medidoEn"):
-        return pie
+        return None
     s = faltan(v["medidoEn"])
     if s is None:
-        return pie
+        return None
     e = max(0, -s)
-    edad = f"leída hace {duracion(e)}" + (" · vieja" if e >= VIEJO_SEGUNDOS else "")
-    return f"{pie}   ·   {edad}" if pie else edad
+    return f"leída hace {duracion(e)}" + (" · vieja" if e >= VIEJO_SEGUNDOS else "")
 
 
 def reinicio(segundos: int | None) -> str:
@@ -608,19 +609,24 @@ class Pluma:
         self.familia = familia
 
     def caja(self, texto: str, px: float, peso=Pango.Weight.NORMAL, ancho=None,
-             tabular=False, elipsis=False):
+             tabular=False, elipsis=False, espaciado=0.0, marcado=False):
         lay = PangoCairo.create_layout(self.cr)
         fd = Pango.FontDescription()
         fd.set_family(self.familia)
         fd.set_weight(peso)
         fd.set_absolute_size(px * Pango.SCALE)
         lay.set_font_description(fd)
-        if tabular:
-            # Cifras de ancho fijo: sin esto el porcentaje, que va pegado al
-            # borde derecho, baila un píxel cada vez que cambia un dígito.
+        if (tabular or espaciado) and not marcado:
             try:
                 attrs = Pango.AttrList()
-                attrs.insert(Pango.attr_font_features_new("tnum=1"))
+                if tabular:
+                    # Cifras de ancho fijo: sin esto el porcentaje, que va pegado
+                    # al borde derecho, baila un píxel cada vez que cambia un
+                    # dígito.
+                    attrs.insert(Pango.attr_font_features_new("tnum=1"))
+                if espaciado:
+                    # Los rótulos en mayúsculas piden aire entre letras.
+                    attrs.insert(Pango.attr_letter_spacing_new(int(espaciado * Pango.SCALE)))
                 lay.set_attributes(attrs)
             except (AttributeError, TypeError):
                 pass
@@ -635,7 +641,10 @@ class Pluma:
                 lay.set_ellipsize(Pango.EllipsizeMode.END)
             else:
                 lay.set_wrap(Pango.WrapMode.WORD_CHAR)
-        lay.set_text(texto, -1)
+        if marcado:
+            lay.set_markup(texto, -1)
+        else:
+            lay.set_text(texto, -1)
         return lay
 
     def alto(self, *a, **k) -> float:
@@ -645,8 +654,10 @@ class Pluma:
         return self.caja(*a, **k).get_pixel_size()[0]
 
     def escribir(self, x, y, texto, px, color, peso=Pango.Weight.NORMAL,
-                 derecha=None, ancho=None, tabular=False, elipsis=False):
-        lay = self.caja(texto, px, peso, ancho=ancho, tabular=tabular, elipsis=elipsis)
+                 derecha=None, ancho=None, tabular=False, elipsis=False,
+                 espaciado=0.0, marcado=False):
+        lay = self.caja(texto, px, peso, ancho=ancho, tabular=tabular, elipsis=elipsis,
+                        espaciado=espaciado, marcado=marcado)
         w, h = lay.get_pixel_size()
         _color(self.cr, color)
         self.cr.move_to(derecha - w if derecha is not None else x, y)
@@ -692,26 +703,202 @@ def glifo_producto(cr, producto: str, color, x: float, y: float, lado: float) ->
 
 
 # ── lo que se dibuja de cada cuenta ──────────────────────────────────────
+# La escala de letra del panel completo: 9.5 los rótulos en mayúscula, 11 la
+# letra chica, 12.5 el cuerpo, 14 el nombre de la cuenta y 24 la cifra de
+# arriba. Eran nueve tamaños distintos y ninguno mandaba.
+DIAS = ("lun", "mar", "mié", "jue", "vie", "sáb", "dom")
+
+
+def cuando_local(iso: str | None) -> str | None:
+    """El reinicio en hora de acá: «22:30» si es hoy, «jue 22:30» si no.
+
+    «reinicia en 3d1h» contesta cuánto falta; la hora contesta CUÁNDO, que es
+    lo que se usa para planear («¿llego al viernes?»). Va redondeada al minuto
+    y no truncada: el servidor informa 03:59:59.6, y eso son las 04:00.
+    """
+    if not iso:
+        return None
+    try:
+        cuando = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    cuando = (cuando + timedelta(seconds=30)).astimezone()
+    ahora = datetime.now().astimezone()
+    if cuando < ahora:
+        return None
+    hora = cuando.strftime("%H:%M")
+    return hora if cuando.date() == ahora.date() else f"{DIAS[cuando.weekday()]} {hora}"
+
+
+def etiqueta_de(v: dict) -> str:
+    """El nombre de una barra para leer: «Semanal (Fable)», no «weekly_scoped (Fable)».
+
+    La clave es la de la API, y la terminal la sigue mostrando así porque es lo
+    que sirve para buscarla en un log. El panel se lee de un vistazo, y ahí
+    `weekly_all` es ruido. Se nombran las mismas dos que reconoce el núcleo
+    (`sesionDe` y `semanalDe` en src/core/tipos.ts); cualquier otra queda con
+    el nombre que trae.
+    """
+    clave, grupo, alcance = v.get("clave") or "", v.get("grupo"), v.get("alcance")
+    if grupo == "session" or clave in ("session", "five_hour"):
+        base = "Sesión"
+    elif grupo == "weekly" or clave.startswith("weekly") or clave == "seven_day":
+        base = "Semanal"
+    else:
+        return nombre_ventana(v)
+    return f"{base} ({alcance})" if alcance else base
+
+
+def con_codigo(texto: str) -> str:
+    """El texto como markup de Pango, con lo que va entre acentos graves en
+    monoespaciada: `qm --refrescar` es un comando para copiar, y con los acentos
+    pegados se leía como un error de tipeo."""
+    partes = texto.split("`")
+    if len(partes) < 3 or len(partes) % 2 == 0:
+        return GLib.markup_escape_text(texto)
+    # Un comando partido en dos renglones —«qm --» y abajo «statusline»— ya no
+    # se puede copiar: los espacios de adentro no cortan y los guiones tampoco.
+    pegado = lambda t: t.replace(" ", "\u00a0").replace("-", "-\u2060")
+    return "".join(
+        f"<tt>{GLib.markup_escape_text(pegado(parte))}</tt>" if i % 2
+        else GLib.markup_escape_text(parte)
+        for i, parte in enumerate(partes)
+    )
+
+
+def _tarjeta(cr, arriba: float, alto: float, fondo=None, borde=None) -> None:
+    cr.new_path()
+    _redondeado(cr, MARGEN + 0.5, arriba + 0.5,
+                ANCHO_PANEL - 2 * MARGEN - 1, alto - 1, RADIO_TARJETA)
+    _color(cr, fondo or TEMA.tarjeta)
+    cr.fill_preserve()
+    _color(cr, borde or TEMA.borde_tarjeta)
+    cr.set_line_width(1)
+    cr.stroke()
+
+
+def _medidor(cr, x: float, y: float, ancho: float, alto: float, pct: float, color) -> None:
+    """Pista tenue y relleno con el color del estado. Un 0 % deja la pista sola:
+    un puntito de color diría que hay algo gastado."""
+    cr.new_path()
+    _redondeado(cr, x, y, ancho, alto, alto / 2)
+    _color(cr, TEMA.pista)
+    cr.fill()
+    if pct <= 0:
+        return
+    lleno = max(alto, ancho * min(100.0, pct) / 100.0)
+    cr.new_path()
+    _redondeado(cr, x, y, lleno, alto, alto / 2)
+    _color(cr, color)
+    cr.fill()
+
+
+def _anillo(cr, cx: float, cy: float, radio: float, grosor: float, frac: float,
+            color, pista) -> None:
+    cr.save()
+    # Sin esto, el lápiz que dejó el último texto se une al arco con una recta.
+    cr.new_path()
+    cr.set_line_width(grosor)
+    cr.set_line_cap(cairo.LINE_CAP_BUTT)
+    cr.arc(cx, cy, radio, 0, 2 * math.pi)
+    _color(cr, pista)
+    cr.stroke()
+    frac = max(0.0, min(1.0, frac))
+    if frac > 0:
+        cr.set_line_cap(cairo.LINE_CAP_ROUND)
+        cr.arc(cx, cy, radio, -math.pi / 2, -math.pi / 2 + 2 * math.pi * frac)
+        _color(cr, color)
+        cr.stroke()
+    cr.restore()
+
+
+def glifo_reinicio(cr, color, x: float, y: float, lado: float) -> None:
+    """↻, dibujada: el carácter no está en todas las tipografías, y el de
+    reemplazo sale de otro cuerpo y otro grosor que el texto de al lado. Es el
+    ícono de refrescar de siempre: un círculo abierto arriba a la derecha, con
+    la punta llena —a este tamaño dos trazos finos no se leen como flecha—."""
+    cx, cy, r = x + lado / 2, y + lado / 2 + 0.5, lado * 0.34
+    cr.save()
+    cr.new_path()
+    cr.set_line_width(1.25)
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
+    _color(cr, color)
+    cr.arc(cx, cy, r, -math.pi / 2 + 1.35, 3 * math.pi / 2 - 0.2)
+    cr.stroke()
+    h = lado * 0.36
+    tx, ty = cx + 0.4, cy - r
+    cr.move_to(tx + h, ty)
+    cr.line_to(tx - h * 0.25, ty - h * 0.75)
+    cr.line_to(tx - h * 0.25, ty + h * 0.75)
+    cr.close_path()
+    cr.fill()
+    cr.restore()
+
+
+def glifo_tendencia(cr, color, x: float, y: float, lado: float) -> None:
+    """↗: sube."""
+    a, b = lado * 0.2, lado * 0.8
+    cr.save()
+    cr.new_path()
+    cr.set_line_width(1.4)
+    cr.set_line_cap(cairo.LINE_CAP_ROUND)
+    cr.set_line_join(cairo.LINE_JOIN_ROUND)
+    _color(cr, color)
+    cr.move_to(x + a, y + b)
+    cr.line_to(x + b, y + a)
+    cr.move_to(x + b - lado * 0.36, y + a)
+    cr.line_to(x + b, y + a)
+    cr.line_to(x + b, y + a + lado * 0.36)
+    cr.stroke()
+    cr.restore()
+
+
+def glifo_dormida(cr, color, x: float, y: float, lado: float) -> None:
+    """Una luna: la cuenta está, pero nadie la usa."""
+    cx, cy, r = x + lado / 2, y + lado / 2, lado * 0.38
+    cr.save()
+    cr.new_path()
+    cr.set_fill_rule(cairo.FILL_RULE_EVEN_ODD)
+    cr.arc(cx, cy, r, 0, 2 * math.pi)
+    cr.new_sub_path()
+    cr.arc(cx + r * 0.55, cy - r * 0.45, r * 0.85, 0, 2 * math.pi)
+    cr.clip()
+    cr.arc(cx, cy, r, 0, 2 * math.pi)
+    _color(cr, color)
+    cr.fill()
+    cr.restore()
+
+
 class VistaCuenta:
-    """Una cuenta del panel, en su tarjeta: cabecera, un renglón por barra, la
-    curva pegada a la que frena, y el ritmo. Mide primero y dibuja después,
-    porque el menú necesita el alto antes de que exista nada.
+    """Una cuenta del panel, en su tarjeta.
+
+    Arriba quién es: el nombre con su plan, el mail, y de cuándo es el número.
+    Después un renglón por barra —el nombre, cuánto falta para el reinicio y el
+    porcentaje, con el medidor abajo—, y pegada a la barra que frena, su curva.
+    Al pie, separado por una línea, lo que se deduce de todo eso: hacia dónde
+    vas y cuánto te toca hoy.
+
+    Mide y dibuja con el MISMO recorrido (`_recorrer`): el menú necesita el alto
+    antes de que exista nada, y un alto calculado aparte de lo que se pinta es
+    cómo los renglones terminan pisándose.
     """
 
-    # Un renglón de barra = nombre (18) + medidor (11) + pie (16). Si esto no
-    # coincide con lo que dibuja pintar(), los renglones se pisan.
-    ALTO_BARRA = 45
-    # 18 de curva + 16 de rótulos.
-    ALTO_CURVA = 34
+    ALTO_ROTULO = 18
+    ALTO_MEDIDOR = 6
+    ENTRE_BARRAS = 11
+    ALTO_EDAD = 15
+    ALTO_CURVA = 22
+    ALTO_EJE = 13
+    ALTO_RENGLON = 16
 
     def __init__(self, p: dict, indice_color: int) -> None:
         cuota = p.get("cuota") or {}
         self.producto = p.get("producto") or "claude"
         self.indice_color = indice_color
         self.titulo = corto(p.get("perfil") or "?")
+        self.cuenta = p.get("cuenta")
         # planNombre es el que se dibuja; `plan` queda para un qm anterior.
-        partes = [x for x in (p.get("cuenta"), p.get("planNombre") or p.get("plan")) if x]
-        self.sub = "   ·   ".join(partes)
+        self.plan = p.get("planNombre") or p.get("plan")
         self.hay_numero = cuota.get("estado") == "ok"
         self.frase = None if self.hay_numero else (cuota.get("frase") or "sin cuota")
         self.historia = [
@@ -726,17 +913,29 @@ class VistaCuenta:
         choca = bool(sube and proy.get("chocasAntesDelReinicio"))
         edad = cuota.get("edadSegundos")
 
+        def es_la_que_frena(v: dict) -> bool:
+            # Por clave Y alcance: dos semanales con alcance distinto comparten
+            # la clave `weekly_scoped`, y marcar las dos es marcar ninguna.
+            return bool(frena and v.get("clave") == frena.get("clave")
+                        and v.get("alcance") == frena.get("alcance"))
+
         self.barras = []
         for v in (cuota.get("mostrar") or []) if self.hay_numero else []:
-            pie = pie_de_barra(v)
-            es_la_que_frena = bool(frena and v.get("clave") == frena.get("clave"))
+            seg = faltan(v.get("reinicia"))
+            edad_barra = edad_de_barra(v)
             self.barras.append({
                 "nombre": nombre_ventana(v),
+                "etiqueta": etiqueta_de(v),
                 "pct": v.get("porcentaje", 0),
                 "nivel": nivel_de(v.get("porcentaje", 0),
-                                  v.get("preocupa", False) or (choca and es_la_que_frena)),
+                                  v.get("preocupa", False) or (choca and es_la_que_frena(v))),
                 "activa": bool(v.get("activa")),
-                "pie": pie,
+                "frena": es_la_que_frena(v),
+                "reinicio": None if seg is None else ("vencido" if seg < 0 else duracion(seg)),
+                # Lo que se dibuja abajo del medidor: la edad propia de la
+                # barra, si la tiene.
+                "edad": edad_barra,
+                "vieja": bool(edad_barra and edad_barra.endswith("· vieja")),
             })
 
         self.ritmo = None
@@ -754,23 +953,29 @@ class VistaCuenta:
 
         # El presupuesto diario: cuánto por día para que la ventana larga
         # llegue entera al reinicio, y cuánto de eso queda hoy. La cuenta
-        # —incluido CUÁL ventana se reparte— viene hecha del núcleo.
-        self.presupuesto = []
+        # —incluido CUÁL ventana se reparte— viene hecha del núcleo. Al lado va
+        # un anillo con lo gastado de hoy: es el mismo medidor que tiene la
+        # cuenta en la barra de arriba, y el panel nunca lo explicaba.
+        self.presupuesto, self.hoy = [], None
         if self.hay_numero:
-            self.presupuesto = renglones_presupuesto(p.get("presupuesto") or {})
+            pre = p.get("presupuesto") or {}
+            nombre = None
+            if pre.get("barra"):
+                nombre = etiqueta_de({"clave": pre.get("clave") or "", "alcance": pre.get("alcance"),
+                                      "nombre": pre["barra"]})
+            self.presupuesto = renglones_presupuesto(pre, nombre)
+            self.hoy = pct_diario(pre)
 
-        # Cada cuánto se lee ESTA cuenta y cuándo fue la última: la pregunta
-        # «¿este número de cuándo es?» no se contesta con un porcentaje.
-        self.lecturas = None
+        # De cuándo es el número y cada cuánto se lee: la pregunta «¿este
+        # número de cuándo es?» no se contesta con un porcentaje.
+        self.leida, self.cada, self.vieja = None, None, False
         if self.hay_numero:
-            partes = []
+            if edad is not None:
+                self.vieja = edad >= VIEJO_SEGUNDOS
+                self.leida = f"leída hace {duracion(edad)}" + (" · vieja" if self.vieja else "")
             cada = cada_cuanto(self.historia)
             if cada is not None:
-                partes.append(f"cada ~{duracion(int(cada))}")
-            if edad is not None:
-                partes.append(f"última hace {duracion(edad)}"
-                              + (" · viejo" if edad >= VIEJO_SEGUNDOS else ""))
-            self.lecturas = "lecturas:  " + "   ·   ".join(partes) if partes else None
+                self.cada = f"cada ~{duracion(int(cada))}"
 
         # Por qué esta cuenta quedó al fondo y no encabeza. El núcleo ya lo
         # resolvió y lo escribió en palabras; acá sólo se dibuja. Una cuenta
@@ -778,34 +983,186 @@ class VistaCuenta:
         rel = p.get("relevancia") or {}
         self.dormida = None
         if rel.get("dormida"):
-            self.dormida = "dormida:  " + "   ·   ".join(rel.get("porque") or [])
+            self.dormida = "dormida: " + " · ".join(rel.get("porque") or [])
 
     @staticmethod
     def _ancho_contenido() -> float:
         return ANCHO_PANEL - 2 * MARGEN - 2 * PAD_TARJETA
 
+    def _con_curva(self, b: dict) -> bool:
+        # La curva va pegada a la barra que frena: es de ella.
+        return b["nombre"] == self.clave_frena and len(self.historia) >= 3
+
+    def _quieta(self) -> str | None:
+        """Si la serie no se movió, lo dice en palabras en vez de dibujarlo.
+
+        Una curva plana gastaba 35 px en una raya al pie de una caja vacía, y la
+        caja vacía se leía como un dibujo que no terminó de cargar.
+        """
+        ps = [round(float(p)) for _, p in self.historia]
+        if not ps or max(ps) != min(ps):
+            return None
+        ts = [t for t, _ in self.historia]
+        horas = (max(ts) - min(ts)) / 3_600_000
+        return ("sin cambios en la última hora" if horas < 1
+                else f"sin cambios en las últimas {horas:.1f} h")
+
     def medir(self, pluma: Pluma) -> float:
-        alto = PAD_TARJETA + 20 + (17 if self.sub else 0) + 6
+        return self._recorrer(pluma, None, 0.0)
+
+    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
+        alto = self.medir(pluma)
+        _tarjeta(cr, arriba, alto)
+        self._recorrer(pluma, cr, arriba)
+        return arriba + alto
+
+    def _recorrer(self, pluma: Pluma, cr, arriba: float) -> float:
+        """El único lugar que sabe dónde va cada cosa. Sin `cr` sólo mide."""
+        ix = MARGEN + PAD_TARJETA
+        ancho = self._ancho_contenido()
+        der = ix + ancho
+        nx = ix + 22
+        y = arriba + PAD_TARJETA
+
+        # ── quién es ──
+        derecha1 = self.leida
+        w1 = pluma.ancho(derecha1, 10.5) if derecha1 else 0
+        hueco = der - nx - (w1 + 12 if derecha1 else 0)
+        w_titulo = min(pluma.ancho(self.titulo, 14, Pango.Weight.BOLD), hueco)
+        plan_arriba = None
+        if self.plan:
+            w_plan = pluma.ancho(self.plan, 10, Pango.Weight.MEDIUM) + 12
+            lugar = hueco - w_titulo - 8
+            if lugar >= min(w_plan, 48):
+                plan_arriba = min(w_plan, lugar)
+        if cr is not None:
+            glifo_producto(cr, self.producto, TEMA.color_cuenta(self.indice_color), ix, y + 3, 14)
+            pluma.escribir(nx, y, self.titulo, 14, TEMA.etiqueta, Pango.Weight.BOLD,
+                           ancho=w_titulo, elipsis=True)
+            if plan_arriba:
+                cx = nx + w_titulo + 8
+                cr.new_path()
+                _redondeado(cr, cx, y + 1.5, plan_arriba, 17, 8.5)
+                _color(cr, TEMA.pista[:3] + (TEMA.pista[3] * 0.6,))
+                cr.fill()
+                pluma.escribir(cx + 6, y + 3, self.plan, 10, TEMA.secundario,
+                               Pango.Weight.MEDIUM, ancho=plan_arriba - 12, elipsis=True)
+            if derecha1:
+                pluma.escribir(0, y + 3, derecha1, 10.5,
+                               TEMA.nivel("aviso") if self.vieja else TEMA.terciario,
+                               Pango.Weight.MEDIUM if self.vieja else Pango.Weight.NORMAL,
+                               derecha=der)
+        y += 20
+
+        izquierda2 = " · ".join(x for x in (self.cuenta, None if plan_arriba else self.plan) if x)
+        if izquierda2 or self.cada:
+            if cr is not None:
+                w2 = pluma.ancho(self.cada, 10.5) if self.cada else 0
+                if izquierda2:
+                    pluma.escribir(nx, y, izquierda2, 11, TEMA.terciario,
+                                   ancho=der - nx - (w2 + 12 if self.cada else 0), elipsis=True)
+                if self.cada:
+                    pluma.escribir(0, y, self.cada, 10.5, TEMA.terciario, derecha=der)
+            y += 15
+        y += 11
+
         if self.frase is not None:
-            return alto + pluma.alto(self.frase, 11.5, ancho=self._ancho_contenido()) + PAD_TARJETA
-        alto += len(self.barras) * self.ALTO_BARRA
-        if self.clave_frena and len(self.historia) >= 3:
-            alto += self.ALTO_CURVA
+            if cr is not None:
+                pluma.escribir(ix, y, con_codigo(self.frase), 11.5, TEMA.secundario,
+                               ancho=ancho, marcado=True)
+            y += pluma.alto(con_codigo(self.frase), 11.5, ancho=ancho, marcado=True)
+            return y + PAD_TARJETA - arriba
+
+        # ── las barras ──
+        for b in self.barras:
+            if cr is not None:
+                color = TEMA.nivel(b["nivel"])
+                cifra = f"{b['pct']:.0f}%"
+                w_cifra = pluma.ancho(cifra, 13, Pango.Weight.BOLD, tabular=True)
+                pluma.escribir(0, y - 1, cifra, 13, TEMA.etiqueta, Pango.Weight.BOLD,
+                               derecha=der, tabular=True)
+                fin_rotulo = der - w_cifra - 12
+                if b["reinicio"]:
+                    w_r = pluma.ancho(b["reinicio"], 11, tabular=True)
+                    x_r = der - w_cifra - 12 - w_r
+                    pluma.escribir(x_r, y + 1, b["reinicio"], 11, TEMA.terciario, tabular=True)
+                    glifo_reinicio(cr, TEMA.terciario, x_r - 13, y + 3, 10)
+                    fin_rotulo = x_r - 13 - 10
+                if b["frena"]:
+                    # La que frena se marca en el margen, como en la terminal.
+                    cr.new_path()
+                    cr.move_to(ix - 10, y + 5)
+                    cr.line_to(ix - 5, y + 9)
+                    cr.line_to(ix - 10, y + 13)
+                    cr.close_path()
+                    _color(cr, color)
+                    cr.fill()
+                pluma.escribir(ix, y, b["etiqueta"], 12.5,
+                               TEMA.etiqueta if b["frena"] else TEMA.secundario,
+                               Pango.Weight.SEMIBOLD if b["frena"] else Pango.Weight.NORMAL,
+                               ancho=max(40, fin_rotulo - ix), elipsis=True)
+                _medidor(cr, ix, y + self.ALTO_ROTULO, ancho, self.ALTO_MEDIDOR, b["pct"], color)
+            y += self.ALTO_ROTULO + self.ALTO_MEDIDOR
+            quieta = self._quieta() if self._con_curva(b) else None
+            pie = " · ".join(x for x in (b["edad"], quieta) if x)
+            if pie:
+                if cr is not None:
+                    pluma.escribir(ix, y + 3, pie, 10.5,
+                                   TEMA.nivel("aviso") if b["vieja"] else TEMA.terciario,
+                                   ancho=ancho, elipsis=True)
+                y += self.ALTO_EDAD
+            if self._con_curva(b) and not quieta:
+                y += 7
+                if cr is not None:
+                    self._curva(cr, pluma, (ix, y, ancho, self.ALTO_CURVA), TEMA.nivel(b["nivel"]))
+                y += self.ALTO_CURVA + self.ALTO_EJE
+            y += self.ENTRE_BARRAS
+
+        # ── lo que se deduce ──
+        renglones = (1 if self.ritmo else 0) + len(self.presupuesto) + (1 if self.dormida else 0)
+        if not renglones:
+            return y - self.ENTRE_BARRAS + PAD_TARJETA + 2 - arriba
+        if cr is not None:
+            cr.new_path()
+            cr.rectangle(ix, y, ancho, 1)
+            _color(cr, TEMA.borde_tarjeta)
+            cr.fill()
+        y += 10
+        tx = ix + 20
         if self.ritmo:
-            alto += 20
+            if cr is not None:
+                color = TEMA.nivel("critico") if self.ritmo_rojo else TEMA.terciario
+                glifo_tendencia(cr, color, ix + 1, y + 2, 12)
+                pluma.escribir(tx, y, self.ritmo, 11.5, color,
+                               Pango.Weight.MEDIUM if self.ritmo_rojo else Pango.Weight.NORMAL,
+                               ancho=der - tx, elipsis=True)
+            y += self.ALTO_RENGLON
         if self.presupuesto:
-            # 16 por renglón, y 4 de aire arriba del bloque.
-            alto += 4 + 16 * len(self.presupuesto)
-        if self.lecturas:
-            alto += 17
+            if cr is not None:
+                medio = y + len(self.presupuesto) * self.ALTO_RENGLON / 2 - 1.5
+                frac = (self.hoy or 0) / 100.0
+                color = TEMA.nivel(nivel_de(self.hoy or 0, False))
+                _anillo(cr, ix + 7, medio, 5.5, 2.4, frac, color, TEMA.pista)
+                for renglon in self.presupuesto:
+                    pluma.escribir(tx, y, renglon, 11.5, TEMA.secundario,
+                                   ancho=der - tx, elipsis=True)
+                    y += self.ALTO_RENGLON
+            else:
+                y += self.ALTO_RENGLON * len(self.presupuesto)
         if self.dormida:
-            alto += 17
-        return alto + PAD_TARJETA - 4
+            if cr is not None:
+                glifo_dormida(cr, TEMA.terciario, ix + 1, y + 2, 12)
+                pluma.escribir(tx, y, self.dormida, 11, TEMA.terciario,
+                               ancho=der - tx, elipsis=True)
+            y += self.ALTO_RENGLON
+        return y + PAD_TARJETA - 3 - arriba
 
     def _curva(self, cr, pluma, caja, color) -> None:
         """Las muestras recientes, dibujadas. El eje Y va del mínimo al máximo
         de la serie y no de 0 a 100: lo que interesa acá es la PENDIENTE, y a
-        escala completa una subida de tres puntos se ve plana."""
+        escala completa una subida de tres puntos se ve plana. Por eso abajo
+        dice de cuánto a cuánto fue: sin eso, una subida de 10 a 12 y una de 10
+        a 90 dibujan la misma rampa."""
         x0, y0, w, h = caja
         ts = [m[0] for m in self.historia]
         ps = [float(m[1]) for m in self.historia]
@@ -814,15 +1171,22 @@ class VistaCuenta:
         if t_max <= t_min:
             return
         rango = max(1.0, p_max - p_min)
-        px = lambda t: x0 + w * (t - t_min) / (t_max - t_min)
-        py = lambda p: y0 + h - h * (p - p_min) / rango
+        # Un píxel de aire arriba y abajo, para que la línea y el punto del
+        # final no queden cortados contra el borde.
+        px = lambda t: x0 + (w - 3) * (t - t_min) / (t_max - t_min)
+        py = lambda p: y0 + 2 + (h - 4) * (1 - (p - p_min) / rango)
 
+        cr.save()
+        cr.new_path()
         cr.move_to(px(ts[0]), y0 + h)
         for t, p in zip(ts, ps):
             cr.line_to(px(t), py(p))
         cr.line_to(px(ts[-1]), y0 + h)
         cr.close_path()
-        _color(cr, color[:3] + (0.16,))
+        degrade = cairo.LinearGradient(0, y0, 0, y0 + h)
+        degrade.add_color_stop_rgba(0, color[0], color[1], color[2], 0.30)
+        degrade.add_color_stop_rgba(1, color[0], color[1], color[2], 0.02)
+        cr.set_source(degrade)
         cr.fill()
 
         cr.set_line_width(1.5)
@@ -836,99 +1200,16 @@ class VistaCuenta:
         cr.arc(px(ts[-1]), py(ps[-1]), 2.5, 0, 2 * math.pi)
         _color(cr, color)
         cr.fill()
+        cr.restore()
 
         horas = (t_max - t_min) / 3_600_000
-        pluma.escribir(x0, y0 + h + 2, f"{p_min:.0f}%", 9.5, TEMA.terciario)
+        desde, hasta = ps[0], ps[-1]
+        rotulo = (f"{desde:.0f} → {hasta:.0f} %" if round(desde) != round(hasta)
+                  else f"{hasta:.0f} %, sin cambios")
+        pluma.escribir(x0, y0 + h + 2, rotulo, 9.5, TEMA.terciario, tabular=True)
         pluma.escribir(0, y0 + h + 2,
                        f"últimas {horas:.1f} h" if horas >= 1 else "última hora",
                        9.5, TEMA.terciario, derecha=x0 + w)
-
-    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
-        alto = self.medir(pluma)
-        # La tarjeta: así agrupa GNOME, con una caja redondeada y un fondo
-        # apenas distinto, en vez de la línea de pelo de macOS.
-        _redondeado(cr, MARGEN + 0.5, arriba + 0.5,
-                    ANCHO_PANEL - 2 * MARGEN - 1, alto - 1, RADIO_TARJETA)
-        _color(cr, TEMA.tarjeta)
-        cr.fill_preserve()
-        _color(cr, TEMA.borde_tarjeta)
-        cr.set_line_width(1)
-        cr.stroke()
-
-        ix = MARGEN + PAD_TARJETA
-        ancho = self._ancho_contenido()
-        der = ix + ancho
-        y = arriba + PAD_TARJETA
-
-        glifo_producto(cr, self.producto, TEMA.color_cuenta(self.indice_color), ix, y + 2, 14)
-        pluma.escribir(ix + 21, y, self.titulo, 13.5, TEMA.etiqueta, Pango.Weight.BOLD,
-                       ancho=ancho - 21, elipsis=True)
-        y += 20
-        if self.sub:
-            pluma.escribir(ix + 21, y, self.sub, 11, TEMA.terciario,
-                           ancho=ancho - 21, elipsis=True)
-            y += 17
-        y += 6
-
-        if self.frase is not None:
-            pluma.escribir(ix, y, self.frase, 11.5, TEMA.secundario, ancho=ancho)
-            return arriba + alto
-
-        for b in self.barras:
-            nombre = f"{b['nombre']}  ▸" if b["activa"] else b["nombre"]
-            cifra = f"{b['pct']:.0f}%"
-            # El nombre cede: el número es el dato y nunca se recorta.
-            hueco = ancho - pluma.ancho(cifra, 12, Pango.Weight.BOLD, tabular=True) - 12
-            pluma.escribir(ix, y, nombre, 11.5,
-                           TEMA.etiqueta if b["activa"] else TEMA.secundario,
-                           Pango.Weight.MEDIUM if b["activa"] else Pango.Weight.NORMAL,
-                           ancho=hueco, elipsis=True)
-            pluma.escribir(0, y - 0.5, cifra, 12, TEMA.etiqueta,
-                           Pango.Weight.BOLD, derecha=der, tabular=True)
-            y += 18
-            # El medidor: pista tenue y relleno con el color del estado.
-            _redondeado(cr, ix, y, ancho, 5, 2.5)
-            _color(cr, TEMA.pista)
-            cr.fill()
-            lleno = max(5.0, ancho * max(0.0, min(100.0, b["pct"])) / 100.0)
-            _redondeado(cr, ix, y, lleno, 5, 2.5)
-            _color(cr, TEMA.nivel(b["nivel"]))
-            cr.fill()
-            y += 11
-            if b["pie"]:
-                pluma.escribir(ix, y, b["pie"], 10.5, TEMA.terciario, ancho=ancho, elipsis=True)
-            y += 16
-            # La curva va pegada a la barra que frena: es de ella.
-            if b["nombre"] == self.clave_frena and len(self.historia) >= 3:
-                self._curva(cr, pluma, (ix, y - 2, ancho, 18), TEMA.nivel(b["nivel"]))
-                y += self.ALTO_CURVA
-
-        if self.ritmo:
-            y += 4
-            pluma.escribir(ix, y, self.ritmo, 11,
-                           TEMA.nivel("critico") if self.ritmo_rojo else TEMA.terciario,
-                           Pango.Weight.MEDIUM if self.ritmo_rojo else Pango.Weight.NORMAL,
-                           ancho=ancho, elipsis=True)
-            y += 16
-        # El ritmo dice hacia dónde vas; el presupuesto, a cuánto tendrías que
-        # ir para que la cuota llegue al reinicio. Van pegados.
-        if self.presupuesto:
-            if not self.ritmo:
-                y += 4
-            for renglon in self.presupuesto:
-                pluma.escribir(ix, y, renglon, 11, TEMA.secundario,
-                               ancho=ancho, elipsis=True)
-                y += 16
-        if self.lecturas:
-            if not self.ritmo and not self.presupuesto:
-                y += 4
-            pluma.escribir(ix, y, self.lecturas, 10.5, TEMA.terciario, ancho=ancho, elipsis=True)
-            y += 17
-        if self.dormida:
-            if not self.ritmo and not self.presupuesto and not self.lecturas:
-                y += 4
-            pluma.escribir(ix, y, self.dormida, 10.5, TEMA.terciario, ancho=ancho, elipsis=True)
-        return arriba + alto
 
 
 class VistaSinCuota:
@@ -948,6 +1229,8 @@ class VistaSinCuota:
     cuenta dormida sería ruido con la misma forma que un dato.
     """
 
+    ALTO_ROTULO = 20
+
     def __init__(self, cuentas: list[tuple[str, str, int]]) -> None:
         # Agrupadas por frase y en el orden en que aparecieron: dos cuentas
         # pueden estar calladas por motivos distintos, y ahí la frase importa.
@@ -966,37 +1249,41 @@ class VistaSinCuota:
         return ANCHO_PANEL - 2 * MARGEN - 2 * PAD_TARJETA
 
     def medir(self, pluma: Pluma) -> float:
-        alto = PAD_TARJETA
-        for frase, nombres in self.grupos:
-            alto += 18 + pluma.alto(frase, 10.5, ancho=self._ancho_contenido()) + 8
-        return alto + PAD_TARJETA - 8
+        alto = PAD_TARJETA + self.ALTO_ROTULO
+        for frase, _ in self.grupos:
+            alto += 18 + pluma.alto(con_codigo(frase), 11, ancho=self._ancho_contenido(),
+                                    marcado=True) + 10
+        return alto + PAD_TARJETA - 10
 
     def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
         alto = self.medir(pluma)
-        _redondeado(cr, MARGEN + 0.5, arriba + 0.5,
-                    ANCHO_PANEL - 2 * MARGEN - 1, alto - 1, RADIO_TARJETA)
-        _color(cr, TEMA.tarjeta)
-        cr.fill_preserve()
-        _color(cr, TEMA.borde_tarjeta)
-        cr.set_line_width(1)
-        cr.stroke()
-
+        _tarjeta(cr, arriba, alto)
         ix = MARGEN + PAD_TARJETA
+        ancho = self._ancho_contenido()
         y = arriba + PAD_TARJETA
+        pluma.escribir(ix, y, "SIN NÚMERO DE CUOTA", 9.5, TEMA.terciario,
+                       Pango.Weight.SEMIBOLD, espaciado=0.8)
+        y += self.ALTO_ROTULO
         for frase, nombres in self.grupos:
-            pluma.escribir(ix, y, "   ·   ".join(nombres), 11.5, TEMA.secundario,
-                           Pango.Weight.MEDIUM, ancho=self._ancho_contenido(), elipsis=True)
+            pluma.escribir(ix, y, " · ".join(nombres), 12.5, TEMA.secundario,
+                           Pango.Weight.MEDIUM, ancho=ancho, elipsis=True)
             y += 18
-            y += pluma.escribir(ix, y, frase, 10.5, TEMA.terciario,
-                                ancho=self._ancho_contenido())
-            y += 8
+            y += pluma.escribir(ix, y, con_codigo(frase), 11, TEMA.terciario,
+                                ancho=ancho, marcado=True)
+            y += 10
         return arriba + alto
 
 
 class VistaResumen:
     """La cabecera: la respuesta de una línea. La misma pregunta que contesta el
     héroe del tablero —qué me frena primero, en toda la máquina— y que si no
-    está acá hay que sacarla comparando las cuentas a ojo."""
+    está acá hay que sacarla comparando las cuentas a ojo.
+
+    Va en una tarjeta teñida con el color del estado: es lo primero que se mira,
+    y el color dice si hace falta seguir leyendo antes de leer nada.
+    """
+
+    alto = ALTO_CABECERA
 
     def __init__(self, cuenta: str, barra: str, pct: float, nivel: str, reinicia,
                  medido_en: str | None = None) -> None:
@@ -1034,45 +1321,40 @@ class VistaResumen:
         proy = p.get("proyeccion")
         choca = bool(proy and proy.get("estado") == "sube" and proy.get("chocasAntesDelReinicio"))
         nombre = p.get("perfil") or lider.get("perfil") or "?"
-        return VistaResumen(corto(nombre), nombre_ventana(v), v["porcentaje"],
+        return VistaResumen(corto(nombre), etiqueta_de(v), v["porcentaje"],
                             nivel_de(v["porcentaje"], v.get("preocupa", False) or choca),
                             v.get("reinicia"), v.get("medidoEn"))
 
     def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
         color = TEMA.nivel(self.nivel)
-        lado = 46.0
-        izq = MARGEN + 6
-        centro = (izq + lado / 2, arriba + ALTO_CABECERA / 2 - 2)
-        radio = lado / 2 - 3
+        y0 = arriba + MARGEN
+        h = ALTO_CABECERA - MARGEN - ENTRE_TARJETAS
+        _tarjeta(cr, y0, h, fondo=color[:3] + (0.09 if TEMA.oscuro else 0.07,),
+                 borde=color[:3] + (0.24,))
 
-        cr.set_line_width(5.5)
-        cr.set_line_cap(cairo.LINE_CAP_BUTT)
-        cr.arc(centro[0], centro[1], radio, 0, 2 * math.pi)
-        _color(cr, color[:3] + (0.20,))
-        cr.stroke()
-
-        frac = max(0.0, min(100.0, self.pct)) / 100.0
-        if frac > 0:
-            cr.set_line_cap(cairo.LINE_CAP_ROUND)
-            cr.arc(centro[0], centro[1], radio, -math.pi / 2, -math.pi / 2 + 2 * math.pi * frac)
-            _color(cr, color)
-            cr.stroke()
+        lado = 50.0
+        izq = MARGEN + PAD_TARJETA
+        _anillo(cr, izq + lado / 2, y0 + h / 2, lado / 2 - 3, 6, self.pct / 100.0,
+                color, color[:3] + (0.22,))
 
         x = izq + lado + 14
-        pluma.escribir(x, arriba + 12, "Lo primero que te frena", 10.5, TEMA.terciario,
-                       Pango.Weight.SEMIBOLD, ancho=ANCHO_PANEL - MARGEN - x, elipsis=True)
+        der = ANCHO_PANEL - MARGEN - PAD_TARJETA
+        pluma.escribir(x, y0 + 10, "LO PRIMERO QUE TE FRENA", 9.5, TEMA.terciario,
+                       Pango.Weight.SEMIBOLD, ancho=der - x, elipsis=True, espaciado=0.8)
         cifra = f"{self.pct:.0f}%"
-        y_cifra = arriba + 26
-        ancho_cifra = pluma.ancho(cifra, 22, Pango.Weight.BOLD, tabular=True)
-        pluma.escribir(x, y_cifra, cifra, 22, TEMA.etiqueta, Pango.Weight.BOLD, tabular=True)
+        y_cifra = y0 + 21
+        ancho_cifra = pluma.ancho(cifra, 24, Pango.Weight.BOLD, tabular=True)
+        pluma.escribir(x, y_cifra, cifra, 24, TEMA.etiqueta, Pango.Weight.BOLD, tabular=True)
         # El nombre va a la derecha de la cifra, sobre su misma línea de base.
-        corrimiento = (pluma.linea_base(cifra, 22, Pango.Weight.BOLD)
-                       - pluma.linea_base("x", 12))
+        corrimiento = (pluma.linea_base(cifra, 24, Pango.Weight.BOLD)
+                       - pluma.linea_base("x", 13, Pango.Weight.MEDIUM))
         pluma.escribir(x + ancho_cifra + 8, y_cifra + corrimiento,
-                       f"{self.cuenta} · {self.barra}", 12, TEMA.secundario,
-                       ancho=ANCHO_PANEL - MARGEN - (x + ancho_cifra + 8), elipsis=True)
+                       f"{self.cuenta} · {self.barra}", 13, TEMA.secundario,
+                       Pango.Weight.MEDIUM,
+                       ancho=der - (x + ancho_cifra + 8), elipsis=True)
 
         seg = faltan(self.reinicia)
+        hora = cuando_local(self.reinicia)
         if seg is None:
             texto, urgente = "sin reinicio informado", False
         elif self.pct >= 95:
@@ -1081,13 +1363,230 @@ class VistaResumen:
             texto, urgente = f"libre en {duracion(seg)}", True
         else:
             texto, urgente = reinicio(seg), False
+        if hora and seg is not None and seg >= 0:
+            texto += f" · {hora}"
         edad = faltan(self.medido_en)
         if edad is not None:
-            texto += f"  ·  leída hace {duracion(max(0, -edad))}"
-        pluma.escribir(x, arriba + 54, texto, 11, color if urgente else TEMA.terciario,
+            texto += f" · leída hace {duracion(max(0, -edad))}"
+        pluma.escribir(x, y0 + h - 24, texto, 11, color if urgente else TEMA.secundario,
                        Pango.Weight.MEDIUM if urgente else Pango.Weight.NORMAL,
-                       ancho=ANCHO_PANEL - MARGEN - x, elipsis=True)
+                       ancho=der - x, elipsis=True)
         return arriba + ALTO_CABECERA
+
+
+# ── la apariencia minimalista ────────────────────────────────────────────
+# El panel completo explica una cuenta, y es lo que hace falta mientras uno
+# aprende a leerlo. Después, la mayoría de las veces se lo abre para UNA
+# pregunta: ¿cuánto me queda y cuándo vuelve? Esta vista contesta sólo eso, en
+# una mirada: un renglón por barra con su letra, su medidor, el porcentaje y
+# cuánto falta para el reinicio.
+#
+# El diseño es de @knighthw (issue #27). Se elige con
+# `qm --apariencia=minimalista`: la decisión la emite el CLI en `apariencia` y
+# acá sólo se dibuja, como todo lo demás. Un valor que este dibujo no conoce
+# cae en el panel de siempre.
+ANCHO_MINI = 300
+ALTO_CABECERA_MINI = 58
+ALTO_RENGLON_MINI = 21
+ENTRE_CUENTAS_MINI = 12
+
+
+def es_minimalista(datos) -> bool:
+    return isinstance(datos, dict) and datos.get("apariencia") == "minimalista"
+
+
+def ancho_de(datos) -> int:
+    return ANCHO_MINI if es_minimalista(datos) else ANCHO_PANEL
+
+
+def letra_de(v: dict) -> str:
+    """La letra de una barra: `s` la sesión, `w` la semanal, `wf` la semanal de
+    Fable —la segunda letra sale del alcance—. Una barra que no tiene letra
+    conocida muestra su nombre, recortado: una letra inventada sería peor que
+    un nombre largo."""
+    clave, grupo, alcance = v.get("clave") or "", v.get("grupo"), v.get("alcance")
+    if alcance:
+        base = "w" if grupo == "weekly" or clave.startswith("weekly") or clave.startswith("seven") else clave[:1]
+        return base + alcance[:1].lower()
+    if clave in ("session", "five_hour") or grupo == "session":
+        return "s"
+    if clave in ("weekly_all", "seven_day", "weekly") or grupo == "weekly":
+        return "w"
+    nombre = nombre_ventana(v)
+    return nombre if len(nombre) <= 6 else nombre[:5] + "…"
+
+
+def falta_corto(iso: str | None) -> str:
+    """Cuánto falta para el reinicio, en la escalera de siempre; `vencido` si ya
+    pasó, la palabra que usa el resto del proyecto."""
+    seg = faltan(iso)
+    if seg is None:
+        return "—"
+    return duracion(seg)
+
+
+class VistaResumenMini:
+    """La cabecera minimalista: el anillo, el porcentaje y la letra de lo que
+    frena primero; a la derecha, de qué cuenta es. Reemplaza el «Lo primero que
+    te frena»: el anillo ya lo dice."""
+
+    alto = ALTO_CABECERA_MINI
+
+    def __init__(self, completa: "VistaResumen", letra: str) -> None:
+        self.c = completa
+        self.letra = letra
+
+    @staticmethod
+    def desde(datos: dict) -> "VistaResumenMini | None":
+        completa = VistaResumen.desde(datos)
+        if completa is None:
+            return None
+        v = (datos.get("frenaPrimero") or {}).get("ventana") or {}
+        return VistaResumenMini(completa, letra_de(v))
+
+    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
+        color = TEMA.nivel(self.c.nivel)
+        lado = 34.0
+        izq = MARGEN + 4
+        centro = (izq + lado / 2, arriba + self.alto / 2)
+        radio = lado / 2 - 3
+        cr.set_line_width(4.5)
+        cr.set_line_cap(cairo.LINE_CAP_BUTT)
+        cr.arc(centro[0], centro[1], radio, 0, 2 * math.pi)
+        _color(cr, color[:3] + (0.20,))
+        cr.stroke()
+        frac = max(0.0, min(100.0, self.c.pct)) / 100.0
+        if frac > 0:
+            cr.set_line_cap(cairo.LINE_CAP_ROUND)
+            cr.arc(centro[0], centro[1], radio, -math.pi / 2, -math.pi / 2 + 2 * math.pi * frac)
+            _color(cr, color)
+            cr.stroke()
+
+        x = izq + lado + 12
+        cifra = f"{self.c.pct:.0f}%"
+        y_cifra = centro[1] - pluma.alto(cifra, 20, Pango.Weight.BOLD) / 2
+        pluma.escribir(x, y_cifra, cifra, 20, TEMA.etiqueta, Pango.Weight.BOLD, tabular=True)
+        ancho_cifra = pluma.ancho(cifra, 20, Pango.Weight.BOLD, tabular=True)
+        corrimiento = pluma.linea_base(cifra, 20, Pango.Weight.BOLD) - pluma.linea_base("x", 12.5)
+        pluma.escribir(x + ancho_cifra + 6, y_cifra + corrimiento, self.letra, 12.5, TEMA.secundario)
+        # La cuenta, a la derecha y sobre la misma línea de base que la letra.
+        pluma.escribir(0, y_cifra + corrimiento + 1, self.c.cuenta, 11, TEMA.terciario,
+                       derecha=ANCHO_MINI - MARGEN - 4)
+        return arriba + self.alto
+
+
+class VistaCuentaMini:
+    """Una cuenta: su marca y su nombre, y un renglón por barra."""
+
+    entre = ENTRE_CUENTAS_MINI
+
+    def __init__(self, p: dict, indice_color: int) -> None:
+        cuota = p.get("cuota") or {}
+        self.producto = p.get("producto") or "claude"
+        self.indice_color = indice_color
+        self.titulo = corto(p.get("perfil") or "?")
+        frena = cuota.get("frena") or {}
+        proy = p.get("proyeccion")
+        choca = bool(proy and proy.get("estado") == "sube" and proy.get("chocasAntesDelReinicio"))
+        self.renglones = []
+        for v in cuota.get("mostrar") or []:
+            es_la_que_frena = bool(frena and v.get("clave") == frena.get("clave")
+                                   and v.get("alcance") == frena.get("alcance"))
+            pct = v.get("porcentaje", 0)
+            self.renglones.append({
+                "letra": letra_de(v),
+                "pct": pct,
+                "nivel": nivel_de(pct, v.get("preocupa", False) or (choca and es_la_que_frena)),
+                "falta": falta_corto(v.get("reinicia")),
+                "frena": es_la_que_frena,
+            })
+
+    def medir(self, pluma: Pluma) -> float:
+        return 20 + 4 + len(self.renglones) * ALTO_RENGLON_MINI + self.entre
+
+    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
+        ix = MARGEN + 4
+        der = ANCHO_MINI - MARGEN - 4
+        y = arriba
+        glifo_producto(cr, self.producto, TEMA.color_cuenta(self.indice_color), ix, y + 3, 12)
+        pluma.escribir(ix + 19, y, self.titulo, 12.5, TEMA.etiqueta, Pango.Weight.BOLD,
+                       ancho=der - ix - 19, elipsis=True)
+        y += 24
+        # Columnas fijas: letra, medidor, porcentaje, reinicio. Las cifras van
+        # tabulares y alineadas a la derecha para que se lean en columna.
+        col_letra = 30
+        col_falta = 52
+        col_pct = 44
+        x_barra = ix + col_letra
+        fin_barra = der - col_falta - col_pct - 6
+        for r in self.renglones:
+            centro = y + ALTO_RENGLON_MINI / 2 - 2
+            alto_letra = pluma.alto(r["letra"], 11.5)
+            pluma.escribir(ix, centro - alto_letra / 2, r["letra"], 11.5,
+                           TEMA.etiqueta if r["frena"] else TEMA.secundario,
+                           Pango.Weight.SEMIBOLD if r["frena"] else Pango.Weight.NORMAL,
+                           ancho=col_letra - 4, elipsis=True)
+            ancho_barra = fin_barra - x_barra
+            _redondeado(cr, x_barra, centro - 2.5, ancho_barra, 5, 2.5)
+            _color(cr, TEMA.pista)
+            cr.fill()
+            lleno = max(5.0, ancho_barra * max(0.0, min(100.0, r["pct"])) / 100.0)
+            _redondeado(cr, x_barra, centro - 2.5, lleno, 5, 2.5)
+            _color(cr, TEMA.nivel(r["nivel"]))
+            cr.fill()
+            cifra = f"{r['pct']:.0f}%"
+            alto_cifra = pluma.alto(cifra, 11.5, Pango.Weight.SEMIBOLD)
+            pluma.escribir(0, centro - alto_cifra / 2, cifra, 11.5, TEMA.etiqueta,
+                           Pango.Weight.SEMIBOLD, derecha=der - col_falta, tabular=True)
+            alto_falta = pluma.alto(r["falta"], 10.5)
+            pluma.escribir(0, centro - alto_falta / 2, r["falta"], 10.5, TEMA.terciario,
+                           derecha=der, tabular=True)
+            y += ALTO_RENGLON_MINI
+        return arriba + self.medir(pluma)
+
+
+class VistaRestoMini:
+    """Lo que la vista minimalista no dibuja, dicho en un renglón: las cuentas
+    sin número y las dormidas. Esconderlas sin decirlo sería volver al monitor
+    que no avisa; dibujarlas enteras sería volver al panel completo."""
+
+    entre = 0
+
+    def __init__(self, sin_numero: list[str], dormidas: list[str]) -> None:
+        partes = []
+        if sin_numero:
+            partes.append("sin número: " + ", ".join(sin_numero))
+        if dormidas:
+            partes.append("dormidas: " + ", ".join(dormidas))
+        self.texto = "   ·   ".join(partes)
+
+    def medir(self, pluma: Pluma) -> float:
+        return pluma.alto(self.texto, 10.5, ancho=ANCHO_MINI - 2 * MARGEN - 8) + 4
+
+    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
+        pluma.escribir(MARGEN + 4, arriba, self.texto, 10.5, TEMA.terciario,
+                       ancho=ANCHO_MINI - 2 * MARGEN - 8)
+        return arriba + self.medir(pluma)
+
+
+def modelo_minimalista(datos: dict):
+    vistas, sin_numero, dormidas, i = [], [], [], 0
+    for p in datos.get("perfiles", []):
+        nombre = corto(p.get("perfil") or "?")
+        if (p.get("relevancia") or {}).get("dormida"):
+            dormidas.append(nombre)
+            continue
+        if (p.get("cuota") or {}).get("estado") != "ok":
+            sin_numero.append(nombre)
+            continue
+        vistas.append(VistaCuentaMini(p, i))
+        i += 1
+    if sin_numero or dormidas:
+        vistas.append(VistaRestoMini(sin_numero, dormidas))
+    elif vistas:
+        # La última cuenta no necesita aire abajo: ya está el margen del panel.
+        vistas[-1].entre = 0
+    return VistaResumenMini.desde(datos), vistas
 
 
 # ── el item de la barra, dibujado ────────────────────────────────────────
@@ -1299,6 +1798,8 @@ def dibujar_item(piezas: list[dict], destino: str, escala: float = 1.0) -> tuple
 def modelo_panel(datos):
     if not isinstance(datos, dict):
         return None, []
+    if es_minimalista(datos):
+        return modelo_minimalista(datos)
     perfiles = datos.get("perfiles", [])
     vistas, calladas, i = [], [], 0
     for p in perfiles:
@@ -1326,6 +1827,11 @@ def medir_panel(datos, pie: bool = False) -> int:
     if isinstance(datos, str):
         return int(MARGEN * 2 + pluma.alto(datos, 11.5, ancho=ANCHO_PANEL - 2 * MARGEN))
     cabecera, vistas = modelo_panel(datos)
+    if es_minimalista(datos):
+        # Cada vista minimalista mide su propio aire de abajo, y no hay renglón
+        # de «próxima lectura»: es justo lo que esta vista deja afuera.
+        alto = cabecera.alto if cabecera else MARGEN
+        return int(alto + sum(v.medir(pluma) for v in vistas) + MARGEN)
     alto = ALTO_CABECERA if cabecera else MARGEN
     for v in vistas:
         alto += v.medir(pluma) + ENTRE_TARJETAS
@@ -1343,6 +1849,10 @@ def dibujar_panel(cr, datos, alto: float, proxima: float | None = None) -> None:
         return
     cabecera, vistas = modelo_panel(datos)
     y = cabecera.pintar(cr, pluma, 0.0) if cabecera else float(MARGEN)
+    if es_minimalista(datos):
+        for v in vistas:
+            y = v.pintar(cr, pluma, y)
+        return
     for v in vistas:
         y = v.pintar(cr, pluma, y) + ENTRE_TARJETAS
     if proxima is not None:
@@ -1379,9 +1889,10 @@ def capturar(datos, ruta: str, proxima: float | None = None) -> int:
     imagen de 1034 px declarada como 1060, y la diferencia se ve como un hueco.
     """
     alto = medir_panel(datos, proxima is not None)
-    superficie = cairo.ImageSurface(cairo.FORMAT_ARGB32, ANCHO_PANEL, alto)
+    ancho = ancho_de(datos)
+    superficie = cairo.ImageSurface(cairo.FORMAT_ARGB32, ancho, alto)
     cr = cairo.Context(superficie)
-    fondo_panel(cr, ANCHO_PANEL, alto)
+    fondo_panel(cr, ancho, alto)
     dibujar_panel(cr, datos, alto, proxima)
     superficie.write_to_png(ruta)
     return alto
@@ -1513,7 +2024,7 @@ class Panel:
     def _fila(self, dibujo, alto: float) -> Gtk.MenuItem:
         """Un renglón del menú que se dibuja solo."""
         lienzo = Gtk.DrawingArea()
-        lienzo.set_size_request(ANCHO_PANEL, int(alto))
+        lienzo.set_size_request(ancho_de(self.datos), int(alto))
         lienzo.connect("draw", lambda _w, cr, d=dibujo: (d(cr), False)[1])
         fila = Gtk.MenuItem()
         # Insensible a propósito, y es lo único que hace que el panel se pueda
@@ -1548,15 +2059,16 @@ class Panel:
                     ancho=ANCHO_PANEL - 2 * MARGEN), alto))
         else:
             cabecera, vistas = modelo_panel(self.datos)
+            mini = es_minimalista(self.datos)
             if cabecera:
                 self.filas.append(self._fila(
                     lambda cr, v=cabecera: v.pintar(cr, Pluma(cr, FAMILIA), 0.0),
-                    ALTO_CABECERA))
+                    cabecera.alto))
             for v in vistas:
                 self.filas.append(self._fila(
                     lambda cr, v=v: v.pintar(cr, Pluma(cr, FAMILIA), 0.0),
-                    v.medir(pluma) + ENTRE_TARJETAS))
-            if self.cuanto_falta() is not None:
+                    v.medir(pluma) + (0 if mini else ENTRE_TARJETAS)))
+            if self.cuanto_falta() is not None and not mini:
                 self.filas.append(self._fila(self._pintar_lectura, ALTO_PIE_LECTURA))
 
         for fila in self.filas:
@@ -2578,7 +3090,7 @@ class Indicador:
             # 576 px de alto para un dibujo de 22. La extensión le cree al
             # archivo y arma el item de ese tamaño.
             alto_panel = capturar(self.datos, str(destino), self.falta_para_lectura())
-            panel = {"panel": str(destino), "panelAncho": ANCHO_PANEL, "panelAlto": alto_panel}
+            panel = {"panel": str(destino), "panelAncho": ancho_de(self.datos), "panelAlto": alto_panel}
         except (OSError, MemoryError):
             pass  # sin panel dibujado la extensión sigue mostrando el item
         try:

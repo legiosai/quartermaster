@@ -26,7 +26,8 @@ _qm() {
   local banderas='--refrescar --json --watch --dias= --umbral= --esperar
     --cuenta= --redactado --breve --statusline --todas --mejor --aviso
     --idioma= --solo= --ocultar= --sin-codex --sin-antigravity --version
-    --calentar --cuentas= --calentar-codex --diagnostico --desglose --help'
+    --calentar --cuentas= --calentar-codex --diagnostico --desglose --apariencia=
+    --help'
 
   # Después de `--` viene un comando (`qm --mejor -- claude`): eso no es de qm.
   local i
@@ -64,6 +65,9 @@ _qm() {
       ;;
     --idioma=*)
       COMPREPLY=($(compgen -P "$prefijo" -W $'es\nen' -- "${palabra#*=}"))
+      ;;
+    --apariencia=*)
+      COMPREPLY=($(compgen -P "$prefijo" -W $'basica\nminimalista' -- "${palabra#*=}"))
       ;;
     --dias=* | --umbral=*)
       COMPREPLY=()

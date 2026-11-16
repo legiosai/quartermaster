@@ -77,6 +77,21 @@ the moment you touch it. GNOME does not load a freshly installed extension on
 Wayland, so when it had to be installed the closing line says so and you have to
 log out once.
 
+<img src="docs/img/panel-minimalista.png" alt="The minimalist GNOME panel: one row per bar with its letter, meter, percentage and time to reset" width="300" align="right">
+
+**Two looks for the GNOME panel.** The full panel is the default, and it
+explains every account: each bar with its meter and the time to its reset, the
+curve of the one that stops you, where you are heading and how much of today's
+share is left. Once you know how to read it, most of the time you open it for one question — how
+much is left, and when does it come back — and `qm --apariencia=minimalista`
+answers just that: one row per bar with its letter (`s` the session, `w` the
+weekly, `wf` the Fable weekly), its meter, the percentage and the time to the
+reset. Accounts with no number and dormant ones are named in one line at the
+bottom. `qm --apariencia=basica` goes back; `qm --apariencia` says which one is
+set. The choice is saved in `~/.config/quartermaster/config.json` and reaches
+the panel through `qm --json`. The other surfaces don't use it yet. Designed by
+knighthw in [#27](https://github.com/legiosai/quartermaster/issues/27).
+
 The question only appears when there is somewhere to show it: a graphical
 session, `python3-gi` with `AyatanaAppIndicator3`, and a host for the item — an
 extension already in place, or a GNOME Shell to install ours into. Without those

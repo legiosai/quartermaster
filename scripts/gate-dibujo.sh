@@ -164,4 +164,8 @@ python3 scripts/gate-edades.py || fallar "una barra de una lectura vieja se dibu
 #     que tapa la pantalla durante horas se cierra sin leer.
 python3 scripts/gate-avisos.py || fallar "un aviso del escritorio se queda en pantalla hasta que lo cerrás"
 
+# 9 · la apariencia minimalista (issue #27): que dibuje con su ancho y sus
+#     letras, y que la básica quede idéntica a no haber elegido nada.
+python3 -B scripts/gate-minimalista.py || fallar "la apariencia minimalista no dibuja, o cambió el panel de siempre"
+
 echo "gate de dibujo: verde"

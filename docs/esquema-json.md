@@ -31,6 +31,7 @@ exists to avoid.
   "generado": "2026-09-13T02:45:11.367Z",  // ISO 8601, UTC
   "plataforma": "linux",                   // process.platform
   "ventanaDias": 7,                        // the local-usage window, --dias
+  "apariencia": "basica",                  // how the GNOME panel is drawn: basica | minimalista
   "frenaPrimero": { … },                   // which account blocks you first. null if none has a number
   "perfiles": [ … ]                        // one per ACCOUNT, not per machine
 }
@@ -284,6 +285,15 @@ weeklies, bars with no named key) still comes from the last endpoint or cache
 reading. Each bar takes the newest value for itself, the account's `medidoEn`
 and `origen` are those of the newest reading, and any bar that comes from an
 older one says when in its own `medidoEn`. Added in 0.1.21; `esquema` stays 1.
+
+### `apariencia` — which panel to draw
+
+`basica` or `minimalista`, from `qm --apariencia=…` (saved in
+`~/.config/quartermaster/config.json`). It is a rendering choice the CLI makes
+once, like `frenaPrimero`: the GNOME indicator reads it to pick the view, and
+any other renderer may ignore it. Missing or unknown values mean `basica`, so a
+consumer that predates the field draws what it always drew. Added after 0.1.23;
+`esquema` stays 1.
 
 ### `vencida` — the number is from a window that already closed
 
