@@ -16,6 +16,23 @@ out unless they changed what you see.
 
 ## Unreleased
 
+### Added
+
+- **`qm --diagnostico` ends in a verdict, on every platform.** It used to list
+  what it found and conclude only about the GNOME extension. Now the last
+  section says what is broken and the command that fixes it (or that nothing
+  is), and a new section lists each account's number with its source and age,
+  so «is the quota fresh?» has an answer. Accounts you hid or haven't used in
+  weeks are listed but not flagged.
+- **`qm --diagnostico` on a Mac looks at the menu bar, and on Windows at the
+  tray.** The first report from a Mac showed the GNOME section, said nothing
+  about the menu bar, and listed the menu bar's compiled binary in the cache in
+  a way that read like a bar that had stopped a week ago. It now says whether
+  the menu bar is running, which login item starts it and how it last exited,
+  with the last lines of the `brew services` log; on Windows, whether the tray
+  is running, whether it starts at sign-in, and the end of its log. The cache
+  section says what each file is.
+
 ### Fixed
 
 - **The daily budget no longer counts the same points over and over.** With
@@ -30,6 +47,17 @@ out unless they changed what you see.
   only: the source of the bar you are looking at. History recorded before this
   version is left out, so on the day you update the pace takes a few readings
   to come back and «spent today» starts from the update.
+- **`qm --diagnostico` read the journal again.** It asked for the whole boot
+  and filtered afterwards; on a machine up for a day that is several MB, past
+  the output limit, and the section said «couldn't run journalctl» with
+  journalctl working fine. It now filters on journald's side.
+- **One cache directory when `XDG_CACHE_HOME` is set.** The history and the
+  `--aviso` memory followed it, but the last endpoint, Codex and statusline
+  readings went to `~/.cache` regardless, so the cache was split in two — and
+  the diagnostic looked for the GNOME extension's heartbeat in the wrong one
+  and called a running extension dead. Everything now goes where
+  `XDG_CACHE_HOME` says; a reading left in `~/.cache` is still read until the
+  next one replaces it, so updating loses no number.
 
 ## v0.1.24 — 2026-11-16
 

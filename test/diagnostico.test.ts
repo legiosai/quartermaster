@@ -85,3 +85,34 @@ test('no imprime la ruta de casa: está hecho para pegarlo en un issue', () => {
     `la ruta de casa (${casa}) aparece tal cual en el diagnóstico; tendría que ser «~»`,
   );
 });
+
+test('termina siempre en un veredicto', () => {
+  const { salida, codigo } = correrDiagnostico({ ...process.env });
+  assert.strictEqual(codigo, 0, `salió ${codigo}: ${salida.slice(0, 400)}`);
+  assert.match(salida, /── veredicto[^\n]*\n {2}[⚠ℹ✓]/u, 'el informe tiene que concluir, no sólo listar');
+});
+
+test('lo que viene de afuera sale sin mails', async () => {
+  const entorno = await import('../src/adapters/entorno.ts');
+  // Los logs de las superficies y el journal no los escribe el diagnóstico: el
+  // «sin mails» del encabezado se cumple en la salida, no confiando en la fuente.
+  assert.equal(
+    entorno.redactar('aviso: alguien.de-prueba+x@empresa.com.ar llegó al 90 %'),
+    'aviso: <mail> llegó al 90 %',
+  );
+});
+
+test('lee lo que launchd sabe de la barra: PID y última salida', async () => {
+  const entorno = await import('../src/adapters/entorno.ts');
+  const salida = [
+    '{',
+    '\t"LimitLoadToSessionType" = "Aqua";',
+    '\t"Label" = "com.legios.quartermaster.barra";',
+    '\t"OnDemand" = true;',
+    '\t"LastExitStatus" = 19968;',
+    '\t"PID" = 812;',
+    '};',
+  ].join('\n');
+  assert.deepEqual(entorno.leerLaunchctl(salida), { pid: 812, ultimaSalida: 19968 });
+  assert.deepEqual(entorno.leerLaunchctl('{\n\t"LastExitStatus" = 0;\n};'), { pid: null, ultimaSalida: 0 });
+});

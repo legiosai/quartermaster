@@ -322,6 +322,12 @@ prompted it:
       → log out and back in. It is the only step left.
 ```
 
+On a Mac it looks at the menu bar instead of GNOME: whether it is running,
+what starts it at login (`qm-barra --instalar-arranque` or `brew services`) and
+how it last exited. On Windows it looks at the tray. Everywhere it lists the
+number each account has, where it came from and how old it is, and it ends in
+a verdict: what is broken and the command that fixes it, or that nothing is.
+
 Anything it cannot find out it says so — it never omits and never guesses. It
 works with none of those commands installed.
 

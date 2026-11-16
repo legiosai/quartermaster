@@ -15,18 +15,16 @@
 //     nada más que la proyección de las próximas dos horas.
 
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Muestra } from '../core/proyeccion.ts';
+import { directorioCache } from './directorio-cache.ts';
 
 /** Más viejo que esto no lo mira nadie: la ventana de ajuste son 2 h. */
 const RETENCION_MS = 24 * 3600_000;
 
-export function directorioCache(): string {
-  const xdg = process.env['XDG_CACHE_HOME'];
-  const base = xdg && xdg.length > 0 ? xdg : join(homedir(), '.cache');
-  return join(base, 'quartermaster');
-}
+// Se mudó a directorio-cache.ts, que es de todos; se re-exporta para quien
+// ya lo importaba de acá.
+export { directorioCache };
 
 export function rutaHistorial(): string {
   return join(directorioCache(), 'historial.jsonl');
