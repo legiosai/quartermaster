@@ -133,6 +133,24 @@ describe('superponer · la statusline encima de la lectura guardada', () => {
     assert.equal(s?.medidaEn?.toISOString(), '2026-11-01T20:00:00.000Z');
   });
 
+  it('cada barra dice de qué instrumento salió, para que el historial no los mezcle', async () => {
+    const { origenDe } = await import('../src/core/tipos.ts');
+    // La statusline gana: lo refrescado es de ella, lo que sólo sabe el endpoint sigue siendo del endpoint.
+    const r = superponer(base, sensor);
+    if (r.estado !== 'ok') return assert.fail('esperaba ok');
+    const de = (clave: string) => origenDe(r.ventanas.find((w) => w.clave === clave)!, r);
+    assert.equal(de('session'), 'statusline');
+    assert.equal(de('weekly_all'), 'statusline');
+    assert.equal(de('weekly_scoped'), 'endpoint');
+    assert.equal(de('iguana_necktie'), 'endpoint');
+    // El endpoint gana: la sesión que sólo trajo la statusline sigue siendo de ella.
+    const sinSesion = ok('2026-11-01T21:00:00.000Z', [v('weekly_all', 9, { grupo: 'weekly' })]);
+    const r2 = superponer(sinSesion, sensor);
+    if (r2.estado !== 'ok') return assert.fail('esperaba ok');
+    assert.equal(origenDe(r2.ventanas.find((w) => w.clave === 'session')!, r2), 'statusline');
+    assert.equal(origenDe(r2.ventanas.find((w) => w.clave === 'weekly_all')!, r2), 'endpoint');
+  });
+
   it('sin base, la statusline sola; sin statusline, la base intacta', () => {
     assert.equal(superponer({ estado: 'sin-cache' }, sensor), sensor);
     assert.equal(superponer(base, null), base);

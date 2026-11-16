@@ -14,6 +14,23 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **The daily budget no longer counts the same points over and over.** With
+  `qm --statusline` set up, the statusline and the endpoint both report the
+  weekly bar, and they don't always agree — by a rounding point, or (on one
+  Team account) 4 % against 16 % for the same window. The bar on screen is
+  whichever reading is newer, and the history recorded both, so it zig-zagged
+  between them, and every climb back up counted as spending. One account
+  showed `spent 802.0 % today` with the weekly at 16 %. The pace and the
+  projection were fitted to the same zig-zag. Each reading in the history
+  now says where it came from, and every number drawn from it uses one source
+  only: the source of the bar you are looking at. History recorded before this
+  version is left out, so on the day you update the pace takes a few readings
+  to come back and «spent today» starts from the update.
+
 ## v0.1.24 — 2026-11-16
 
 ### Changed

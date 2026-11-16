@@ -119,7 +119,7 @@ export async function correrAviso(cfg: Config, argv: readonly string[]): Promise
     const d = decidirAviso({
       perfil: actual.nombre,
       frena,
-      proyeccion: proyeccionDe(actual.nombre, frena, ahora),
+      proyeccion: proyeccionDe(actual.nombre, cuota, frena, ahora),
       umbral: umbralDe(argv),
       avisados: memoria,
       ahora,

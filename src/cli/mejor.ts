@@ -34,7 +34,7 @@ export function candidata(perfil: Perfil, ahora = Date.now()): Candidata {
     porDefecto: perfil.porDefecto,
     credencial: !cred.presente ? 'sin' : cred.vencida ? 'vencida' : 'vigente',
     cuota,
-    proyeccion: proyeccionDe(perfil.nombre, frena, ahora),
+    proyeccion: proyeccionDe(perfil.nombre, cuota, frena, ahora),
   };
 }
 

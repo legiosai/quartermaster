@@ -159,8 +159,11 @@ export function superponer(base: ResultadoCuota, sensor: ResultadoCuota | null):
   const sensorGana = sensor.medidoEn.getTime() > base.medidoEn.getTime();
   const nueva = sensorGana ? sensor : base;
   const deSensor = new Map(sensor.ventanas.map((v) => [familia(v), v]));
-  const conEdad = (v: VentanaCuota, medida: Date): VentanaCuota =>
-    medida.getTime() === nueva.medidoEn.getTime() ? v : { ...v, medidaEn: v.medidaEn ?? medida };
+  // La barra que viene de la lectura vieja lleva su edad Y su origen: los dos
+  // describen de dónde salió el número, y el historial necesita el segundo
+  // para no mezclar instrumentos (ver `VentanaCuota.origen`).
+  const conEdad = (v: VentanaCuota, de: Extract<ResultadoCuota, { estado: 'ok' }>): VentanaCuota =>
+    de === nueva ? v : { ...v, medidaEn: v.medidaEn ?? de.medidoEn, origen: v.origen ?? de.origen };
 
   const ventanas: VentanaCuota[] = [];
   const cubiertas = new Set<string>();
@@ -169,7 +172,7 @@ export function superponer(base: ResultadoCuota, sensor: ResultadoCuota | null):
     cubiertas.add(f);
     const s = deSensor.get(f);
     if (s === undefined || !sensorGana) {
-      ventanas.push(conEdad(b, base.medidoEn));
+      ventanas.push(conEdad(b, base));
       continue;
     }
     // Se queda con el nombre, el grupo, el alcance y `activa` de la base, que
@@ -187,8 +190,8 @@ export function superponer(base: ResultadoCuota, sensor: ResultadoCuota | null):
     if (cubiertas.has(familia(s))) continue;
     // La sesión va primero, como la ordena el servidor: agregada al final
     // quedaba abajo de las semanales y la tabla se leía al revés.
-    if (familia(s) === 'session') ventanas.unshift(conEdad(s, sensor.medidoEn));
-    else ventanas.push(conEdad(s, sensor.medidoEn));
+    if (familia(s) === 'session') ventanas.unshift(conEdad(s, sensor));
+    else ventanas.push(conEdad(s, sensor));
   }
 
   return { estado: 'ok', origen: nueva.origen, medidoEn: nueva.medidoEn, ventanas };

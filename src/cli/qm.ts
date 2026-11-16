@@ -71,6 +71,7 @@ import {
   esPreocupante,
   frase,
   nombreVentana,
+  origenDe,
   paraMostrar,
   peor,
   semanal,
@@ -421,12 +422,14 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
   let proyeccion: Proyeccion | null = null;
   if (cuota.estado === 'ok') {
     try {
+      const ok = cuota;
       anotar(
-        cuota.ventanas.map((v) => ({
+        ok.ventanas.map((v) => ({
           perfil: 'codex',
           barra: claveBarra(v.clave, v.alcance),
-          medidoEn: (cuota as { medidoEn: Date }).medidoEn,
+          medidoEn: ok.medidoEn,
           porcentaje: v.porcentaje,
+          origen: origenDe(v, ok),
         })),
       );
     } catch {
@@ -434,7 +437,7 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     }
     const p = peor(paraMostrar(cuota.ventanas));
     if (p !== null) {
-      proyeccion = proyectar(muestras('codex', claveBarra(p.clave, p.alcance)), p.porcentaje, p.reinicia);
+      proyeccion = proyectar(muestras('codex', claveBarra(p.clave, p.alcance), origenDe(p, cuota)), p.porcentaje, p.reinicia);
     }
   }
 
@@ -754,6 +757,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
           // número viejo como si fuera de ahora y aplanaría el ritmo.
           medidoEn: v.medidaEn ?? cuota.medidoEn,
           porcentaje: v.porcentaje,
+          origen: origenDe(v, cuota),
         }));
         try {
           anotar(lecturas);
@@ -764,7 +768,7 @@ async function medir(o: Opciones): Promise<FilaPerfil[]> {
         const p = peor(paraMostrar(cuota.ventanas));
         if (p !== null) {
           proyeccion = proyectar(
-            muestras(perfil.nombre, claveBarra(p.clave, p.alcance)),
+            muestras(perfil.nombre, claveBarra(p.clave, p.alcance), origenDe(p, cuota)),
             p.porcentaje,
             p.reinicia,
           );
@@ -1152,7 +1156,7 @@ function historiaDe(f: FilaPerfil): { t: number; porcentaje: number }[] {
   const v = peor(paraMostrar(f.cuota.ventanas));
   if (v === null) return [];
   const ahora = Date.now();
-  return muestras(f.perfil.nombre, claveBarra(v.clave, v.alcance))
+  return muestras(f.perfil.nombre, claveBarra(v.clave, v.alcance), origenDe(v, f.cuota))
     .filter((m) => ahora - m.t <= VENTANA_AJUSTE_MS && m.t <= ahora)
     .sort((a, b) => a.t - b.t)
     .map((m) => ({ t: m.t, porcentaje: m.porcentaje }));
@@ -1196,7 +1200,7 @@ function historialDe(cuota: ResultadoCuota, perfil: string): { t: number; porcen
   if (cuota.estado !== 'ok') return [];
   const larga = semanal(cuota.ventanas);
   if (larga === null) return [];
-  return muestras(perfil, claveBarra(larga.clave, larga.alcance));
+  return muestras(perfil, claveBarra(larga.clave, larga.alcance), origenDe(larga, cuota));
 }
 
 function presupuestoJson(cuota: ResultadoCuota, perfil: string): Record<string, unknown> {

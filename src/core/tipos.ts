@@ -116,6 +116,22 @@ export interface VentanaCuota {
    * el resto de las barras sigue siendo de una lectura anterior del endpoint.
    */
   readonly medidaEn?: Date;
+  /**
+   * De qué lectura salió ESTA barra, con la misma regla que `medidaEn`: sólo
+   * cuando no es el `origen` de la lectura que la trae. Usá `origenDe()`.
+   *
+   * Hace falta para el historial. La statusline y el endpoint no siempre dicen
+   * lo mismo de la misma barra —un punto de redondeo, o más— y la barra que se
+   * muestra es la de la lectura más nueva, así que alterna entre los dos. Una
+   * serie que mezcla dos instrumentos es un serrucho: cada vuelta al número
+   * más alto se contaba como gasto.
+   */
+  readonly origen?: OrigenCuota;
+}
+
+/** De qué lectura salió una barra: la suya si la trae, si no la de la cuota. */
+export function origenDe(v: VentanaCuota, cuota: { readonly origen: OrigenCuota }): OrigenCuota {
+  return v.origen ?? cuota.origen;
 }
 
 /**
