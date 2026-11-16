@@ -1,13 +1,13 @@
 {
-  "generado": "2026-11-15T18:27:39.531Z",
+  "generado": "2026-11-16T21:37:04.969Z",
   "resumen": {
     "humanasHastaHoy": {
-      "npm": 834,
+      "npm": 849,
       "github": 141
     },
     "estaSemana": {
-      "desde": "2026-11-08",
-      "npm": 100,
+      "desde": "2026-11-09",
+      "npm": 111,
       "github": 1
     },
     "sinContador": {
@@ -16,12 +16,12 @@
     },
     "llegaron": 12,
     "estrellas": 11,
-    "cobertura": "faltan 1 de 61 días",
+    "cobertura": "faltan 1 de 62 días",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 3772,
-    "enDiasSinPublicar": 834,
+    "total": 3787,
+    "enDiasSinPublicar": 849,
     "porPublicacion": 140,
     "dias": [
       {
@@ -416,6 +416,12 @@
       },
       {
         "dia": "2026-11-15",
+        "descargas": 15,
+        "publicaciones": 0,
+        "humanas": 15
+      },
+      {
+        "dia": "2026-11-16",
         "descargas": 0,
         "publicaciones": 0,
         "humanas": 0
@@ -1232,8 +1238,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 61,
-    "anotados": 60,
+    "esperados": 62,
+    "anotados": 61,
     "faltan": [
       "2026-10-05"
     ]
@@ -1537,6 +1543,11 @@
     {
       "fecha": "2026-11-15",
       "npm": 834,
+      "github": 141
+    },
+    {
+      "fecha": "2026-11-16",
+      "npm": 849,
       "github": 141
     }
   ]
