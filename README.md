@@ -79,8 +79,10 @@ log out once.
 
 <img src="docs/img/panel-minimalista.png" alt="The minimalist GNOME panel: one row per bar with its letter, meter, percentage and time to reset" width="300" align="right">
 
-**Two looks for the GNOME panel.** The full panel explains every account. Once
-you know how to read it, most of the time you open it for one question — how
+**Two looks for the GNOME panel.** The full panel is the default, and it
+explains every account: each bar with its meter and the time to its reset, the
+curve of the one that stops you, where you are heading and how much of today's
+share is left. Once you know how to read it, most of the time you open it for one question — how
 much is left, and when does it come back — and `qm --apariencia=minimalista`
 answers just that: one row per bar with its letter (`s` the session, `w` the
 weekly, `wf` the Fable weekly), its meter, the percentage and the time to the
