@@ -9,16 +9,31 @@
 // completo del perfil. Sin config, se muestran todas: no se esconde nada sin
 // que alguien lo pida.
 
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { tr } from './idioma.ts';
+
+/**
+ * Cómo se ve el panel de GNOME. `basica` es el panel de siempre; `minimalista`
+ * contesta sólo «¿cuánto me queda y cuándo vuelve?» (diseño de @knighthw,
+ * issue #27). Lo decide el CLI y lo emite en `qm --json`: el indicador sólo
+ * elige qué vista dibujar, como con todo lo demás.
+ */
+export type Apariencia = 'basica' | 'minimalista';
+export const APARIENCIAS: readonly Apariencia[] = ['basica', 'minimalista'];
+
+export function esApariencia(v: unknown): v is Apariencia {
+  return typeof v === 'string' && (APARIENCIAS as readonly string[]).includes(v);
+}
 
 export interface Config {
   /** Si está, SÓLO estas. */
   readonly mostrar: string[] | null;
   /** Estas no, aunque existan. */
   readonly ocultar: string[];
+  /** Sin el campo, o con un valor desconocido, es `basica`: nadie ve un cambio que no pidió. */
+  readonly apariencia?: Apariencia;
 }
 
 export const RUTA_CONFIG = join(
@@ -33,12 +48,46 @@ export function leerConfigUsuario(): Config {
     const j = JSON.parse(readFileSync(RUTA_CONFIG, 'utf8')) as Record<string, unknown>;
     const lista = (v: unknown): string[] | null =>
       Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : null;
-    return { mostrar: lista(j['mostrar']), ocultar: lista(j['ocultar']) ?? [] };
+    return {
+      mostrar: lista(j['mostrar']),
+      ocultar: lista(j['ocultar']) ?? [],
+      apariencia: esApariencia(j['apariencia']) ? j['apariencia'] : 'basica',
+    };
   } catch {
     // Una config rota no puede dejar a nadie sin números: se ignora y se
     // muestran todas, que es el comportamiento por defecto.
     return { mostrar: null, ocultar: [] };
   }
+}
+
+/**
+ * Guarda la apariencia en config.json sin tocar el resto del archivo.
+ *
+ * Es lo primero que ESCRIBE ese archivo: hasta acá sólo se leía, y se edita a
+ * mano. Por eso, si lo que hay no es un JSON que se pueda leer, no se pisa — se
+ * tira con un motivo. Reemplazar una config rota por `{"apariencia": …}` borraría
+ * el `mostrar` y el `ocultar` que alguien escribió y que sólo tienen una coma de
+ * más.
+ */
+export function guardarApariencia(valor: Apariencia, ruta: string = RUTA_CONFIG): void {
+  let actual: Record<string, unknown> = {};
+  if (existsSync(ruta)) {
+    let j: unknown;
+    try {
+      j = JSON.parse(readFileSync(ruta, 'utf8'));
+    } catch (e) {
+      throw new Error(tr(
+        `${ruta} no es un JSON válido y no lo piso: ${(e as Error).message}`,
+        `${ruta} is not valid JSON and I won't overwrite it: ${(e as Error).message}`,
+      ));
+    }
+    if (typeof j !== 'object' || j === null || Array.isArray(j)) {
+      throw new Error(tr(`${ruta} no es un objeto JSON y no lo piso`, `${ruta} is not a JSON object and I won't overwrite it`));
+    }
+    actual = j as Record<string, unknown>;
+  }
+  mkdirSync(dirname(ruta), { recursive: true });
+  writeFileSync(ruta, `${JSON.stringify({ ...actual, apariencia: valor }, null, 2)}\n`);
 }
 
 /** `.claude-teams` -> `teams`; el perfil por defecto -> `main`. */

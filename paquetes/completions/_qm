@@ -74,4 +74,5 @@ _arguments -s -S \
   '--cuentas=-[with --calentar: only these accounts]:accounts:_qm_cuentas' \
   '--calentar-codex[the same, only Codex]' \
   '--diagnostico[everything a bug report needs, redacted]' \
-  '--desglose[where the quota went]'
+  '--desglose[where the quota went]' \
+  '--apariencia=-[how the GNOME panel looks]:look:(basica minimalista)'

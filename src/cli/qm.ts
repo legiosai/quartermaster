@@ -51,7 +51,7 @@ import { UMBRAL_POR_DEFECTO } from '../core/aviso.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import { idiomaPedido, tr } from '../core/idioma.ts';
 import * as entorno from '../adapters/entorno.ts';
-import { cuentaPedida, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
+import { APARIENCIAS, cuentaPedida, esApariencia, guardarApariencia, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
 import {
   DIAS_DORMIDA,
   elQueFrena,
@@ -191,6 +191,9 @@ const ayuda = (): string =>
                       queda en castellano salvo que se pida otro a propósito
   qm --solo=a,b       mostrar SÓLO esas cuentas (personal, teams, codex…)
   qm --ocultar=a,b    mostrar todas menos esas
+  qm --apariencia=minimalista  cómo se ve el panel de GNOME: basica (el de
+                      siempre) o minimalista (cuánto queda y cuándo vuelve, y
+                      nada más). Se guarda en la config; sin valor, dice cuál hay
   qm --sin-codex      no mira la cuenta de Codex
   qm --sin-antigravity  no mira la cuenta de Antigravity
   qm --version        la versión, y nada más
@@ -246,6 +249,10 @@ resto de los perfiles — la cuota igual se lee, porque sale del disco.`,
                       stays in Spanish unless another language is asked for
   qm --solo=a,b       show ONLY those accounts (personal, teams, codex…)
   qm --ocultar=a,b    show all but those
+  qm --apariencia=minimalista  how the GNOME panel looks: basica (the usual
+                      one) or minimalista (how much is left and when it comes
+                      back, nothing else). Saved in the config; with no value,
+                      says which one is set
   qm --sin-codex      leave the Codex account out
   qm --sin-antigravity  leave the Antigravity account out
   qm --version        the version, and nothing else
@@ -863,6 +870,7 @@ function configEfectiva(): Config {
   return {
     mostrar: solo ?? base.mostrar,
     ocultar: ocultar ?? base.ocultar,
+    apariencia: base.apariencia ?? 'basica',
   };
 }
 
@@ -1248,6 +1256,9 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
     generado: new Date().toISOString(),
     plataforma: process.platform,
     ventanaDias: o.dias,
+    // Cómo quiere ver el panel el usuario. Lo usa el indicador de GNOME para
+    // elegir la vista; las demás superficies lo pueden ignorar.
+    apariencia: configEfectiva().apariencia ?? 'basica',
     // QUIÉN ENCABEZA, ya resuelto.
     //
     // Antes no estaba, y la consecuencia era medible: la elección del perfil
@@ -1522,6 +1533,37 @@ function diagnostico(): string {
   const antesDelCorte = ((c) => (c < 0 ? process.argv : process.argv.slice(0, c)))(process.argv.indexOf('--')).slice(2);
   if (antesDelCorte.includes('--mejor')) await salir(correrMejor(configEfectiva(), process.argv.slice(2)));
   if (antesDelCorte.includes('--aviso')) await salir(await correrAviso(configEfectiva(), process.argv.slice(2)));
+}
+
+// --apariencia: el único ajuste que `qm` escribe. Sale antes que el parser
+// porque no mide nada: guarda, dice dónde, y termina.
+{
+  const a = process.argv.slice(2).find((x) => x === '--apariencia' || x.startsWith('--apariencia='));
+  if (a !== undefined) {
+    const valor = a.includes('=') ? a.slice('--apariencia='.length).trim().toLowerCase() : null;
+    if (valor === null) {
+      console.log(`${leerConfigUsuario().apariencia ?? 'basica'}  (${APARIENCIAS.join(' | ')})`);
+      await salir(0);
+    } else if (!esApariencia(valor)) {
+      console.error(tr(
+        `qm: no conozco la apariencia «${valor}». Las que hay: ${APARIENCIAS.join(', ')}`,
+        `qm: unknown look «${valor}». The ones there are: ${APARIENCIAS.join(', ')}`,
+      ));
+      await salir(2);
+    } else {
+      try {
+        guardarApariencia(valor);
+      } catch (e) {
+        console.error(`qm: ${(e as Error).message}`);
+        await salir(1);
+      }
+      console.log(tr(
+        `apariencia: ${valor} · guardada en ${RUTA_CONFIG.split(homedir()).join('~')}\nEl panel de GNOME la toma en la próxima lectura; las otras superficies todavía no la usan.`,
+        `look: ${valor} · saved in ${RUTA_CONFIG.split(homedir()).join('~')}\nThe GNOME panel picks it up on its next reading; the other surfaces don't use it yet.`,
+      ));
+      await salir(0);
+    }
+  }
 }
 
 // --diagnostico sale primero: tiene que contestar incluso cuando lo demás está

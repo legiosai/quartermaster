@@ -18,6 +18,17 @@ out unless they changed what you see.
 
 ### Added
 
+- **A minimalist look for the GNOME panel.** `qm --apariencia=minimalista`
+  swaps the full panel for one that answers only «how much is left, and when
+  does it come back»: a ring with what stops you first, then one row per bar
+  with its letter (`s` session, `w` weekly, `wf` the Fable weekly), a meter,
+  the percentage and the time to the reset. Accounts with no number and dormant
+  ones are named in one line at the bottom. `qm --apariencia=basica` goes back;
+  if you change nothing, the panel is pixel for pixel the one you had. The
+  setting lives in `~/.config/quartermaster/config.json` (`qm` won't overwrite
+  that file if it can't parse it) and reaches the panel as `apariencia` in
+  `qm --json`. Designed by knighthw in #27.
+
 - **Shell completion for bash and zsh.** `qm --<Tab>` completes the flags, and
   `--solo=`, `--ocultar=`, `--cuentas=` and `--cuenta=` complete your account
   names, read from `qm --json --breve`. The `.deb` installs both files where

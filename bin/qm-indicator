@@ -998,6 +998,8 @@ class VistaResumen:
     héroe del tablero —qué me frena primero, en toda la máquina— y que si no
     está acá hay que sacarla comparando las cuentas a ojo."""
 
+    alto = ALTO_CABECERA
+
     def __init__(self, cuenta: str, barra: str, pct: float, nivel: str, reinicia,
                  medido_en: str | None = None) -> None:
         self.cuenta, self.barra, self.pct = cuenta, barra, pct
@@ -1088,6 +1090,221 @@ class VistaResumen:
                        Pango.Weight.MEDIUM if urgente else Pango.Weight.NORMAL,
                        ancho=ANCHO_PANEL - MARGEN - x, elipsis=True)
         return arriba + ALTO_CABECERA
+
+
+# ── la apariencia minimalista ────────────────────────────────────────────
+# El panel completo explica una cuenta, y es lo que hace falta mientras uno
+# aprende a leerlo. Después, la mayoría de las veces se lo abre para UNA
+# pregunta: ¿cuánto me queda y cuándo vuelve? Esta vista contesta sólo eso, en
+# una mirada: un renglón por barra con su letra, su medidor, el porcentaje y
+# cuánto falta para el reinicio.
+#
+# El diseño es de @knighthw (issue #27). Se elige con
+# `qm --apariencia=minimalista`: la decisión la emite el CLI en `apariencia` y
+# acá sólo se dibuja, como todo lo demás. Un valor que este dibujo no conoce
+# cae en el panel de siempre.
+ANCHO_MINI = 300
+ALTO_CABECERA_MINI = 58
+ALTO_RENGLON_MINI = 21
+ENTRE_CUENTAS_MINI = 12
+
+
+def es_minimalista(datos) -> bool:
+    return isinstance(datos, dict) and datos.get("apariencia") == "minimalista"
+
+
+def ancho_de(datos) -> int:
+    return ANCHO_MINI if es_minimalista(datos) else ANCHO_PANEL
+
+
+def letra_de(v: dict) -> str:
+    """La letra de una barra: `s` la sesión, `w` la semanal, `wf` la semanal de
+    Fable —la segunda letra sale del alcance—. Una barra que no tiene letra
+    conocida muestra su nombre, recortado: una letra inventada sería peor que
+    un nombre largo."""
+    clave, grupo, alcance = v.get("clave") or "", v.get("grupo"), v.get("alcance")
+    if alcance:
+        base = "w" if grupo == "weekly" or clave.startswith("weekly") or clave.startswith("seven") else clave[:1]
+        return base + alcance[:1].lower()
+    if clave in ("session", "five_hour") or grupo == "session":
+        return "s"
+    if clave in ("weekly_all", "seven_day", "weekly") or grupo == "weekly":
+        return "w"
+    nombre = nombre_ventana(v)
+    return nombre if len(nombre) <= 6 else nombre[:5] + "…"
+
+
+def falta_corto(iso: str | None) -> str:
+    """Cuánto falta para el reinicio, en la escalera de siempre; `vencido` si ya
+    pasó, la palabra que usa el resto del proyecto."""
+    seg = faltan(iso)
+    if seg is None:
+        return "—"
+    return duracion(seg)
+
+
+class VistaResumenMini:
+    """La cabecera minimalista: el anillo, el porcentaje y la letra de lo que
+    frena primero; a la derecha, de qué cuenta es. Reemplaza el «Lo primero que
+    te frena»: el anillo ya lo dice."""
+
+    alto = ALTO_CABECERA_MINI
+
+    def __init__(self, completa: "VistaResumen", letra: str) -> None:
+        self.c = completa
+        self.letra = letra
+
+    @staticmethod
+    def desde(datos: dict) -> "VistaResumenMini | None":
+        completa = VistaResumen.desde(datos)
+        if completa is None:
+            return None
+        v = (datos.get("frenaPrimero") or {}).get("ventana") or {}
+        return VistaResumenMini(completa, letra_de(v))
+
+    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
+        color = TEMA.nivel(self.c.nivel)
+        lado = 34.0
+        izq = MARGEN + 4
+        centro = (izq + lado / 2, arriba + self.alto / 2)
+        radio = lado / 2 - 3
+        cr.set_line_width(4.5)
+        cr.set_line_cap(cairo.LINE_CAP_BUTT)
+        cr.arc(centro[0], centro[1], radio, 0, 2 * math.pi)
+        _color(cr, color[:3] + (0.20,))
+        cr.stroke()
+        frac = max(0.0, min(100.0, self.c.pct)) / 100.0
+        if frac > 0:
+            cr.set_line_cap(cairo.LINE_CAP_ROUND)
+            cr.arc(centro[0], centro[1], radio, -math.pi / 2, -math.pi / 2 + 2 * math.pi * frac)
+            _color(cr, color)
+            cr.stroke()
+
+        x = izq + lado + 12
+        cifra = f"{self.c.pct:.0f}%"
+        y_cifra = centro[1] - pluma.alto(cifra, 20, Pango.Weight.BOLD) / 2
+        pluma.escribir(x, y_cifra, cifra, 20, TEMA.etiqueta, Pango.Weight.BOLD, tabular=True)
+        ancho_cifra = pluma.ancho(cifra, 20, Pango.Weight.BOLD, tabular=True)
+        corrimiento = pluma.linea_base(cifra, 20, Pango.Weight.BOLD) - pluma.linea_base("x", 12.5)
+        pluma.escribir(x + ancho_cifra + 6, y_cifra + corrimiento, self.letra, 12.5, TEMA.secundario)
+        # La cuenta, a la derecha y sobre la misma línea de base que la letra.
+        pluma.escribir(0, y_cifra + corrimiento + 1, self.c.cuenta, 11, TEMA.terciario,
+                       derecha=ANCHO_MINI - MARGEN - 4)
+        return arriba + self.alto
+
+
+class VistaCuentaMini:
+    """Una cuenta: su marca y su nombre, y un renglón por barra."""
+
+    entre = ENTRE_CUENTAS_MINI
+
+    def __init__(self, p: dict, indice_color: int) -> None:
+        cuota = p.get("cuota") or {}
+        self.producto = p.get("producto") or "claude"
+        self.indice_color = indice_color
+        self.titulo = corto(p.get("perfil") or "?")
+        frena = cuota.get("frena") or {}
+        proy = p.get("proyeccion")
+        choca = bool(proy and proy.get("estado") == "sube" and proy.get("chocasAntesDelReinicio"))
+        self.renglones = []
+        for v in cuota.get("mostrar") or []:
+            es_la_que_frena = bool(frena and v.get("clave") == frena.get("clave")
+                                   and v.get("alcance") == frena.get("alcance"))
+            pct = v.get("porcentaje", 0)
+            self.renglones.append({
+                "letra": letra_de(v),
+                "pct": pct,
+                "nivel": nivel_de(pct, v.get("preocupa", False) or (choca and es_la_que_frena)),
+                "falta": falta_corto(v.get("reinicia")),
+                "frena": es_la_que_frena,
+            })
+
+    def medir(self, pluma: Pluma) -> float:
+        return 20 + 4 + len(self.renglones) * ALTO_RENGLON_MINI + self.entre
+
+    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
+        ix = MARGEN + 4
+        der = ANCHO_MINI - MARGEN - 4
+        y = arriba
+        glifo_producto(cr, self.producto, TEMA.color_cuenta(self.indice_color), ix, y + 3, 12)
+        pluma.escribir(ix + 19, y, self.titulo, 12.5, TEMA.etiqueta, Pango.Weight.BOLD,
+                       ancho=der - ix - 19, elipsis=True)
+        y += 24
+        # Columnas fijas: letra, medidor, porcentaje, reinicio. Las cifras van
+        # tabulares y alineadas a la derecha para que se lean en columna.
+        col_letra = 30
+        col_falta = 52
+        col_pct = 44
+        x_barra = ix + col_letra
+        fin_barra = der - col_falta - col_pct - 6
+        for r in self.renglones:
+            centro = y + ALTO_RENGLON_MINI / 2 - 2
+            alto_letra = pluma.alto(r["letra"], 11.5)
+            pluma.escribir(ix, centro - alto_letra / 2, r["letra"], 11.5,
+                           TEMA.etiqueta if r["frena"] else TEMA.secundario,
+                           Pango.Weight.SEMIBOLD if r["frena"] else Pango.Weight.NORMAL,
+                           ancho=col_letra - 4, elipsis=True)
+            ancho_barra = fin_barra - x_barra
+            _redondeado(cr, x_barra, centro - 2.5, ancho_barra, 5, 2.5)
+            _color(cr, TEMA.pista)
+            cr.fill()
+            lleno = max(5.0, ancho_barra * max(0.0, min(100.0, r["pct"])) / 100.0)
+            _redondeado(cr, x_barra, centro - 2.5, lleno, 5, 2.5)
+            _color(cr, TEMA.nivel(r["nivel"]))
+            cr.fill()
+            cifra = f"{r['pct']:.0f}%"
+            alto_cifra = pluma.alto(cifra, 11.5, Pango.Weight.SEMIBOLD)
+            pluma.escribir(0, centro - alto_cifra / 2, cifra, 11.5, TEMA.etiqueta,
+                           Pango.Weight.SEMIBOLD, derecha=der - col_falta, tabular=True)
+            alto_falta = pluma.alto(r["falta"], 10.5)
+            pluma.escribir(0, centro - alto_falta / 2, r["falta"], 10.5, TEMA.terciario,
+                           derecha=der, tabular=True)
+            y += ALTO_RENGLON_MINI
+        return arriba + self.medir(pluma)
+
+
+class VistaRestoMini:
+    """Lo que la vista minimalista no dibuja, dicho en un renglón: las cuentas
+    sin número y las dormidas. Esconderlas sin decirlo sería volver al monitor
+    que no avisa; dibujarlas enteras sería volver al panel completo."""
+
+    entre = 0
+
+    def __init__(self, sin_numero: list[str], dormidas: list[str]) -> None:
+        partes = []
+        if sin_numero:
+            partes.append("sin número: " + ", ".join(sin_numero))
+        if dormidas:
+            partes.append("dormidas: " + ", ".join(dormidas))
+        self.texto = "   ·   ".join(partes)
+
+    def medir(self, pluma: Pluma) -> float:
+        return pluma.alto(self.texto, 10.5, ancho=ANCHO_MINI - 2 * MARGEN - 8) + 4
+
+    def pintar(self, cr, pluma: Pluma, arriba: float) -> float:
+        pluma.escribir(MARGEN + 4, arriba, self.texto, 10.5, TEMA.terciario,
+                       ancho=ANCHO_MINI - 2 * MARGEN - 8)
+        return arriba + self.medir(pluma)
+
+
+def modelo_minimalista(datos: dict):
+    vistas, sin_numero, dormidas, i = [], [], [], 0
+    for p in datos.get("perfiles", []):
+        nombre = corto(p.get("perfil") or "?")
+        if (p.get("relevancia") or {}).get("dormida"):
+            dormidas.append(nombre)
+            continue
+        if (p.get("cuota") or {}).get("estado") != "ok":
+            sin_numero.append(nombre)
+            continue
+        vistas.append(VistaCuentaMini(p, i))
+        i += 1
+    if sin_numero or dormidas:
+        vistas.append(VistaRestoMini(sin_numero, dormidas))
+    elif vistas:
+        # La última cuenta no necesita aire abajo: ya está el margen del panel.
+        vistas[-1].entre = 0
+    return VistaResumenMini.desde(datos), vistas
 
 
 # ── el item de la barra, dibujado ────────────────────────────────────────
@@ -1299,6 +1516,8 @@ def dibujar_item(piezas: list[dict], destino: str, escala: float = 1.0) -> tuple
 def modelo_panel(datos):
     if not isinstance(datos, dict):
         return None, []
+    if es_minimalista(datos):
+        return modelo_minimalista(datos)
     perfiles = datos.get("perfiles", [])
     vistas, calladas, i = [], [], 0
     for p in perfiles:
@@ -1326,6 +1545,11 @@ def medir_panel(datos, pie: bool = False) -> int:
     if isinstance(datos, str):
         return int(MARGEN * 2 + pluma.alto(datos, 11.5, ancho=ANCHO_PANEL - 2 * MARGEN))
     cabecera, vistas = modelo_panel(datos)
+    if es_minimalista(datos):
+        # Cada vista minimalista mide su propio aire de abajo, y no hay renglón
+        # de «próxima lectura»: es justo lo que esta vista deja afuera.
+        alto = cabecera.alto if cabecera else MARGEN
+        return int(alto + sum(v.medir(pluma) for v in vistas) + MARGEN)
     alto = ALTO_CABECERA if cabecera else MARGEN
     for v in vistas:
         alto += v.medir(pluma) + ENTRE_TARJETAS
@@ -1343,6 +1567,10 @@ def dibujar_panel(cr, datos, alto: float, proxima: float | None = None) -> None:
         return
     cabecera, vistas = modelo_panel(datos)
     y = cabecera.pintar(cr, pluma, 0.0) if cabecera else float(MARGEN)
+    if es_minimalista(datos):
+        for v in vistas:
+            y = v.pintar(cr, pluma, y)
+        return
     for v in vistas:
         y = v.pintar(cr, pluma, y) + ENTRE_TARJETAS
     if proxima is not None:
@@ -1379,9 +1607,10 @@ def capturar(datos, ruta: str, proxima: float | None = None) -> int:
     imagen de 1034 px declarada como 1060, y la diferencia se ve como un hueco.
     """
     alto = medir_panel(datos, proxima is not None)
-    superficie = cairo.ImageSurface(cairo.FORMAT_ARGB32, ANCHO_PANEL, alto)
+    ancho = ancho_de(datos)
+    superficie = cairo.ImageSurface(cairo.FORMAT_ARGB32, ancho, alto)
     cr = cairo.Context(superficie)
-    fondo_panel(cr, ANCHO_PANEL, alto)
+    fondo_panel(cr, ancho, alto)
     dibujar_panel(cr, datos, alto, proxima)
     superficie.write_to_png(ruta)
     return alto
@@ -1513,7 +1742,7 @@ class Panel:
     def _fila(self, dibujo, alto: float) -> Gtk.MenuItem:
         """Un renglón del menú que se dibuja solo."""
         lienzo = Gtk.DrawingArea()
-        lienzo.set_size_request(ANCHO_PANEL, int(alto))
+        lienzo.set_size_request(ancho_de(self.datos), int(alto))
         lienzo.connect("draw", lambda _w, cr, d=dibujo: (d(cr), False)[1])
         fila = Gtk.MenuItem()
         # Insensible a propósito, y es lo único que hace que el panel se pueda
@@ -1548,15 +1777,16 @@ class Panel:
                     ancho=ANCHO_PANEL - 2 * MARGEN), alto))
         else:
             cabecera, vistas = modelo_panel(self.datos)
+            mini = es_minimalista(self.datos)
             if cabecera:
                 self.filas.append(self._fila(
                     lambda cr, v=cabecera: v.pintar(cr, Pluma(cr, FAMILIA), 0.0),
-                    ALTO_CABECERA))
+                    cabecera.alto))
             for v in vistas:
                 self.filas.append(self._fila(
                     lambda cr, v=v: v.pintar(cr, Pluma(cr, FAMILIA), 0.0),
-                    v.medir(pluma) + ENTRE_TARJETAS))
-            if self.cuanto_falta() is not None:
+                    v.medir(pluma) + (0 if mini else ENTRE_TARJETAS)))
+            if self.cuanto_falta() is not None and not mini:
                 self.filas.append(self._fila(self._pintar_lectura, ALTO_PIE_LECTURA))
 
         for fila in self.filas:
@@ -2578,7 +2808,7 @@ class Indicador:
             # 576 px de alto para un dibujo de 22. La extensión le cree al
             # archivo y arma el item de ese tamaño.
             alto_panel = capturar(self.datos, str(destino), self.falta_para_lectura())
-            panel = {"panel": str(destino), "panelAncho": ANCHO_PANEL, "panelAlto": alto_panel}
+            panel = {"panel": str(destino), "panelAncho": ancho_de(self.datos), "panelAlto": alto_panel}
         except (OSError, MemoryError):
             pass  # sin panel dibujado la extensión sigue mostrando el item
         try:
