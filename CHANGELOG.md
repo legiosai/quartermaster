@@ -14,7 +14,7 @@ out unless they changed what you see.
 
 ---
 
-## Unreleased
+## v0.1.24 — 2026-11-16
 
 ### Changed
 
