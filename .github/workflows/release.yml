@@ -296,20 +296,26 @@ jobs:
             echo "::notice::Homebrew: la fórmula quedó en $V"
           fi
 
-  # ── apt: el repo firmado, que vive en docs/ ───────────────────────────
+  # ── apt: el repo firmado, en la rama publicacion ──────────────────────
   # No es un .deb colgado de una release: es un repo con índices y firma, así
-  # que `apt upgrade` trae la versión nueva sola. Se rearma entero y se comitea
-  # a main, que es lo que sirve GitHub Pages.
+  # que `apt upgrade` trae la versión nueva sola. Se rearma entero, se comitea
+  # a la rama `publicacion` y se despacha pages.yml, que arma la página con
+  # docs/ de main más esa rama. Antes se comiteaba a main, y ése era uno de los
+  # dos workflows que no dejaban protegerla (el otro, descargas.yml).
+  #
+  # El checkout es el del tag, no `ref: main`: main estaba ahí sólo para poder
+  # comitear encima, y armaba el .deb del repo de apt con lo que hubiera en
+  # main en ese momento — el mismo commit que el tag casi siempre, pero no por
+  # construcción. Ahora sale del mismo commit que el .deb de la release.
   apt:
     needs: [canales, version, release]
     if: needs.canales.outputs.apt == 'si'
     runs-on: ubuntu-24.04
     permissions:
-      contents: write
+      contents: write   # empujar a la rama publicacion
+      actions: write    # despachar pages.yml
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: main
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -344,21 +350,42 @@ jobs:
           export GPG_TTY=$(tty || true)
           [ -n "${QM_CLAVE_GPG:-}" ] || unset QM_CLAVE_GPG
           ./scripts/hacer-apt.sh
-      - name: comitear docs/apt
+      - name: comitear docs/apt a la rama publicacion
+        id: guardar
         env:
           V: ${{ needs.version.outputs.version }}
         run: |
           set -euo pipefail
           git config user.name "quartermaster release"
           git config user.email "noreply@legios.com.ar"
-          git add docs/apt
-          if git diff --cached --quiet; then
-            echo "::warning::el repo de apt no cambió"
-          else
-            git commit -qm "el repo de apt, en $V"
-            git push origin main
-            echo "::notice::apt: docs/apt rearmado y firmado en $V"
-          fi
+          ./scripts/publicacion.sh guardar "el repo de apt, en $V" docs/apt
+      - name: desplegar la página
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Aunque el repo de apt no haya cambiado (un re-run): desplegar es
+          # idempotente, y el paso de abajo mira lo servido, no el commit.
+          gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main
+      # El canal está publicado cuando apt lo VE, no cuando el commit existe:
+      # entre una cosa y la otra hay otro workflow (pages.yml), que puede fallar
+      # o no desplegar —mientras Pages publique desde una rama, no despliega—.
+      # Un «apt publicado» en el resumen sin esto sería el verde que miente.
+      - name: y que apt lo vea
+        env:
+          V: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          url="https://$(cat docs/CNAME)/apt/dists/stable/main/binary-all/Packages"
+          for _ in $(seq 1 40); do
+            # La query string esquiva cualquier cache en el medio.
+            if curl -fsS "$url?v=$V&t=$(date +%s)" 2>/dev/null | grep -qx "Version: $V"; then
+              echo "::notice::apt: quartermaster $V, servido en $url"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::a los 10 minutos, $url sigue sin la $V. Mirá el último run de pages.yml."
+          exit 1
 
   # ── scoop: el manifest al bucket ──────────────────────────────────────
   scoop:

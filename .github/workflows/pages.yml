@@ -1,0 +1,99 @@
+# La página —quartermaster.legios.com.ar—, armada y desplegada desde acá.
+#
+# POR QUÉ EXISTE. GitHub Pages publicaba main:/docs tal cual, y dos cosas de
+# ese árbol las escribían workflows: el repo de apt firmado (release.yml) y
+# docs/descargas.json (descargas.yml). Para eso los dos empujaban a main, y por
+# eso main no se podía proteger: el ruleset de la organización —un PR con una
+# aprobación— tenía a quartermaster de excepción.
+#
+# Ahora lo generado vive en la rama `publicacion` y la página se arma acá:
+# docs/ de main, más docs/apt y docs/descargas.json de esa rama. Lo hace
+# `scripts/publicacion.sh sitio`, que además comprueba lo que apt va a mirar
+# —índices, sumas, firmas, que cada .deb del índice esté— y no deja desplegar
+# un repo de apt a medias: si falla, queda el despliegue anterior.
+#
+# CUÁNDO CORRE:
+#   · con un push a main que toque docs/ (o este archivo, o el script);
+#   · a mano, `gh workflow run pages.yml`;
+#   · y lo DESPACHAN release.yml (job apt) y descargas.yml cuando empujan a
+#     `publicacion`. Despachan y no llaman con workflow_call por dos razones:
+#     un push hecho con el GITHUB_TOKEN no dispara otros workflows, y el
+#     environment github-pages sólo deja desplegar desde main —la release corre
+#     sobre el tag v*, y desde ahí rebotaría—. `--ref main` corre sobre main.
+#   · en un PR que toque lo mismo, sólo ARMA: el sitio tiene que salir
+#     completo, pero no se despliega nada.
+#
+# No corre con un push a `publicacion`: es una rama huérfana, sin .github/, así
+# que ahí no hay workflow que disparar. Quien empuje a mano a esa rama corre
+# después `gh workflow run pages.yml`.
+#
+# Mientras Pages siga publicando desde una rama (build_type `legacy`), esto
+# arma el sitio y NO lo despliega: lo avisa y sale verde. Es lo que deja
+# mergear esto antes de cambiar la fuente de Pages sin romper nada.
+name: pages
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', 'scripts/publicacion.sh', '.github/workflows/pages.yml']
+  pull_request:
+    paths: ['docs/**', 'scripts/publicacion.sh', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Uno por vez y sin cancelar el que está desplegando. Cada corrida arma con lo
+# que hay CUANDO ARRANCA, así que la que espera siempre trae lo último: una
+# release y el conteo diario que despachan a la vez terminan en un sitio con
+# los dos. Los PR van aparte, que no despliegan.
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pages-{0}', github.ref) || 'pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  armar:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: read     # para preguntar desde dónde publica Pages
+    outputs:
+      fuente: ${{ steps.fuente.outputs.fuente }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false   # el repo es público: traer la rama no pide token
+      - name: armar el sitio
+        run: ./scripts/publicacion.sh sitio "$RUNNER_TEMP/sitio"
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: ${{ runner.temp }}/sitio
+          # .nojekyll es el único: con Actions no hace falta, pero así el
+          # sitio es exactamente docs/ más lo generado, sin excepciones.
+          include-hidden-files: true
+      - name: ¿Pages publica desde Actions?
+        id: fuente
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          fuente=$(gh api "repos/$GITHUB_REPOSITORY/pages" --jq .build_type)
+          echo "fuente=$fuente" >> "$GITHUB_OUTPUT"
+          if [ "$fuente" = workflow ]; then
+            echo "Pages publica desde Actions: se despliega."
+          else
+            echo "::warning::Pages publica desde una rama (build_type=$fuente), no desde Actions: el sitio se armó y NO se despliega. Hasta cambiar la fuente en Settings → Pages, lo que está en la rama publicacion no sale."
+          fi
+
+  desplegar:
+    needs: armar
+    if: github.event_name != 'pull_request' && needs.armar.outputs.fuente == 'workflow'
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.desplegar.outputs.page_url }}
+    steps:
+      - id: desplegar
+        uses: actions/deploy-pages@v5

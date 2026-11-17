@@ -11,7 +11,7 @@ sale una versión.
 |---|---|---|---|---|
 | npm | el tarball con `dist/` | registry de npm | sí, con provenance | `NPM_TOKEN` |
 | Homebrew | la fórmula | `legiosai/homebrew-tap` | sí | `TOKEN_PAQUETES` |
-| apt | el repo firmado | `docs/apt/` (GitHub Pages) | sí | `GPG_PRIVADA` |
+| apt | el repo firmado | `docs/apt/` de la rama `publicacion` (GitHub Pages, por `pages.yml`) | sí | `GPG_PRIVADA` |
 | release de GitHub | `.deb`, `setup.exe`, los dos zips | la release | sí | — |
 | scoop | el zip portable | `legiosai/scoop-bucket` | sí | `TOKEN_PAQUETES` |
 | winget | el instalador | PR a `microsoft/winget-pkgs` | **apagado desde el 2026-10-13** (ver abajo) | `TOKEN_WINGET` |

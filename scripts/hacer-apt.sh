@@ -1,6 +1,9 @@
 #!/bin/sh
 # El repositorio apt, armado dentro de docs/ para que lo sirva la misma página.
 #
+# Se arma en docs/apt del checkout. En la release, scripts/publicacion.sh lo
+# lleva a la rama `publicacion` —no a main— y pages.yml lo publica desde ahí.
+#
 # No es un .deb suelto colgado de una release: es un repo firmado, así que
 # `apt upgrade` trae la versión nueva sola y apt verifica la firma antes de
 # instalar nada. Vive en GitHub Pages porque es estático — un repo apt es un
