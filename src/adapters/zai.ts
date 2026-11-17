@@ -37,6 +37,7 @@ import { join } from 'node:path';
 import { DIR_OPENCODE } from './opencode.ts';
 import type { ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
 import { tr } from '../core/idioma.ts';
+import { detalleDeRed } from '../core/red.ts';
 
 export const ENDPOINT_ZAI = 'https://api.z.ai/api/monitor/usage/quota/limit';
 
@@ -193,7 +194,7 @@ export async function consultarCuotaZai(proveedor: string, ms = 10_000): Promise
       signal: AbortSignal.timeout(ms),
     });
   } catch (e) {
-    return { estado: 'error', detalle: e instanceof Error ? e.message : tr('error de red', 'network error') };
+    return { estado: 'error', detalle: detalleDeRed(e, new URL(ENDPOINT_ZAI).hostname) };
   }
 
   if (respuesta.status === 401 || respuesta.status === 403) {

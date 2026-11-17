@@ -324,8 +324,17 @@ footer a:hover{color:var(--texto)}
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
 <h2>Unreleased</h2>
+<h3>Fixed</h3>
+<ul>
+<li><strong>A refresh that can't reach the server says what blocked it.</strong> Every network failure used to read <code>couldn't get the quota: fetch failed</code>, whatever had failed. On a Mac it read that way for three days while an application firewall dropped qm's connections. It now names the layer and who to suspect: <code>no DNS answer for api.anthropic.com (ENOTFOUND)</code>, <code>the connection to api.anthropic.com was refused (ECONNREFUSED): a firewall or a proxy?</code>, <code>something on this machine dropped the connection to api.anthropic.com (EBADF): an application firewall?</code>, or a certificate that doesn't verify because something is intercepting TLS. z.ai's refresh says the same, and Codex says it couldn't reach its server instead of <code>the response had no rateLimits</code>.</li>
+</ul>
+<h3>Added</h3>
+<ul>
+<li><strong><code>qm --diagnostico</code> tests the network.</strong> A new section resolves api.anthropic.com, connects to port 443 and does the TLS handshake, and says which step failed. It runs from qm's own process, because an application firewall lets one program through and blocks another: <code>curl</code> can fail while qm works, and the other way round. If the check fails and Blackice, Little Snitch, LuLu or Radio Silence (macOS) or OpenSnitch (Linux) is running, the verdict names it as the likely cause and says what to allow. It sends no HTTP request and no credential, takes at most five seconds, and <code>--sin-red</code> skips it.</li>
+</ul>
 <h3>Changed</h3>
 <ul>
+<li><strong>Short plan names.</strong> The plan chip in the panels was cut off (<code>Ultra (max_2…</code>). Plans now read <code>Ultra · 20x</code>, <code>Max · 5x</code>, <code>Team · 5x</code>, <code>Pro</code>, and Codex's <code>Pro Lite</code> or <code>Plus</code> instead of <code>prolite</code> and <code>plus</code>. <code>qm --json</code> carries them in <code>planNombre</code>; <code>plan</code> keeps its old value.</li>
 <li><strong>The Windows tray panel, redesigned like the GNOME panel and the macOS menu.</strong> It was the last of the three with the old layout. It now has the same pieces:</li>
 <li>The header is a card tinted with the colour of the state, and it gives the reset as a local time too, plus how old the reading of that bar is.</li>
 <li>Each account says on top how old its number is and how often it is read, with the plan as a chip next to the name.</li>

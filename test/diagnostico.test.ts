@@ -25,7 +25,10 @@ const RAIZ = new URL('..', import.meta.url).pathname;
 
 function correrDiagnostico(env: NodeJS.ProcessEnv): { salida: string; codigo: number } {
   try {
-    const salida = execFileSync(join(RAIZ, 'bin', 'qm'), ['--diagnostico'], {
+    // --sin-red: `npm test` no sale a la red. La prueba de red tiene sus
+    // tests con sondas inyectadas (veredicto.test.ts) y contra puertos locales
+    // (red.test.ts).
+    const salida = execFileSync(join(RAIZ, 'bin', 'qm'), ['--diagnostico', '--sin-red'], {
       encoding: 'utf8',
       env,
       timeout: 60_000,
@@ -71,7 +74,7 @@ test('el diagnóstico completo contesta y trae sus bloques', () => {
   const { salida, codigo } = correrDiagnostico({ ...process.env });
   assert.strictEqual(codigo, 0, `salió ${codigo}: ${salida.slice(0, 400)}`);
   assert.match(salida, /quartermaster .* · diagnóstico/);
-  for (const bloque of ['la máquina', 'la extensión de GNOME', 'el indicador', 'el cache']) {
+  for (const bloque of ['la máquina', 'la extensión de GNOME', 'el indicador', 'la red', 'el cache']) {
     assert.ok(salida.includes(bloque), `falta el bloque «${bloque}»`);
   }
 });

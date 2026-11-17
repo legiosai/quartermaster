@@ -27,6 +27,7 @@ import type { Compactacion, Registros, Uso } from '../core/desglose.ts';
 import { lineasCon } from './lineas.ts';
 import { rutaEnCache, rutaParaLeer } from './directorio-cache.ts';
 import { tr } from '../core/idioma.ts';
+import { nombreLegible } from '../core/perfiles.ts';
 
 export const DIRECTORIO_CODEX = join(homedir(), '.codex');
 
@@ -461,6 +462,33 @@ export interface LecturaCodex {
   readonly info: CuentaCodex | null;
 }
 
+/**
+ * Los planes de ChatGPT con nombre propio. `prolite` es el que obligó a esto:
+ * pegado y en minúscula, como lo manda el servidor, era lo que mostraba el chip.
+ */
+const PLANES_CODEX: Readonly<Record<string, string>> = {
+  free: 'Free',
+  go: 'Go',
+  plus: 'Plus',
+  pro: 'Pro',
+  prolite: 'Pro Lite',
+  team: 'Team',
+  business: 'Business',
+  enterprise: 'Enterprise',
+  edu: 'Edu',
+  'api key': 'API key',
+};
+
+/**
+ * El plan de Codex para mostrar: `prolite` → «Pro Lite». `plan` sigue siendo el
+ * identificador del servidor; esto es lo que va en `planNombre`. Uno que no
+ * conocemos sale legible igual («k12» → «K12») en vez de quedarse sin nombre.
+ */
+export function nombrePlanCodex(plan: string | null): string | null {
+  if (plan === null || plan.trim() === '') return null;
+  return PLANES_CODEX[plan.trim().toLowerCase()] ?? nombreLegible(plan);
+}
+
 /** ¿Hay Codex en esta máquina? Si no, no se dice nada de él. */
 export function hayCodex(): boolean {
   return existsSync(DIRECTORIO_CODEX);
@@ -571,6 +599,37 @@ export function codexEnCache(): LecturaCodex {
 }
 
 /**
+ * Lo que se dice cuando el app-server contesta un error en vez de las barras.
+ *
+ * Sin red, codex 0.169 contesta siempre lo mismo —`failed to fetch codex rate
+ * limits: error sending request for url (https://chatgpt.com/…)`—, se le corte
+ * el DNS, el proxy o la conexión: la causa no sale del binario (probado con un
+ * proxy que rechaza y con uno que no resuelve). Así que no se inventa la capa:
+ * se dice a qué host no llegó, que es lo que codex sí sabe, y los sospechosos.
+ */
+export function detalleErrorCodex(error: unknown): string {
+  const m = typeof error === 'object' && error !== null && typeof (error as { message?: unknown }).message === 'string'
+    ? (error as { message: string }).message.trim()
+    : '';
+  const url = /error sending request for url \((https?:\/\/[^)\s]+)\)/i.exec(m)?.[1];
+  if (url !== undefined) {
+    let host = url;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      // Una URL que no parsea se muestra entera: sigue diciendo adónde iba.
+    }
+    return tr(
+      `codex no llegó a ${host}, y no dice por qué: ¿DNS, un firewall, o sin red?`,
+      `codex couldn't reach ${host}, and doesn't say why: DNS, a firewall, or no network?`,
+    );
+  }
+  return m !== ''
+    ? tr(`el app-server de codex contestó un error: ${m}`, `the codex app-server answered with an error: ${m}`)
+    : tr('el app-server de codex contestó un error sin mensaje', 'the codex app-server answered with an error and no message');
+}
+
+/**
  * El número de verdad, hablando JSON-RPC con el app-server de Codex.
  *
  * Se le manda `initialize` y después `account/rateLimits/read`, y se lee hasta
@@ -645,6 +704,12 @@ export async function consultarCodex(): Promise<LecturaCodex> {
           continue;
         }
         if (msg['id'] !== 2) continue;
+        // Un error del app-server se decía «la respuesta no traía rateLimits»,
+        // que es cierto y no ayuda: el porqué venía en el error y se tiraba.
+        if (msg['error'] !== undefined && msg['result'] === undefined) {
+          terminar({ cuota: { estado: 'error', detalle: detalleErrorCodex(msg['error']) }, info: null });
+          return;
+        }
         const res = msg['result'] as Record<string, unknown> | undefined;
         const rl = res?.['rateLimits'] as Record<string, unknown> | undefined;
         if (rl === undefined) {
