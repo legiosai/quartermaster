@@ -1,14 +1,14 @@
 Package: quartermaster
-Version: 0.1.25
+Version: 0.1.26
 Architecture: all
 Maintainer: Legios <valentintorassacolombero@gmail.com>
 Depends: nodejs
 Suggests: python3-gi, python3-cairo, gir1.2-gtk-3.0, gir1.2-ayatanaappindicator3-0.1
-Filename: pool/main/q/quartermaster/quartermaster_0.1.25_all.deb
-Size: 258132
-MD5sum: aa6160b99d04c9c05b2ebeebc5a6cb29
-SHA1: b5d67a378f27138d07f944952da3c7daa6836ea9
-SHA256: a8d41bfaea0bb61540227f9e8636adc4e83bf26262a9090b7aae6f162524c767
+Filename: pool/main/q/quartermaster/quartermaster_0.1.26_all.deb
+Size: 261696
+MD5sum: 6309cfd830dd1bf90e444a27a63aaf99
+SHA1: 1367a3c64764a091c690a45235627c03f91772ae
+SHA256: 8e7bd0fb80f75b4b55fdeb7b6c78af7289f23fcb6357b3108cdc8fa7e0a5118b
 Section: devel
 Priority: optional
 Homepage: https://github.com/legiosai/quartermaster
