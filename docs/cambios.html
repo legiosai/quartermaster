@@ -324,9 +324,16 @@ footer a:hover{color:var(--texto)}
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
 <h2>Unreleased</h2>
+<h3>Added</h3>
+<ul>
+<li><strong><code>qm --diagnostico</code> ends in a verdict, on every platform.</strong> It used to list what it found and conclude only about the GNOME extension. Now the last section says what is broken and the command that fixes it (or that nothing is), and a new section lists each account's number with its source and age, so «is the quota fresh?» has an answer. Accounts you hid or haven't used in weeks are listed but not flagged.</li>
+<li><strong><code>qm --diagnostico</code> on a Mac looks at the menu bar, and on Windows at the tray.</strong> The first report from a Mac showed the GNOME section, said nothing about the menu bar, and listed the menu bar's compiled binary in the cache in a way that read like a bar that had stopped a week ago. It now says whether the menu bar is running, which login item starts it and how it last exited, with the last lines of the <code>brew services</code> log; on Windows, whether the tray is running, whether it starts at sign-in, and the end of its log. The cache section says what each file is.</li>
+</ul>
 <h3>Fixed</h3>
 <ul>
 <li><strong>The daily budget no longer counts the same points over and over.</strong> With <code>qm --statusline</code> set up, the statusline and the endpoint both report the weekly bar, and they don't always agree — by a rounding point, or (on one Team account) 4 % against 16 % for the same window. The bar on screen is whichever reading is newer, and the history recorded both, so it zig-zagged between them, and every climb back up counted as spending. One account showed <code>spent 802.0 % today</code> with the weekly at 16 %. The pace and the projection were fitted to the same zig-zag. Each reading in the history now says where it came from, and every number drawn from it uses one source only: the source of the bar you are looking at. History recorded before this version is left out, so on the day you update the pace takes a few readings to come back and «spent today» starts from the update.</li>
+<li><strong><code>qm --diagnostico</code> read the journal again.</strong> It asked for the whole boot and filtered afterwards; on a machine up for a day that is several MB, past the output limit, and the section said «couldn't run journalctl» with journalctl working fine. It now filters on journald's side.</li>
+<li><strong>One cache directory when <code>XDG_CACHE_HOME</code> is set.</strong> The history and the <code>--aviso</code> memory followed it, but the last endpoint, Codex and statusline readings went to <code>~/.cache</code> regardless, so the cache was split in two — and the diagnostic looked for the GNOME extension's heartbeat in the wrong one and called a running extension dead. Everything now goes where <code>XDG_CACHE_HOME</code> says; a reading left in <code>~/.cache</code> is still read until the next one replaces it, so updating loses no number.</li>
 </ul>
 <h2 id="v0.1.24">v0.1.24 — 2026-11-16</h2>
 <h3>Changed</h3>

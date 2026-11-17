@@ -212,7 +212,8 @@ test('qm --statusline guarda lo que llega por stdin y lo dibuja en el mismo reng
   const renglon = qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, entrada);
   assert.match(renglon, /main 23\/41%/);
 
-  const guardado = JSON.parse(readFileSync(join(dir, '.cache', 'quartermaster', 'statusline.json'), 'utf8'));
+  // En XDG_CACHE_HOME, como el resto del cache: antes éste iba a ~/.cache a mano.
+  const guardado = JSON.parse(readFileSync(join(dir, 'cache', 'quartermaster', 'statusline.json'), 'utf8'));
   assert.ok(guardado['.claude'], 'se guarda bajo el nombre del perfil');
 
   // Y la próxima corrida sin stdin lo encuentra: en la terminal y en el JSON.

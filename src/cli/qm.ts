@@ -50,7 +50,7 @@ import { correrAviso } from './aviso.ts';
 import { UMBRAL_POR_DEFECTO } from '../core/aviso.ts';
 import { decidirConsulta } from '../core/pedir.ts';
 import { idiomaPedido, tr } from '../core/idioma.ts';
-import * as entorno from '../adapters/entorno.ts';
+import { diagnostico } from './diagnostico.ts';
 import { APARIENCIAS, cuentaPedida, esApariencia, guardarApariencia, leerConfigUsuario, RUTA_CONFIG, seleccionar, type Config } from '../core/config.ts';
 import {
   DIAS_DORMIDA,
@@ -1402,134 +1402,6 @@ function maximo(filas: readonly FilaPerfil[], o: Opciones): number {
   return m;
 }
 
-/**
- * La lectura del estado de la extensión, en palabras.
- *
- * Existe porque los dos datos que hacen falta —el estado y las dos fechas— por
- * separado no dicen nada a quien no conoce GNOME. Juntos dicen exactamente qué
- * hacer, y es una sola cosa: cerrar sesión.
- */
-function veredictoExtension(x: ReturnType<typeof entorno.extension>, e: ReturnType<typeof entorno.escritorio>): string[] {
-  if (!x.instalada) return [];
-  const enError = 'valor' in x.estado && x.estado.valor.includes('ERROR');
-  const masNuevaQueLaSesion =
-    x.tocadoMs !== null && e.arrancoMs !== null && x.tocadoMs > e.arrancoMs;
-
-  if (enError && masNuevaQueLaSesion) {
-    const horas = ((x.tocadoMs! - e.arrancoMs!) / 3_600_000).toFixed(1);
-    return tr(
-      [
-        '',
-        `  ⚠ extension.js es ${horas} h MÁS NUEVO que la sesión gráfica.`,
-        '    El shell carga el módulo una vez y lo deja en memoria: lo que está',
-        '    corriendo es el archivo viejo, y el ERROR de arriba es de ESE. En',
-        '    Wayland no hay forma de recargarlo —`ReloadExtension` está declarado',
-        '    en DBus y devuelve UnknownMethod— así que:',
-        '',
-        '      → cerrá sesión y volvé a entrar. Es el único paso que falta.',
-        '',
-        '    Hasta entonces el item lo dibuja AppIndicator y el panel es un menú de',
-        '    GTK, que no sostiene el agarre y se cierra apenas lo tocás.',
-      ].join('\n'),
-      [
-        '',
-        `  ⚠ extension.js is ${horas} h NEWER than the graphical session.`,
-        '    The shell loads the module once and keeps it in memory: what is',
-        '    running is the old file, and the ERROR above is from THAT one. On',
-        '    Wayland there is no way to reload it —`ReloadExtension` is declared',
-        '    on DBus and returns UnknownMethod— so:',
-        '',
-        '      → log out and back in. It is the only step left.',
-        '',
-        '    Until then AppIndicator draws the item and the panel is a GTK menu,',
-        '    which does not hold the grab and closes as soon as you touch it.',
-      ].join('\n'),
-    ).split('\n');
-  }
-  if (enError) {
-    return tr(
-      [
-        '',
-        '  ⚠ la extensión está en ERROR y su archivo NO es más nuevo que la sesión:',
-        '    el error de arriba es del código que está corriendo ahora. Esto es un',
-        '    bug de verdad — pegá este diagnóstico en un issue.',
-      ].join('\n'),
-      [
-        '',
-        '  ⚠ the extension is in ERROR and its file is NOT newer than the session:',
-        '    the error above is from the code running right now. This is a real',
-        '    bug — paste this diagnostic into an issue.',
-      ].join('\n'),
-    ).split('\n');
-  }
-  return [];
-}
-
-/**
- * Todo lo que hace falta para reportar un bug, en un solo comando.
- *
- * Va REDACTADO por defecto —las rutas de casa se vuelven `~`, y no se imprime
- * ningún mail, token ni accountUuid— porque un diagnóstico que no se puede
- * pegar en un issue público no sirve para lo único que existe.
- *
- * El orden no es decorativo: arriba va lo que más veces resultó ser la causa.
- * «La sesión arrancó ANTES de que se tocara la extensión» explica, sin que
- * haya que saber nada de GNOME, por qué un arreglo que está en el disco no
- * está corriendo.
- */
-function diagnostico(): string {
-  const l: string[] = [];
-  const t = entorno.texto;
-  const titulo = (s: string) => l.push('', `── ${s} ${'─'.repeat(Math.max(0, 62 - s.length))}`);
-  const campo = (k: string, v: string) => l.push(`  ${k.padEnd(18)} ${v}`);
-
-  l.push(`quartermaster ${VERSION} · ${tr('diagnóstico', 'diagnostic')}`);
-  l.push(tr(
-    `generado ${new Date().toISOString()} · redactado: sin rutas de casa, sin mails, sin tokens`,
-    `generated ${new Date().toISOString()} · redacted: no home paths, no emails, no tokens`,
-  ));
-
-  titulo(tr('la máquina', 'the machine'));
-  const e = entorno.escritorio();
-  campo('node', process.version);
-  campo(tr('sistema', 'system'), e.so);
-  campo(tr('escritorio', 'desktop'), t(e.escritorio));
-  campo(tr('sesión', 'session'), t(e.sesion));
-  campo('shell', t(e.shell).split('\n')[0] ?? '—');
-  campo(tr('sesión arrancó', 'session started'), t(e.arrancoLaSesion));
-
-  titulo(tr('la extensión de GNOME', 'the GNOME extension'));
-  const x = entorno.extension();
-  campo(tr('instalada', 'installed'), x.instalada ? tr('sí', 'yes') : 'NO');
-  campo(tr('estado', 'state'), t(x.estado));
-  campo('extension.js', t(x.archivoTocado));
-  campo(tr('latido', 'heartbeat'), t(x.latido));
-  if ('valor' in x.ultimoError) {
-    l.push(tr('  último error que guardó el shell:', '  last error the shell kept:'));
-    for (const linea of x.ultimoError.valor.split('\n')) l.push(`    ${linea}`);
-  } else {
-    campo(tr('último error', 'last error'), t(x.ultimoError));
-  }
-  // La conclusión, CALCULADA y no insinuada. Es el caso que costó una tarde:
-  // el arreglo estaba en el disco, el shell corría el módulo viejo, y desde
-  // afuera se veía igual que «el arreglo no sirvió».
-  for (const linea of veredictoExtension(x, e)) l.push(linea);
-
-  titulo(tr('el indicador', 'the indicator'));
-  l.push(`  ${t(entorno.indicador()).split('\n').join('\n  ')}`);
-
-  titulo(tr('el cache', 'the cache'));
-  const c = entorno.cache();
-  if (c.length === 0) l.push(tr('  (vacío o inaccesible)', '  (empty or unreachable)'));
-  for (const f of c) campo(f.nombre, f.edad);
-
-  titulo(tr('lo que anotó el sistema', 'what the system logged'));
-  l.push(`  ${t(entorno.journal()).split('\n').join('\n  ')}`);
-
-  l.push('');
-  return `${l.join('\n')}\n`;
-}
-
 // --mejor y --aviso salen antes que todo: tienen sus propias banderas y, en
 // --mejor, un `--` después del cual viene el comando de otro programa, que el
 // parser de abajo rechazaría. Sólo cuenta lo que está antes del `--`.
@@ -1573,7 +1445,7 @@ function diagnostico(): string {
 // --diagnostico sale primero: tiene que contestar incluso cuando lo demás está
 // roto. Es lo único que se le pide a alguien que reporta un bug.
 if (process.argv.includes('--diagnostico')) {
-  process.stdout.write(diagnostico());
+  process.stdout.write(diagnostico(VERSION));
   await salir(0);
 }
 

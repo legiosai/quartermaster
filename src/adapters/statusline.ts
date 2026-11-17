@@ -30,11 +30,12 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { basename, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
+import { rutaEnCache, rutaParaLeer } from './directorio-cache.ts';
 import { parsearUtilizacion } from './utilizacion.ts';
 import type { ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
 
-const CACHE = (): string => join(homedir(), '.cache', 'quartermaster', 'statusline.json');
+const ARCHIVO = 'statusline.json';
 
 interface Guardado {
   medidoEn: string;
@@ -77,7 +78,7 @@ export function ventanasDeStatusline(entrada: unknown): VentanaCuota[] {
 
 function leerTodo(): Record<string, Guardado> {
   try {
-    return JSON.parse(readFileSync(CACHE(), 'utf8')) as Record<string, Guardado>;
+    return JSON.parse(readFileSync(rutaParaLeer(ARCHIVO), 'utf8')) as Record<string, Guardado>;
   } catch {
     return {};
   }
@@ -97,8 +98,9 @@ export function guardarStatusline(perfil: string, entrada: unknown, ahora = new 
       medidoEn: ahora.toISOString(),
       ventanas: ventanas.map((v) => ({ ...v, reinicia: v.reinicia?.toISOString() ?? null })),
     };
-    mkdirSync(join(homedir(), '.cache', 'quartermaster'), { recursive: true });
-    writeFileSync(CACHE(), JSON.stringify(todo));
+    const ruta = rutaEnCache(ARCHIVO);
+    mkdirSync(dirname(ruta), { recursive: true });
+    writeFileSync(ruta, JSON.stringify(todo));
     return true;
   } catch {
     // Si el cache no es escribible se pierde esta lectura y nada más: la

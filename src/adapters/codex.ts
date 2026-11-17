@@ -25,6 +25,7 @@ import { basename, dirname, join } from 'node:path';
 import type { OrigenCuota, ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
 import type { Compactacion, Registros, Uso } from '../core/desglose.ts';
 import { lineasCon } from './lineas.ts';
+import { rutaEnCache, rutaParaLeer } from './directorio-cache.ts';
 import { tr } from '../core/idioma.ts';
 
 export const DIRECTORIO_CODEX = join(homedir(), '.codex');
@@ -55,7 +56,7 @@ function rutaCodex(): string | null {
   }
   return null;
 }
-const CACHE = join(homedir(), '.cache', 'quartermaster', 'codex.json');
+const CACHE = 'codex.json';
 /** Si el app-server no contestó en esto, no contesta. */
 const TIMEOUT_MS = 20_000;
 
@@ -538,7 +539,7 @@ interface CacheCodex {
 
 function leerCache(): CacheCodex | null {
   try {
-    const c = JSON.parse(readFileSync(CACHE, 'utf8')) as CacheCodex;
+    const c = JSON.parse(readFileSync(rutaParaLeer(CACHE), 'utf8')) as CacheCodex;
     if (typeof c.fetchedAtMs !== 'number' || typeof c.rateLimits !== 'object') return null;
     return c;
   } catch {
@@ -548,8 +549,9 @@ function leerCache(): CacheCodex | null {
 
 function escribirCache(c: CacheCodex): void {
   try {
-    mkdirSync(dirname(CACHE), { recursive: true });
-    writeFileSync(CACHE, JSON.stringify(c));
+    const ruta = rutaEnCache(CACHE);
+    mkdirSync(dirname(ruta), { recursive: true });
+    writeFileSync(ruta, JSON.stringify(c));
   } catch {
     // Si no se puede escribir se pierde la edad, no el número.
   }

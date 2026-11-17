@@ -12,11 +12,11 @@
 // mostrando siempre, venga de donde venga.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
+import { rutaEnCache, rutaParaLeer } from './directorio-cache.ts';
 import type { ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
 
-const CACHE = join(homedir(), '.cache', 'quartermaster', 'endpoint.json');
+const ARCHIVO = 'endpoint.json';
 
 interface Guardado {
   medidoEn: string;
@@ -25,7 +25,7 @@ interface Guardado {
 
 function leerTodo(): Record<string, Guardado> {
   try {
-    return JSON.parse(readFileSync(CACHE, 'utf8')) as Record<string, Guardado>;
+    return JSON.parse(readFileSync(rutaParaLeer(ARCHIVO), 'utf8')) as Record<string, Guardado>;
   } catch {
     return {};
   }
@@ -40,15 +40,16 @@ export function guardarEndpoint(perfil: string, cuota: ResultadoCuota): void {
       medidoEn: cuota.medidoEn.toISOString(),
       ventanas: cuota.ventanas.map((v) => ({ ...v, reinicia: v.reinicia?.toISOString() ?? null })),
     };
-    mkdirSync(dirname(CACHE), { recursive: true });
-    writeFileSync(CACHE, JSON.stringify(todo));
+    const ruta = rutaEnCache(ARCHIVO);
+    mkdirSync(dirname(ruta), { recursive: true });
+    writeFileSync(ruta, JSON.stringify(todo));
   } catch {
     /* vacío a propósito */
   }
 }
 
 export function endpointEnCache(perfil: string): ResultadoCuota | null {
-  if (!existsSync(CACHE)) return null;
+  if (!existsSync(rutaParaLeer(ARCHIVO))) return null;
   const g = leerTodo()[perfil];
   if (g === undefined) return null;
   const medidoEn = new Date(g.medidoEn);
@@ -66,11 +67,11 @@ export function endpointEnCache(perfil: string): ResultadoCuota | null {
 // cuenta (ver src/core/pedir.ts). Va en un archivo aparte y no adentro de
 // endpoint.json: un freno no es una lectura, y mezclarlos haría que un 429
 // pareciera un número guardado.
-const FRENOS = join(dirname(CACHE), 'frenos.json');
+const FRENOS = 'frenos.json';
 
 function leerFrenos(): Record<string, string> {
   try {
-    return JSON.parse(readFileSync(FRENOS, 'utf8')) as Record<string, string>;
+    return JSON.parse(readFileSync(rutaParaLeer(FRENOS), 'utf8')) as Record<string, string>;
   } catch {
     return {};
   }
@@ -88,8 +89,9 @@ export function anotarFreno(perfil: string, hasta: Date): void {
   try {
     const todo = leerFrenos();
     todo[perfil] = hasta.toISOString();
-    mkdirSync(dirname(FRENOS), { recursive: true });
-    writeFileSync(FRENOS, JSON.stringify(todo));
+    const ruta = rutaEnCache(FRENOS);
+    mkdirSync(dirname(ruta), { recursive: true });
+    writeFileSync(ruta, JSON.stringify(todo));
   } catch {
     /* vacío a propósito */
   }
