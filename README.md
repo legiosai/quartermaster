@@ -329,6 +329,13 @@ how it last exited. On Windows it looks at the tray. Everywhere it lists the
 number each account has, where it came from and how old it is, and it ends in
 a verdict: what is broken and the command that fixes it, or that nothing is.
 
+It also checks that qm can reach `api.anthropic.com` — DNS, a connection to
+port 443 and the TLS handshake, from qm's own process and with no HTTP request
+— and says which step failed. An application firewall decides per program, so
+`curl` working proves nothing about qm. If one is running (Blackice, Little
+Snitch, LuLu, Radio Silence, OpenSnitch) and the connection fails, the verdict
+names it and says what to allow. `qm --diagnostico --sin-red` skips the check.
+
 Anything it cannot find out it says so — it never omits and never guesses. It
 works with none of those commands installed.
 

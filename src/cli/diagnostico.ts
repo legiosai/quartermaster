@@ -11,16 +11,24 @@
 //
 // Lo que no cambió: va REDACTADO —sin casa, sin mails, sin tokens— porque está
 // hecho para pegarlo en un issue público, y contesta siempre, incluso con todo
-// lo demás roto. Sólo lee el disco: no pregunta a ningún endpoint ni abre
-// ninguna credencial.
+// lo demás roto. No abre ninguna credencial ni le pregunta nada a un endpoint.
+//
+// Lo único que sale de la máquina es la prueba de red: un DNS, una conexión al
+// 443 y un saludo TLS a api.anthropic.com, sin pedido HTTP. Entró porque una
+// Mac pasó tres días con «fetch failed» en cada refresco y la causa —un
+// firewall de aplicaciones— no estaba en ningún dato de este informe.
+// `--sin-red` la saltea.
 
 import { codexEnCache, hayCodex } from '../adapters/codex.ts';
+import { ENDPOINT } from '../adapters/cuota.ts';
 import { cuotaGuardada } from '../adapters/cuota-guardada.ts';
 import * as entorno from '../adapters/entorno.ts';
+import { firewallsCorriendo, probarRed, type Firewall, type Paso, type SondaRed } from '../adapters/red.ts';
 import { statuslineEnCache } from '../adapters/statusline.ts';
 import { leerConfigUsuario, seleccionar } from '../core/config.ts';
 import { tr } from '../core/idioma.ts';
 import { descubrirPerfiles } from '../core/perfiles.ts';
+import { detalleDeRed } from '../core/red.ts';
 import { DIAS_DORMIDA, relevancia } from '../core/relevancia.ts';
 import { frase } from '../core/tipos.ts';
 import { ultimaActividad } from '../adapters/transcripciones.ts';
@@ -82,12 +90,23 @@ export type Superficie =
 /** Lo que le pasa a la extensión de GNOME, cuando le pasa algo. */
 export type FallaExtension = 'sesion-vieja' | 'error' | null;
 
+/** Lo que vio la prueba de red, en lo que el veredicto necesita saber. */
+export interface Red {
+  readonly host: string;
+  /** El primer paso que falló y la causa en palabras; null si llegó hasta el TLS. */
+  readonly falla: { readonly paso: Paso; readonly causa: string } | null;
+  /** Los firewalls de aplicaciones corriendo; null si no se pudo mirar. */
+  readonly firewalls: readonly Firewall[] | null;
+}
+
 export interface Hechos {
   readonly extension: FallaExtension;
   readonly superficie: Superficie | null;
   /** null: no se pudieron leer las cuentas, y `errorNumeros` dice por qué. */
   readonly numeros: readonly Numero[] | null;
   readonly errorNumeros?: string;
+  /** null o ausente: no se miró la red (`--sin-red`). */
+  readonly red?: Red | null;
 }
 
 export interface Veredicto {
@@ -176,7 +195,33 @@ function sobreLaSuperficie(s: Superficie): Veredicto {
   return { avisos, notas };
 }
 
-function sobreLosNumeros(numeros: readonly Numero[], superficieViva: boolean, ahora: number): Veredicto {
+/**
+ * La red, cuando no llega. Si hay un firewall de aplicaciones corriendo y lo
+ * que falló es la conexión o el TLS, se lo nombra: es lo que costó tres días
+ * encontrar. Con el DNS no se lo culpa, porque estos filtran conexiones de
+ * programas y el DNS lo resuelve el sistema.
+ */
+function sobreLaRed(r: Red): Veredicto {
+  if (r.falla === null) return { avisos: [], notas: [] };
+  const que = tr(`⚠ qm no llega a ${r.host}: ${r.falla.causa}`, `⚠ qm can't reach ${r.host}: ${r.falla.causa}`);
+  const culpables = r.falla.paso === 'dns' ? [] : (r.firewalls ?? []);
+  if (culpables.length > 0) {
+    const nombres = culpables.map((f) => f.nombre);
+    const quien = nombres.length === 1
+      ? tr(`${nombres[0]} está corriendo: es la causa probable.`, `${nombres[0]} is running: it is the likely cause.`)
+      : tr(`${nombres.join(' y ')} están corriendo: uno es la causa probable.`, `${nombres.join(' and ')} are running: one of them is the likely cause.`);
+    return { avisos: [`${que}\n    ${quien}\n    ${culpables.map((f) => `→ ${f.arreglo}`).join('\n    ')}`], notas: [] };
+  }
+  return {
+    avisos: [`${que}\n    ${tr(
+      '--refrescar y --calentar van a fallar hasta que llegue; los números del disco siguen andando.',
+      '--refrescar and --calentar will fail until it can; the numbers on disk still work.',
+    )}`],
+    notas: [],
+  };
+}
+
+function sobreLosNumeros(numeros: readonly Numero[], superficieViva: boolean, ahora: number, conRed = true): Veredicto {
   const avisos: string[] = [];
   const notas: string[] = [];
   if (numeros.length === 0) {
@@ -220,7 +265,9 @@ function sobreLosNumeros(numeros: readonly Numero[], superficieViva: boolean, ah
           '→ or keep the surface above running: it refreshes on its own',
         ));
       }
-      como.push(tr('→ para uno ya: qm --refrescar', '→ for one right now: qm --refrescar'));
+      // Sin red, mandar a --refrescar es mandar a otro «fetch failed»: el
+      // aviso de la red ya está arriba.
+      if (conRed) como.push(tr('→ para uno ya: qm --refrescar', '→ for one right now: qm --refrescar'));
       avisos.push(tr(
         `⚠ el número más nuevo es de hace ${hace(ahora - masNuevo)}: nada lo está refrescando.\n    ${como.join('\n    ')}`,
         `⚠ the newest number is ${hace(ahora - masNuevo)} old: nothing is refreshing it.\n    ${como.join('\n    ')}`,
@@ -261,13 +308,19 @@ export function concluir(h: Hechos, ahora = Date.now()): Veredicto {
     avisos.push(...s.avisos);
     notas.push(...s.notas);
   }
+  // La red antes que los números: si no llega, es la razón de que estén viejos.
+  if (h.red != null) {
+    const r = sobreLaRed(h.red);
+    avisos.push(...r.avisos);
+    notas.push(...r.notas);
+  }
   if (h.numeros === null) {
     avisos.push(tr(
       `⚠ no pude leer las cuentas: ${h.errorNumeros ?? '?'}\n    Esto es un bug: pegá este diagnóstico en un issue.`,
       `⚠ couldn't read the accounts: ${h.errorNumeros ?? '?'}\n    This is a bug: paste this diagnostic into an issue.`,
     ));
   } else {
-    const n = sobreLosNumeros(h.numeros, superficieViva, ahora);
+    const n = sobreLosNumeros(h.numeros, superficieViva, ahora, h.red?.falla == null);
     avisos.push(...n.avisos);
     notas.push(...n.notas);
   }
@@ -391,13 +444,36 @@ export function veredictoExtension(x: ReturnType<typeof entorno.extension>, e: R
   return [];
 }
 
+/** La prueba de red, en los hechos del veredicto: el primer paso que falló, en palabras. */
+export function hechosDeRed(sonda: SondaRed, firewalls: readonly Firewall[] | null): Red {
+  const fallo = sonda.pasos.find((p) => !p.ok);
+  return {
+    host: sonda.host,
+    falla: fallo === undefined ? null : { paso: fallo.paso, causa: detalleDeRed(fallo.error, sonda.host) },
+    firewalls,
+  };
+}
+
+/** Lo que el informe sale a mirar afuera del disco. Se inyecta para poder probarlo sin red. */
+export interface Sondas {
+  /** null: no salir a la red (`--sin-red`). */
+  readonly red?: ((host: string) => Promise<SondaRed>) | null;
+  readonly firewalls?: (host: string) => readonly Firewall[] | null;
+}
+
 // ── el informe ───────────────────────────────────────────────────────────
+
+const duracionMs = (ms: number): string => (ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
 
 /**
  * El orden no es decorativo: arriba va lo que más veces resultó ser la causa, y
  * al final la conclusión, que es lo único que mucha gente va a leer.
  */
-export function diagnostico(version: string, plataforma: NodeJS.Platform = process.platform): string {
+export async function diagnostico(
+  version: string,
+  plataforma: NodeJS.Platform = process.platform,
+  sondas: Sondas = {},
+): Promise<string> {
   const l: string[] = [];
   const t = entorno.texto;
   const titulo = (s: string) => l.push('', `── ${s} ${'─'.repeat(Math.max(0, 62 - s.length))}`);
@@ -508,6 +584,39 @@ export function diagnostico(version: string, plataforma: NodeJS.Platform = proce
     }
   }
 
+  // La red, después de los números: es lo que explica que uno esté viejo
+  // cuando el resto da bien. Se corre acá y no en paralelo con lo de arriba:
+  // las sondas de arriba son síncronas, frenan el bucle de eventos, y los
+  // límites de tiempo de la prueba vencerían mientras tanto.
+  titulo(tr('la red', 'the network'));
+  const host = new URL(ENDPOINT).hostname;
+  const probar = sondas.red === undefined ? probarRed : sondas.red;
+  let red: Red | null = null;
+  if (probar === null) l.push(tr('  (no se miró: --sin-red)', '  (not checked: --sin-red)'));
+  else {
+    // `ps` antes que la sonda y no a la par: es síncrono, y correrlo con el DNS
+    // en vuelo le sumaba su tiempo al del DNS.
+    const firewalls = (sondas.firewalls ?? ((h: string) => firewallsCorriendo(h, plataforma)))(host);
+    const sonda = await probar(host);
+    red = hechosDeRed(sonda, firewalls);
+    campo('host', `${sonda.host}:${sonda.puerto}`);
+    const nombres: Record<Paso, string> = { dns: 'DNS', tcp: 'TCP', tls: 'TLS' };
+    for (const paso of ['dns', 'tcp', 'tls'] as const) {
+      const p = sonda.pasos.find((x) => x.paso === paso);
+      if (p === undefined) campo(nombres[paso], tr('— (no se probó)', '— (not tried)'));
+      else if (p.ok) campo(nombres[paso], `✓ ${duracionMs(p.ms)}${p.detalle ? ` · ${p.detalle}` : ''}`);
+      else campo(nombres[paso], `✗ ${duracionMs(p.ms)} · ${detalleDeRed(p.error, sonda.host)}`);
+    }
+    campo(
+      tr('firewall', 'app firewall'),
+      firewalls === null
+        ? tr('— (no se miró)', '— (not checked)')
+        : firewalls.length === 0
+          ? tr('ninguno conocido corriendo', 'none known running')
+          : firewalls.map((f) => f.nombre).join(', '),
+    );
+  }
+
   titulo(tr('el cache', 'the cache'));
   for (const c of entorno.cache()) {
     l.push(`  ${c.ruta}${c.nota ? `  (${c.nota})` : ''}`);
@@ -521,7 +630,7 @@ export function diagnostico(version: string, plataforma: NodeJS.Platform = proce
   }
 
   titulo(tr('veredicto', 'verdict'));
-  const v = concluir({ extension, superficie, numeros, ...(error !== undefined ? { errorNumeros: error } : {}) }, ahora);
+  const v = concluir({ extension, superficie, numeros, red, ...(error !== undefined ? { errorNumeros: error } : {}) }, ahora);
   for (const linea of [...v.avisos, ...v.notas]) l.push(`  ${linea}`);
   if (v.avisos.length === 0) {
     const cuentan = (numeros ?? []).filter((n) => !n.oculta && !n.dormida);
