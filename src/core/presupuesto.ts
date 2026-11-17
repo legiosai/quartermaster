@@ -160,16 +160,23 @@ export function subidaDeHoy(
   let subida = 0;
   let ancla: Muestra = base;
   let desdeAncla = 0;
+  // `previo` es lo más alto que se vio desde el último reinicio, no la lectura
+  // anterior. Una bajada chica no es gasto devuelto: es un redondeo, o una
+  // sesión de Claude Code atrasada que redibuja un número viejo. Si `previo`
+  // bajara con ella, la vuelta al número de verdad se contaría como gasto otra
+  // vez: dos lectores alternando 18 y 19 sumaban un punto por vuelta, y el
+  // 2026-11-17 eso fue «gastaste 219 % hoy» con la semanal en 19.
   let previo = base.porcentaje;
   for (const l of deHoy) {
     if (l.porcentaje > previo) {
       subida += l.porcentaje - previo;
       desdeAncla += l.porcentaje - previo;
+      previo = l.porcentaje;
     } else if (previo - l.porcentaje >= BAJADA_DE_REINICIO) {
       ancla = l;
       desdeAncla = 0;
+      previo = l.porcentaje;
     }
-    previo = l.porcentaje;
   }
   return {
     puntos: Math.round(subida * 10) / 10,

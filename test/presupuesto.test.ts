@@ -170,6 +170,22 @@ test('un reinicio en medio del día no da consumo negativo', () => {
   assert.equal(gastadoDesdeMedianoche(conReinicio, HORA(9)), 8);
 });
 
+test('dos lectores que alternan 18 y 19 gastaron un punto, no uno por vuelta', () => {
+  // El caso real del 2026-11-17: cuatro sesiones de Claude Code abiertas en la
+  // cuenta Team, cada una redibujando su statusline con el número de su última
+  // respuesta. Las quietas repetían 18 y la activa 19, cada setenta segundos.
+  // Con la lectura anterior como referencia, cada vuelta al 19 era un punto
+  // gastado: «gastaste 219 % hoy» con la semanal en 19.
+  const serrucho = [];
+  for (let i = 0; i < 200; i += 1) serrucho.push({ t: HORA(0) + 360_000 + i * 70_000, porcentaje: i % 2 ? 19 : 18 });
+  assert.equal(gastadoDesdeMedianoche(serrucho, HORA(9)), 1);
+
+  // Y lo que sube de verdad, con el ruido encima, se cuenta entero.
+  const subiendo = [];
+  for (let i = 0; i < 40; i += 1) subiendo.push({ t: HORA(0) + 360_000 + i * 10 * 60_000, porcentaje: 20 + Math.floor(i / 4) - (i % 2) });
+  assert.equal(gastadoDesdeMedianoche(subiendo, HORA(9)), 9);
+});
+
 test('sin historial que cubra el arranque del día, gastadoHoy es null', () => {
   // Primera lectura a las 03:10 y nada de ayer: entre la medianoche y esa hora
   // no se sabe qué pasó, y suponer que no pasó nada es inventar.
