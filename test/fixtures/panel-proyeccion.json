@@ -1,0 +1,912 @@
+{
+ "generado": "2026-11-17T02:20:00.318402Z",
+ "plataforma": "linux",
+ "ventanaDias": 7,
+ "frenaPrimero": {
+  "perfil": "codex",
+  "producto": "codex",
+  "ventana": {
+   "clave": "weekly_all",
+   "alcance": null,
+   "grupo": "weekly",
+   "porcentaje": 100,
+   "severidad": "normal",
+   "activa": false,
+   "reinicia": "2026-11-21T23:30:22.251402Z",
+   "nombre": "weekly_all",
+   "preocupa": true
+  },
+  "dormida": false
+ },
+ "perfiles": [
+  {
+   "producto": "claude",
+   "perfil": ".claude",
+   "directorio": "~/.claude",
+   "cuenta": "***@hotmail.com",
+   "plan": "claude_max",
+   "planNombre": "Ultra (max_20x)",
+   "credencial": "vigente (5h53m)",
+   "cuota": {
+    "estado": "ok",
+    "origen": "endpoint",
+    "medidoEn": "2026-11-17T02:19:31.696402Z",
+    "edadSegundos": 29,
+    "ventanas": [
+     {
+      "clave": "session",
+      "alcance": null,
+      "grupo": "session",
+      "porcentaje": 32,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-17T05:05:46.556402Z",
+      "nombre": "session",
+      "preocupa": false
+     },
+     {
+      "clave": "weekly_all",
+      "alcance": null,
+      "grupo": "weekly",
+      "porcentaje": 78,
+      "severidad": "warning",
+      "activa": false,
+      "reinicia": "2026-11-19T16:35:46.556402Z",
+      "nombre": "weekly_all",
+      "preocupa": true
+     },
+     {
+      "clave": "weekly_scoped",
+      "alcance": "Fable",
+      "grupo": "weekly",
+      "porcentaje": 68,
+      "severidad": "warning",
+      "activa": true,
+      "reinicia": "2026-11-17T05:00:12.336945Z",
+      "nombre": "weekly_scoped (Fable)",
+      "preocupa": true
+     },
+     {
+      "clave": "nimbus_quill",
+      "alcance": null,
+      "grupo": null,
+      "porcentaje": 0,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": null,
+      "nombre": "nimbus_quill",
+      "preocupa": false
+     }
+    ],
+    "mostrar": [
+     {
+      "clave": "session",
+      "alcance": null,
+      "grupo": "session",
+      "porcentaje": 32,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-17T05:05:46.556402Z",
+      "nombre": "session",
+      "preocupa": false
+     },
+     {
+      "clave": "weekly_all",
+      "alcance": null,
+      "grupo": "weekly",
+      "porcentaje": 78,
+      "severidad": "warning",
+      "activa": false,
+      "reinicia": "2026-11-19T16:35:46.556402Z",
+      "nombre": "weekly_all",
+      "preocupa": true
+     },
+     {
+      "clave": "weekly_scoped",
+      "alcance": "Fable",
+      "grupo": "weekly",
+      "porcentaje": 68,
+      "severidad": "warning",
+      "activa": true,
+      "reinicia": "2026-11-17T05:00:12.336945Z",
+      "nombre": "weekly_scoped (Fable)",
+      "preocupa": true
+     }
+    ],
+    "frena": {
+     "clave": "weekly_scoped",
+     "alcance": "Fable",
+     "grupo": "weekly",
+     "porcentaje": 68,
+     "severidad": "warning",
+     "activa": true,
+     "reinicia": "2026-11-17T05:00:12.336945Z",
+     "nombre": "weekly_scoped (Fable)",
+     "preocupa": true
+    },
+    "sesion": {
+     "clave": "session",
+     "alcance": null,
+     "grupo": "session",
+     "porcentaje": 32,
+     "severidad": "normal",
+     "activa": false,
+     "reinicia": "2026-11-17T05:05:46.556402Z",
+     "nombre": "session",
+     "preocupa": false
+    },
+    "semanal": {
+     "clave": "weekly_scoped",
+     "alcance": "Fable",
+     "grupo": "weekly",
+     "porcentaje": 68,
+     "severidad": "warning",
+     "activa": true,
+     "reinicia": "2026-11-17T05:00:12.336945Z",
+     "nombre": "weekly_scoped (Fable)",
+     "preocupa": true
+    },
+    "historia": [
+     {
+      "t": 1794876570336,
+      "porcentaje": 62
+     },
+     {
+      "t": 1794876770336,
+      "porcentaje": 62
+     },
+     {
+      "t": 1794876970336,
+      "porcentaje": 62
+     },
+     {
+      "t": 1794877170336,
+      "porcentaje": 63
+     },
+     {
+      "t": 1794877370336,
+      "porcentaje": 63
+     },
+     {
+      "t": 1794877570336,
+      "porcentaje": 63
+     },
+     {
+      "t": 1794877770336,
+      "porcentaje": 63
+     },
+     {
+      "t": 1794877970336,
+      "porcentaje": 63
+     },
+     {
+      "t": 1794878170336,
+      "porcentaje": 64
+     },
+     {
+      "t": 1794878370336,
+      "porcentaje": 64
+     },
+     {
+      "t": 1794878570336,
+      "porcentaje": 64
+     },
+     {
+      "t": 1794878770336,
+      "porcentaje": 64
+     },
+     {
+      "t": 1794878970336,
+      "porcentaje": 64
+     },
+     {
+      "t": 1794879170336,
+      "porcentaje": 65
+     },
+     {
+      "t": 1794879370336,
+      "porcentaje": 65
+     },
+     {
+      "t": 1794879570336,
+      "porcentaje": 65
+     },
+     {
+      "t": 1794879770336,
+      "porcentaje": 65
+     },
+     {
+      "t": 1794879970336,
+      "porcentaje": 66
+     },
+     {
+      "t": 1794880170336,
+      "porcentaje": 66
+     },
+     {
+      "t": 1794880370336,
+      "porcentaje": 66
+     },
+     {
+      "t": 1794880570336,
+      "porcentaje": 66
+     },
+     {
+      "t": 1794880770336,
+      "porcentaje": 67
+     },
+     {
+      "t": 1794880970336,
+      "porcentaje": 67
+     },
+     {
+      "t": 1794881170336,
+      "porcentaje": 67
+     },
+     {
+      "t": 1794881370336,
+      "porcentaje": 67
+     },
+     {
+      "t": 1794881570336,
+      "porcentaje": 68
+     },
+     {
+      "t": 1794881770336,
+      "porcentaje": 68
+     },
+     {
+      "t": 1794881970336,
+      "porcentaje": 68
+     }
+    ]
+   },
+   "proyeccion": {
+    "estado": "sube",
+    "ritmoPuntosPorHora": 4.0,
+    "techo": "2026-11-17T10:20:00.336945Z",
+    "chocasAntesDelReinicio": false,
+    "muestras": 28
+   },
+   "presupuesto": {
+    "estado": "ok",
+    "barra": "weekly_scoped (Fable)",
+    "clave": "weekly_scoped",
+    "alcance": "Fable",
+    "porDia": 4.2,
+    "porDiaHoy": 6.8,
+    "restanteMedido": 4.2,
+    "quedaHoy": 1.8,
+    "gastadoHoy": 2.6,
+    "restanteHoy": 4.2,
+    "gastadoMedido": 2.6,
+    "medidoDesde": "2026-11-19T15:35:46.251402Z",
+    "cubreElDia": true,
+    "restante": 11,
+    "horasHoy": 10.3,
+    "horasRestantes": 62.3
+   },
+   "local": null,
+   "relevancia": {
+    "dormida": false,
+    "porque": []
+   }
+  },
+  {
+   "producto": "claude",
+   "perfil": ".claude-bedrock",
+   "directorio": "~/.claude-bedrock",
+   "cuenta": null,
+   "plan": null,
+   "credencial": "sin credencial",
+   "cuota": {
+    "estado": "sin-cache",
+    "frase": "Claude Code todavía no dejó cuota en .claude.json para este perfil (usalo una vez)"
+   },
+   "proyeccion": null,
+   "presupuesto": {
+    "estado": "sin-datos",
+    "motivo": "esta cuenta no tiene número de cuota"
+   },
+   "local": null,
+   "relevancia": {
+    "dormida": false,
+    "porque": []
+   }
+  },
+  {
+   "producto": "claude",
+   "perfil": ".claude-personal",
+   "directorio": "~/.claude-personal",
+   "cuenta": "***@hotmail.com",
+   "plan": null,
+   "credencial": "vencida",
+   "cuota": {
+    "estado": "sin-cache",
+    "frase": "Claude Code todavía no dejó cuota en .claude.json para este perfil (usalo una vez)"
+   },
+   "proyeccion": null,
+   "presupuesto": {
+    "estado": "sin-datos",
+    "motivo": "esta cuenta no tiene número de cuota"
+   },
+   "local": null,
+   "relevancia": {
+    "dormida": false,
+    "porque": []
+   }
+  },
+  {
+   "producto": "claude",
+   "perfil": ".claude-teams",
+   "directorio": "~/.claude-teams",
+   "cuenta": "***@teramot.com",
+   "plan": "team_tier_1",
+   "planNombre": "team_tier_1 (max_5x)",
+   "credencial": "vigente (5h57m)",
+   "cuota": {
+    "estado": "ok",
+    "origen": "endpoint",
+    "medidoEn": "2026-11-17T02:19:31.991402Z",
+    "edadSegundos": 28,
+    "ventanas": [
+     {
+      "clave": "session",
+      "alcance": null,
+      "grupo": "session",
+      "porcentaje": 27,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-17T05:15:45.872402Z",
+      "nombre": "session",
+      "preocupa": false
+     },
+     {
+      "clave": "weekly_all",
+      "alcance": null,
+      "grupo": "weekly",
+      "porcentaje": 58,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-19T23:35:45.872402Z",
+      "nombre": "weekly_all",
+      "preocupa": false
+     },
+     {
+      "clave": "weekly_scoped",
+      "alcance": "Fable",
+      "grupo": "weekly",
+      "porcentaje": 41,
+      "severidad": "normal",
+      "activa": true,
+      "reinicia": "2026-11-19T23:20:00.336945Z",
+      "nombre": "weekly_scoped (Fable)",
+      "preocupa": false
+     },
+     {
+      "clave": "nimbus_quill",
+      "alcance": null,
+      "grupo": null,
+      "porcentaje": 0,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": null,
+      "nombre": "nimbus_quill",
+      "preocupa": false
+     }
+    ],
+    "mostrar": [
+     {
+      "clave": "session",
+      "alcance": null,
+      "grupo": "session",
+      "porcentaje": 27,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-17T05:15:45.872402Z",
+      "nombre": "session",
+      "preocupa": false
+     },
+     {
+      "clave": "weekly_all",
+      "alcance": null,
+      "grupo": "weekly",
+      "porcentaje": 58,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-19T23:35:45.872402Z",
+      "nombre": "weekly_all",
+      "preocupa": false
+     },
+     {
+      "clave": "weekly_scoped",
+      "alcance": "Fable",
+      "grupo": "weekly",
+      "porcentaje": 41,
+      "severidad": "normal",
+      "activa": true,
+      "reinicia": "2026-11-19T23:20:00.336945Z",
+      "nombre": "weekly_scoped (Fable)",
+      "preocupa": false
+     }
+    ],
+    "frena": {
+     "clave": "weekly_scoped",
+     "alcance": "Fable",
+     "grupo": "weekly",
+     "porcentaje": 41,
+     "severidad": "normal",
+     "activa": true,
+     "reinicia": "2026-11-19T23:20:00.336945Z",
+     "nombre": "weekly_scoped (Fable)",
+     "preocupa": false
+    },
+    "sesion": {
+     "clave": "session",
+     "alcance": null,
+     "grupo": "session",
+     "porcentaje": 27,
+     "severidad": "normal",
+     "activa": false,
+     "reinicia": "2026-11-17T05:15:45.872402Z",
+     "nombre": "session",
+     "preocupa": false
+    },
+    "semanal": {
+     "clave": "weekly_scoped",
+     "alcance": "Fable",
+     "grupo": "weekly",
+     "porcentaje": 41,
+     "severidad": "normal",
+     "activa": true,
+     "reinicia": "2026-11-19T23:20:00.336945Z",
+     "nombre": "weekly_scoped (Fable)",
+     "preocupa": false
+    },
+    "historia": [
+     {
+      "t": 1794875130336,
+      "porcentaje": 34
+     },
+     {
+      "t": 1794875383670,
+      "porcentaje": 34
+     },
+     {
+      "t": 1794875637003,
+      "porcentaje": 34
+     },
+     {
+      "t": 1794875890336,
+      "porcentaje": 35
+     },
+     {
+      "t": 1794876143670,
+      "porcentaje": 35
+     },
+     {
+      "t": 1794876397003,
+      "porcentaje": 35
+     },
+     {
+      "t": 1794876650336,
+      "porcentaje": 35
+     },
+     {
+      "t": 1794876903670,
+      "porcentaje": 36
+     },
+     {
+      "t": 1794877157003,
+      "porcentaje": 36
+     },
+     {
+      "t": 1794877410336,
+      "porcentaje": 36
+     },
+     {
+      "t": 1794877663670,
+      "porcentaje": 36
+     },
+     {
+      "t": 1794877917003,
+      "porcentaje": 37
+     },
+     {
+      "t": 1794878170336,
+      "porcentaje": 37
+     },
+     {
+      "t": 1794878423670,
+      "porcentaje": 37
+     },
+     {
+      "t": 1794878677003,
+      "porcentaje": 37
+     },
+     {
+      "t": 1794878930336,
+      "porcentaje": 38
+     },
+     {
+      "t": 1794879183670,
+      "porcentaje": 38
+     },
+     {
+      "t": 1794879437003,
+      "porcentaje": 38
+     },
+     {
+      "t": 1794879690336,
+      "porcentaje": 38
+     },
+     {
+      "t": 1794879943670,
+      "porcentaje": 39
+     },
+     {
+      "t": 1794880197003,
+      "porcentaje": 39
+     },
+     {
+      "t": 1794880450336,
+      "porcentaje": 39
+     },
+     {
+      "t": 1794880703670,
+      "porcentaje": 40
+     },
+     {
+      "t": 1794880957003,
+      "porcentaje": 40
+     },
+     {
+      "t": 1794881210336,
+      "porcentaje": 40
+     },
+     {
+      "t": 1794881463670,
+      "porcentaje": 40
+     },
+     {
+      "t": 1794881717003,
+      "porcentaje": 41
+     },
+     {
+      "t": 1794881970336,
+      "porcentaje": 41
+     }
+    ]
+   },
+   "proyeccion": {
+    "estado": "sube",
+    "ritmoPuntosPorHora": 3.7,
+    "techo": "2026-11-17T18:16:45.742351Z",
+    "chocasAntesDelReinicio": true,
+    "muestras": 28
+   },
+   "presupuesto": {
+    "estado": "ok",
+    "barra": "weekly_scoped (Fable)",
+    "clave": "weekly_scoped",
+    "alcance": "Fable",
+    "porDia": 13.9,
+    "porDiaHoy": 16.1,
+    "restanteMedido": 6.7,
+    "quedaHoy": 5.9,
+    "gastadoHoy": null,
+    "restanteHoy": null,
+    "gastadoMedido": 9.4,
+    "medidoDesde": "2026-11-20T03:29:46.251402Z",
+    "cubreElDia": false,
+    "restante": 40,
+    "horasHoy": 10.3,
+    "horasRestantes": 69.3
+   },
+   "local": null,
+   "relevancia": {
+    "dormida": false,
+    "porque": []
+   }
+  },
+  {
+   "producto": "codex",
+   "perfil": "codex",
+   "directorio": "~/.codex",
+   "cuenta": "***@hotmail.com",
+   "plan": "plus",
+   "credencial": "la pone codex · 2 reset(s) sin usar",
+   "cuota": {
+    "estado": "ok",
+    "origen": "endpoint",
+    "medidoEn": "2026-11-17T02:16:00.835402Z",
+    "edadSegundos": 239,
+    "ventanas": [
+     {
+      "clave": "session",
+      "alcance": null,
+      "grupo": "session",
+      "porcentaje": 50,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-17T05:12:04.251402Z",
+      "nombre": "session",
+      "preocupa": false
+     },
+     {
+      "clave": "weekly_all",
+      "alcance": null,
+      "grupo": "weekly",
+      "porcentaje": 100,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-21T23:30:22.251402Z",
+      "nombre": "weekly_all",
+      "preocupa": true
+     }
+    ],
+    "mostrar": [
+     {
+      "clave": "session",
+      "alcance": null,
+      "grupo": "session",
+      "porcentaje": 50,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-17T05:12:04.251402Z",
+      "nombre": "session",
+      "preocupa": false
+     },
+     {
+      "clave": "weekly_all",
+      "alcance": null,
+      "grupo": "weekly",
+      "porcentaje": 100,
+      "severidad": "normal",
+      "activa": false,
+      "reinicia": "2026-11-21T23:30:22.251402Z",
+      "nombre": "weekly_all",
+      "preocupa": true
+     }
+    ],
+    "frena": {
+     "clave": "weekly_all",
+     "alcance": null,
+     "grupo": "weekly",
+     "porcentaje": 100,
+     "severidad": "normal",
+     "activa": false,
+     "reinicia": "2026-11-21T23:30:22.251402Z",
+     "nombre": "weekly_all",
+     "preocupa": true
+    },
+    "sesion": {
+     "clave": "session",
+     "alcance": null,
+     "grupo": "session",
+     "porcentaje": 50,
+     "severidad": "normal",
+     "activa": false,
+     "reinicia": "2026-11-17T05:12:04.251402Z",
+     "nombre": "session",
+     "preocupa": false
+    },
+    "semanal": {
+     "clave": "weekly_all",
+     "alcance": null,
+     "grupo": "weekly",
+     "porcentaje": 100,
+     "severidad": "normal",
+     "activa": false,
+     "reinicia": "2026-11-21T23:30:22.251402Z",
+     "nombre": "weekly_all",
+     "preocupa": true
+    },
+    "historia": [
+     {
+      "t": 1794876751695,
+      "porcentaje": 92
+     },
+     {
+      "t": 1794877128816,
+      "porcentaje": 92
+     },
+     {
+      "t": 1794877137409,
+      "porcentaje": 92
+     },
+     {
+      "t": 1794877169799,
+      "porcentaje": 93
+     },
+     {
+      "t": 1794877213913,
+      "porcentaje": 93
+     },
+     {
+      "t": 1794877219354,
+      "porcentaje": 93
+     },
+     {
+      "t": 1794877304967,
+      "porcentaje": 94
+     },
+     {
+      "t": 1794877410070,
+      "porcentaje": 94
+     },
+     {
+      "t": 1794877490844,
+      "porcentaje": 95
+     },
+     {
+      "t": 1794877524233,
+      "porcentaje": 95
+     },
+     {
+      "t": 1794877560930,
+      "porcentaje": 95
+     },
+     {
+      "t": 1794877586219,
+      "porcentaje": 96
+     },
+     {
+      "t": 1794877733255,
+      "porcentaje": 96
+     },
+     {
+      "t": 1794877813704,
+      "porcentaje": 96
+     },
+     {
+      "t": 1794877829446,
+      "porcentaje": 96
+     },
+     {
+      "t": 1794877877726,
+      "porcentaje": 97
+     },
+     {
+      "t": 1794877959437,
+      "porcentaje": 97
+     },
+     {
+      "t": 1794878023262,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794878085169,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794879803057,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794879906166,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794879969115,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794880061444,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794880124788,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794880187992,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794880262175,
+      "porcentaje": 98
+     },
+     {
+      "t": 1794880324936,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794880387938,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794880451000,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794880562261,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794880643141,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794880729026,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794880792052,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794880988024,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881051112,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881149393,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881213879,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881309059,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881404890,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881473892,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881537077,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881620213,
+      "porcentaje": 99
+     },
+     {
+      "t": 1794881760835,
+      "porcentaje": 100
+     }
+    ]
+   },
+   "proyeccion": {
+    "estado": "sube",
+    "ritmoPuntosPorHora": 4.531,
+    "techo": "2026-11-17T02:20:00.318402Z",
+    "chocasAntesDelReinicio": true,
+    "muestras": 43
+   },
+   "presupuesto": {
+    "estado": "ok",
+    "barra": "weekly_all",
+    "clave": "weekly_all",
+    "alcance": null,
+    "porDia": 0,
+    "porDiaHoy": 0,
+    "restanteMedido": null,
+    "quedaHoy": 0,
+    "gastadoHoy": null,
+    "restanteHoy": null,
+    "gastadoMedido": null,
+    "medidoDesde": null,
+    "cubreElDia": false,
+    "restante": 0,
+    "horasHoy": 10.3,
+    "horasRestantes": 117.2
+   },
+   "local": null,
+   "relevancia": {
+    "dormida": false,
+    "porque": []
+   }
+  }
+ ]
+}

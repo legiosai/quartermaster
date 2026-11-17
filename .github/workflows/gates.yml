@@ -163,6 +163,29 @@ jobs:
           path: dist/*.shell-extension.zip
           if-no-files-found: error
 
+  # La barra de macOS es AppKit: en Ubuntu sólo se parsea (gate-dibujo.sh), y
+  # un error de tipos o un método que no existe recién aparecía en la Mac de
+  # alguien. Acá se COMPILA con el swiftc de verdad y se dibuja el menú con los
+  # fixtures, en los dos temas, igual que el panel de GNOME en el job de arriba.
+  # Las capturas quedan como artefacto: es la única forma de mirar el menú sin
+  # tener una Mac prendida al lado.
+  barra:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - run: swiftc -O bin/qm-barra.swift -o "$RUNNER_TEMP/qm-barra"
+      - run: >-
+          ./scripts/captura-barra.sh "$RUNNER_TEMP/qm-barra" captura-barra
+          test/fixtures/panel.json test/fixtures/panel-proyeccion.json
+          test/fixtures/panel-dormida.json test/fixtures/panel-largos.json
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: barra-macos
+          path: captura-barra/*.png
+          if-no-files-found: error
+
   # La bandeja DIBUJA con System.Drawing y WinForms, que son de Windows: parsear
   # se puede en Ubuntu (lo hace gate-dibujo.sh) pero comprobar que salga un panel
   # de 340 px con píxeles adentro, en los dos temas, sin nada fuera del margen y
