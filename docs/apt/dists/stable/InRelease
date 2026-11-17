@@ -1,0 +1,39 @@
+-----BEGIN PGP SIGNED MESSAGE-----
+Hash: SHA512
+
+Architectures: all
+Codename: stable
+Components: main
+Date: Tue, 17 Nov 2026 16:11:40 +0000
+Description: quartermaster · Legios
+Label: quartermaster
+Origin: Legios
+Suite: stable
+MD5Sum:
+ 8ff40399b48d94416678b02b5dbfa872             1075 main/binary-all/Packages
+ daea2ac0c6a2d013bcc3854f858cc446              735 main/binary-all/Packages.gz
+SHA1:
+ 4a6d76245f51b6a0c1ef8fc7166b5a941622a92d             1075 main/binary-all/Packages
+ 9e8f8863ffeaabaf22688aa2b09b040a94cfde77              735 main/binary-all/Packages.gz
+SHA256:
+ a05feb942b44c32006752b27e385b0ae1e061b93eef5712606e3e7a0d08223f9             1075 main/binary-all/Packages
+ cfd47b4aa7fc0ed353cec988a9a2e2324d6294207bf813c83a6ce512f6b4d4f6              735 main/binary-all/Packages.gz
+SHA512:
+ 54e258096b5f653e411efd3210578777a50cd28fb0791339a8788866d702f8415460f7e5caad31a834dc860e98c3c70ec0c6be88685cfd83031c92761b2cdb00             1075 main/binary-all/Packages
+ 61e4670f5e390ddcc3c5f7b4572dd87ec4adcef8f75c3c7601f9ca99d10d898c9ec1f8b95e29380e2bb269a652a45f570be2f1389640f58abc1b0b211c7d7f71              735 main/binary-all/Packages.gz
+-----BEGIN PGP SIGNATURE-----
+
+iQIzBAEBCgAdFiEE9azTggwkynMUjYUAepEb0czr62YFAmr8fLwACgkQepEb0czr
+62aKtA//Zz1E/VLwVNVvkI6zyTsX3RYSPwMisavPLysLDAwyXYoIx9AALpp4ZPvm
+quKI+b1jDMGFOR8JMby/8SJzC7svNWYs+tS6jNc05w06Vleg3j2FwpAGQZPewoQn
+1gXDLowitlDJvaWLtgevhjdZ1vV1BKUHqCtM5sRUbnYZXNWnpVwXvEWoMClveO7K
+SD69fT0H6wSWg8Cxi9iqpNKNdV9HGK2Q33qNG2dSDt/TTzHRu/+KOSFluZjlT9Ej
+GTUwZtE0I611VMmeCnDyYRlJllDcFAxb8LErvHcJuVGHa9XD4+6m/yrqkRL6EHcX
+ByOj6Umhps+Df7QTfyNYJumTs1YrXUngWDCnI7XEh31iqm+4X9FqNHUyRCvHqQVD
+SQQwviZpvd6H4GUCNNd7tgyDUSqZnFdAX6CQwI+Ih6A7noTKhcWbozMYkKeGp5CL
+oIZ16tRO0fZWtVYDmaoFoWLVXd8jMMvNUWhkL0D9dZFRCEMG2DMHUCyls8XHFOBx
+zpAKb+4ISZfvkORCNrk1rRFQvybDqEYdO0dzR3sBg/DgtAJa4sJwDKr4Fz9/qPVt
+m8SdJtd+0PeDO1N42sBG42Af1Gw98/QKtYTKew6Kle2crmxwSO1qf1K9pZgBP4UN
+YlawE4z487L3iGWc2O7zLFZV4GN61aYa8idNfZzTdiAAvPZKFkQ=
+=Lskw
+-----END PGP SIGNATURE-----
