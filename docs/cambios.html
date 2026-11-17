@@ -323,6 +323,17 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2>Unreleased</h2>
+<h3>Changed</h3>
+<ul>
+<li><strong>The Windows tray panel, redesigned like the GNOME panel and the macOS menu.</strong> It was the last of the three with the old layout. It now has the same pieces:</li>
+<li>The header is a card tinted with the colour of the state, and it gives the reset as a local time too, plus how old the reading of that bar is.</li>
+<li>Each account says on top how old its number is and how often it is read, with the plan as a chip next to the name.</li>
+<li>The bars have names you can read (<em>Sesión</em>, <em>Semanal</em>, <em>Semanal (Fable)</em>). Each bar shows the time to its reset next to the percentage, and the one that stops the account is marked in the margin.</li>
+<li>The curve of the bar that stops you carries on, dashed, to the reset, with the stretch you'd spend without quota marked in red. A curve that didn't move says so in words instead of drawing a flat line.</li>
+<li>The pace, the daily budget (with its ring) and why an account is dormant sit under a rule.</li>
+<li>Accounts with no number share one block at the end, and commands in their message are set in monospace and never split across lines.</li>
+</ul>
 <h2 id="v0.1.28">v0.1.28 — 2026-11-17</h2>
 <h3>Changed</h3>
 <ul>

@@ -1307,8 +1307,18 @@ function PartirConCodigo($g, [string]$texto, $fuente, $mono, [double]$ancho) {
       $x = 0.0
       $sp = 0.0
     }
-    [void]$actual.Add(@{ t = $pa.t; f = $pa.f; x = $x + $sp })
-    $x += $sp + $w
+    $ult = if ($actual.Count) { $actual[$actual.Count - 1] } else { $null }
+    if ($null -ne $ult -and [object]::ReferenceEquals($ult.f, $pa.f)) {
+      # Con la misma letra que el trozo de antes va en el MISMO DrawString.
+      # Escritas de a una, cada palabra caía donde la ponía la medida y GDI+ la
+      # corría al píxel entero: los espacios salían de dos y de cuatro píxeles
+      # en el mismo renglón. Visto en la captura del CI.
+      $ult.t += $(if ($sp -gt 0) { ' ' } else { '' }) + $pa.t
+      $x = $ult.x + (Ancho $g $ult.t $ult.f)
+    } else {
+      [void]$actual.Add(@{ t = $pa.t; f = $pa.f; x = $x + $sp })
+      $x += $sp + $w
+    }
   }
   if ($actual.Count) { [void]$renglones.Add($actual) }
   return , $renglones
