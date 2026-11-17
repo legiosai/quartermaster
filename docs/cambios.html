@@ -323,6 +323,11 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2>Unreleased</h2>
+<h3>Added</h3>
+<ul>
+<li><strong>The GNOME panel draws where you are heading.</strong> The curve of the bar that stops you used to end at the last reading, and the pace was a sentence under it: <code>3.7 pts/h · 100 % en 15h56m — antes del reinicio</code>. The curve now carries on as a dashed line, at that same pace, up to the bar's reset. If it reaches 100 % first, the stretch from there to the reset is drawn in red and says how long you would be left without quota (<code>sin cuota 2d5h</code>), with the time you hit 100 % under that point and the reset at the end. If it doesn't, the line ends at the reset with the percentage you would reach (<code>~79 % al reinicio</code>). When the reset is days away, the past keeps a third of the width and a dotted mark at «now» shows where the time scale changes. The line is drawn only when the pace sentence is, so the two can't disagree.</li>
+</ul>
 <h2 id="v0.1.25">v0.1.25 — 2026-11-16</h2>
 <h3>Added</h3>
 <ul>

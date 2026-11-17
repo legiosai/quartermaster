@@ -950,6 +950,7 @@ class VistaCuenta:
                               f"{duracion(seg)}"
                               + (" — antes del reinicio" if choca else ""))
         self.ritmo_rojo = choca
+        self.futuro = self._hacia_donde(proy, frena, choca) if self.ritmo else None
 
         # El presupuesto diario: cuánto por día para que la ventana larga
         # llegue entera al reinicio, y cuánto de eso queda hoy. La cuenta
@@ -984,6 +985,45 @@ class VistaCuenta:
         self.dormida = None
         if rel.get("dormida"):
             self.dormida = "dormida: " + " · ".join(rel.get("porque") or [])
+
+    def _hacia_donde(self, proy: dict, frena: dict | None, choca: bool) -> dict | None:
+        """La proyección, en la forma en que se dibuja a continuación de la curva.
+
+        Es la MISMA recta que dice el renglón del ritmo, y sólo se arma cuando
+        ese renglón existe: el dibujo y la frase no pueden contradecirse. Sale
+        del último punto de la curva y termina en el reinicio, que es donde la
+        recta deja de valer. Si antes toca el 100 %, sigue pegada al techo
+        hasta el reinicio: ese tramo es el tiempo sin cuota.
+        """
+        if not frena or len(self.historia) < 3:
+            return None
+        ahora = time.time() * 1000
+        s_techo, s_reinicio = faltan(proy.get("techo")), faltan(frena.get("reinicia"))
+        if s_techo is None or s_techo <= 0:
+            return None
+        t0 = float(self.historia[-1][0])
+        p0 = float(frena.get("porcentaje", self.historia[-1][1]))
+        techo = ahora + s_techo * 1000
+        reinicio = ahora + s_reinicio * 1000 if s_reinicio and s_reinicio > 0 else None
+        if choca or reinicio is None:
+            fin, p_fin = (reinicio if reinicio and reinicio > techo else techo), 100.0
+        else:
+            fin = reinicio
+            p_fin = min(100.0, p0 + float(proy.get("ritmoPuntosPorHora", 0)) * (fin - t0) / 3_600_000)
+        if fin <= t0:
+            return None
+        return {
+            "t0": t0, "p0": p0, "fin": fin, "p_fin": p_fin,
+            # Dónde toca el techo, si lo toca antes del final del dibujo.
+            "techo": techo if p_fin >= 100 and techo < fin else None,
+            "techo_txt": cuando_local(proy.get("techo")) if p_fin >= 100 else None,
+            "reinicio_txt": cuando_local(frena.get("reinicia")) if reinicio else None,
+        }
+
+    def _alto_curva(self) -> float:
+        # Con la proyección la curva lleva el doble de cosas: más alto, para
+        # que la pendiente del pasado no quede aplastada contra el piso.
+        return 30 if self.futuro else self.ALTO_CURVA
 
     @staticmethod
     def _ancho_contenido() -> float:
@@ -1114,8 +1154,8 @@ class VistaCuenta:
             if self._con_curva(b) and not quieta:
                 y += 7
                 if cr is not None:
-                    self._curva(cr, pluma, (ix, y, ancho, self.ALTO_CURVA), TEMA.nivel(b["nivel"]))
-                y += self.ALTO_CURVA + self.ALTO_EJE
+                    self._curva(cr, pluma, (ix, y, ancho, self._alto_curva()), TEMA.nivel(b["nivel"]))
+                y += self._alto_curva() + self.ALTO_EJE
             y += self.ENTRE_BARRAS
 
         # ── lo que se deduce ──
@@ -1170,11 +1210,33 @@ class VistaCuenta:
         p_min, p_max = min(ps), max(ps)
         if t_max <= t_min:
             return
+        fut = self.futuro
+        if fut:
+            p_max = max(p_max, fut["p_fin"])
         rango = max(1.0, p_max - p_min)
         # Un píxel de aire arriba y abajo, para que la línea y el punto del
         # final no queden cortados contra el borde.
-        px = lambda t: x0 + (w - 3) * (t - t_min) / (t_max - t_min)
+        x_fin = x0 + w - 3
+        x_ahora = x_fin
+        if fut:
+            # Pasado y futuro en UNA escala de tiempo cuando entran: la recta
+            # sigue derecha y la pendiente se compara a ojo. Una semanal con el
+            # reinicio a días dejaría el pasado en un píxel, así que ahí el
+            # pasado se queda con un tercio y la raya de «ahora» avisa que la
+            # escala cambia.
+            pasado, futuro = t_max - t_min, fut["fin"] - t_max
+            parte = pasado / (pasado + futuro) if futuro <= 2 * pasado else 0.34
+            x_ahora = x0 + (x_fin - x0) * parte
+
+        def px(t: float) -> float:
+            if t <= t_max:
+                return x0 + (x_ahora - x0) * (t - t_min) / (t_max - t_min)
+            return x_ahora + (x_fin - x_ahora) * (t - t_max) / (fut["fin"] - t_max)
+
         py = lambda p: y0 + 2 + (h - 4) * (1 - (p - p_min) / rango)
+
+        if fut:
+            self._futuro(cr, pluma, fut, px, py, (x0, y0, w, h), color, (ts[-1], ps[-1]))
 
         cr.save()
         cr.new_path()
@@ -1206,10 +1268,121 @@ class VistaCuenta:
         desde, hasta = ps[0], ps[-1]
         rotulo = (f"{desde:.0f} → {hasta:.0f} %" if round(desde) != round(hasta)
                   else f"{hasta:.0f} %, sin cambios")
-        pluma.escribir(x0, y0 + h + 2, rotulo, 9.5, TEMA.terciario, tabular=True)
-        pluma.escribir(0, y0 + h + 2,
-                       f"últimas {horas:.1f} h" if horas >= 1 else "última hora",
-                       9.5, TEMA.terciario, derecha=x0 + w)
+        y_eje = y0 + h + 2
+        if not fut:
+            pluma.escribir(x0, y_eje, rotulo, 9.5, TEMA.terciario, tabular=True)
+            pluma.escribir(0, y_eje,
+                           f"últimas {horas:.1f} h" if horas >= 1 else "última hora",
+                           9.5, TEMA.terciario, derecha=x0 + w)
+            return
+
+        # Con la proyección van tres rótulos: cuándo reinicia (al final), cuándo
+        # toca el 100 % (debajo de ese punto) y de cuánto a cuánto fue (debajo
+        # del pasado). Si no entran, se cae primero el del pasado, que es el
+        # único que la curva ya dice sola.
+        critico = TEMA.nivel("critico")
+        reinicio = fut["reinicio_txt"]
+        if fut["techo"] is not None:
+            der, color_der = (f"reinicio {reinicio}" if reinicio else "reinicio"), TEMA.terciario
+        elif fut["p_fin"] >= 100:
+            der, color_der = f"100 % {fut['techo_txt'] or ''}".strip(), critico
+        else:
+            der = f"~{fut['p_fin']:.0f} % al reinicio" + (f" · {reinicio}" if reinicio else "")
+            color_der = TEMA.terciario
+        w_der = pluma.ancho(der, 9.5, tabular=True)
+        pluma.escribir(0, y_eje, der, 9.5, color_der, tabular=True, derecha=x0 + w)
+        libre = x0 + w - w_der - 10
+
+        if fut["techo"] is not None:
+            medio = f"100 % {fut['techo_txt'] or ''}".strip()
+            w_medio = pluma.ancho(medio, 9.5, Pango.Weight.MEDIUM, tabular=True)
+            xm = min(px(fut["techo"]) - w_medio / 2, libre - w_medio)
+            xm = max(x0, xm)
+            if xm + w_medio <= libre + 0.5:
+                pluma.escribir(xm, y_eje, medio, 9.5, critico, Pango.Weight.MEDIUM, tabular=True)
+                libre = xm - 10
+        if x0 + pluma.ancho(rotulo, 9.5, tabular=True) <= libre:
+            pluma.escribir(x0, y_eje, rotulo, 9.5, TEMA.terciario, tabular=True)
+
+    def _futuro(self, cr, pluma, fut, px, py, caja, color, desde) -> None:
+        """La recta punteada desde el último punto hasta el reinicio.
+
+        Punteada porque no es un dato: es lo que pasa si seguís a este ritmo.
+        Si toca el 100 % antes del reinicio, de ahí en adelante el tramo va en
+        rojo y lleva escrito cuánto tiempo serían sin cuota: eso es lo que
+        frase «antes del reinicio» no deja ver.
+        """
+        x0, y0, w, h = caja
+        xa, ya = px(desde[0]), py(desde[1])
+        xt = px(fut["techo"] if fut["techo"] is not None else fut["fin"])
+        yt = py(fut["p_fin"])
+        xf = px(fut["fin"])
+        critico = TEMA.nivel("critico")
+        cr.save()
+        cr.new_path()
+
+        # «Ahora»: la raya que separa lo medido de lo supuesto.
+        cr.set_line_width(1)
+        cr.set_dash([1.5, 2.0])
+        cr.move_to(round(xa) + 0.5, y0)
+        cr.line_to(round(xa) + 0.5, y0 + h)
+        _color(cr, TEMA.terciario[:3] + (0.5,))
+        cr.stroke()
+        cr.set_dash([])
+
+        if fut["techo"] is not None:
+            # El tiempo sin cuota: del techo al reinicio.
+            cr.rectangle(xt, y0, x0 + w - xt, h)
+            _color(cr, critico[:3] + (0.13,))
+            cr.fill()
+            cr.set_line_width(2)
+            cr.move_to(xt + 2.6, yt)
+            cr.line_to(xf, yt)
+            _color(cr, critico)
+            cr.stroke()
+            seg = int((fut["fin"] - fut["techo"]) / 1000)
+            texto = f"sin cuota {duracion(seg)}"
+            tw, th = pluma.caja(texto, 9.5, Pango.Weight.MEDIUM).get_pixel_size()
+            if x0 + w - xt >= tw + 10:
+                pluma.escribir(xt + (x0 + w - xt - tw) / 2, y0 + 3 + (h - 3 - th) / 2,
+                               texto, 9.5, critico, Pango.Weight.MEDIUM)
+
+        # Debajo de la recta, el mismo degradé que el pasado pero más tenue.
+        cr.new_path()
+        cr.move_to(xa, y0 + h)
+        cr.line_to(xa, ya)
+        cr.line_to(xt, yt)
+        cr.line_to(xt, y0 + h)
+        cr.close_path()
+        degrade = cairo.LinearGradient(0, y0, 0, y0 + h)
+        degrade.add_color_stop_rgba(0, color[0], color[1], color[2], 0.14)
+        degrade.add_color_stop_rgba(1, color[0], color[1], color[2], 0.0)
+        cr.set_source(degrade)
+        cr.fill()
+
+        # La recta termina en el borde del punto hueco y no en su centro: el
+        # fondo del panel lo pone el tema, así que el hueco no se puede pintar,
+        # sólo dejar sin tinta.
+        radio = 2.6
+        largo = math.hypot(xt - xa, yt - ya)
+        if largo > radio + 1:
+            k = (largo - radio) / largo
+            cr.set_line_width(1.5)
+            cr.set_line_cap(cairo.LINE_CAP_ROUND)
+            cr.set_dash([3.0, 3.0])
+            cr.move_to(xa, ya)
+            cr.line_to(xa + (xt - xa) * k, ya + (yt - ya) * k)
+            _color(cr, color)
+            cr.stroke()
+            cr.set_dash([])
+
+        # Donde termina la recta: un punto hueco, porque no es una lectura.
+        cr.new_path()
+        cr.arc(xt, yt, radio, 0, 2 * math.pi)
+        cr.set_line_width(1.4)
+        _color(cr, critico if fut["p_fin"] >= 100 else color)
+        cr.stroke()
+        cr.restore()
 
 
 class VistaSinCuota:

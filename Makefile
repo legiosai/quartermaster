@@ -316,7 +316,7 @@ gate-dibujo:  ## el gate de las superficies de GNOME: compila, parsea y dibuja
 	@./scripts/gate-dibujo.sh
 
 .PHONY: gate-dibujo-rojo
-gate-dibujo-rojo:  ## los diez rojos: la cabecera (sin frenaPrimero y encabezada por una dormida), el sello (la rotación de dos nombres y el reloj pelado), la cuenta sin sesión, la edad de cada barra (el pie sin edad propia y el «viejo» de la cuenta) y los avisos que se quedan (critical, sin vencimiento, el globo de 30 s)
+gate-dibujo-rojo:  ## los doce rojos: la cabecera (sin frenaPrimero y encabezada por una dormida), el sello (la rotación de dos nombres y el reloj pelado), la cuenta sin sesión, la edad de cada barra (el pie sin edad propia y el «viejo» de la cuenta), los avisos que se quedan (critical, sin vencimiento, el globo de 30 s) y la curva (sin proyección, o al 100 % sin chocar)
 	@cp test/fixtures/panel.json .panel.gate
 	@python3 -c "import json;d=json.load(open('test/fixtures/panel.json'));d.pop('frenaPrimero',None);json.dump(d,open('test/fixtures/panel.json','w'),indent=4)"
 	@if python3 scripts/gate-tarjetas.py >/dev/null 2>&1; then \
@@ -397,6 +397,24 @@ gate-dibujo-rojo:  ## los diez rojos: la cabecera (sin frenaPrimero y encabezada
 	else \
 	  mv .indicador.gate bin/qm-indicator; \
 	  echo "✓ el gate falla en rojo con un aviso que no vence nunca"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('self.futuro = self._hacia_donde(proy, frena, choca) if self.ritmo else None','self.futuro = None'))"
+	@if python3 -B scripts/gate-proyeccion.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con la curva sin proyección: la frase diría «antes del reinicio» y el dibujo no."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con la curva sin proyección"; \
+	fi
+	@cp bin/qm-indicator .indicador.gate
+	@python3 -c "from pathlib import Path;p=Path('bin/qm-indicator');p.write_text(p.read_text().replace('            fin = reinicio\n            p_fin = min(','            fin = reinicio\n            p_fin = 100.0 or min('))"
+	@if python3 -B scripts/gate-proyeccion.py >/dev/null 2>&1; then \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✗ el gate NO falló con la recta llegando al 100 % en una cuenta que no choca."; exit 1; \
+	else \
+	  mv .indicador.gate bin/qm-indicator; \
+	  echo "✓ el gate falla en rojo con la recta llegando al 100 % sin chocar"; \
 	fi
 	@cp bin/qm-tray.ps1 .bandeja.gate
 	@python3 -c "from pathlib import Path;p=Path('bin/qm-tray.ps1');p.write_text(p.read_text(encoding='utf-8').replace('ShowBalloonTip(\$$AVISO_MS,','ShowBalloonTip((\$$(if (\$$gl.urgente) { 30000 } else { 10000 })),'),encoding='utf-8')"

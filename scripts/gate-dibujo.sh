@@ -168,4 +168,9 @@ python3 scripts/gate-avisos.py || fallar "un aviso del escritorio se queda en pa
 #     letras, y que la básica quede idéntica a no haber elegido nada.
 python3 -B scripts/gate-minimalista.py || fallar "la apariencia minimalista no dibuja, o cambió el panel de siempre"
 
+# 10 · que la curva dibuje hacia dónde vas: la recta del ritmo, punteada, hasta
+#      el reinicio, con el tiempo sin cuota marcado si toca el 100 % antes. Y que
+#      diga lo mismo que la frase del ritmo, que sale de la misma condición.
+python3 -B scripts/gate-proyeccion.py || fallar "la curva no dibuja la proyección, o contradice a la frase del ritmo"
+
 echo "gate de dibujo: verde"
