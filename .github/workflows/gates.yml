@@ -199,11 +199,32 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v5
+
+      # El panel dibujado con los cuatro fixtures corridos a «ahora», en los dos
+      # temas, y el gate con sus propias capturas guardadas: es la única forma
+      # de MIRAR la bandeja sin un Windows al lado, igual que el job `barra`
+      # para macOS. Va antes que nada porque no necesita node —la bandeja dibuja
+      # el JSON que se le pasa— y las capturas se suben aunque el gate falle,
+      # que es justo cuando hace falta verlas.
+      - run: >-
+          powershell -NoProfile -ExecutionPolicy Bypass -File scripts/captura-bandeja.ps1 captura-bandeja
+          test/fixtures/panel.json test/fixtures/panel-proyeccion.json
+          test/fixtures/panel-dormida.json test/fixtures/panel-largos.json
+      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-bandeja.ps1
+        if: success() || failure()
+        env:
+          QM_CAPTURAS: captura-bandeja/gate
+      - uses: actions/upload-artifact@v6
+        if: always()
+        with:
+          name: bandeja-windows
+          path: captura-bandeja/
+          if-no-files-found: error
+
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
       - run: npm install
-      - run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/gate-bandeja.ps1
 
       # El mismo gate que corre en Ubuntu, pero acá agarra la pantalla que allá
       # se saltea: RenglonesPresupuesto se EJECUTA, con el Windows PowerShell 5.1

@@ -5,7 +5,8 @@
 #
 # La barra le pide el JSON a `qm` (QM_RAIZ/bin/qm), así que alcanza con darle un
 # `qm` que imprima el fixture. Los instantes del fixture se corren a «ahora»
-# antes: un reinicio de septiembre dibujaría todas las barras «vencidas».
+# antes (scripts/fixture-a-ahora.py): un reinicio de septiembre dibujaría todas
+# las barras «vencidas».
 #
 # Por cada fixture deja <nombre>-oscuro.png, <nombre>-claro.png y los dos del
 # menú (<nombre>-menu-oscuro.png, <nombre>-menu-claro.png): es lo que escribe
@@ -22,26 +23,7 @@ for FIXTURE in "$@"; do
   nombre=$(basename "$FIXTURE" .json)
   falso=$(mktemp -d)
   mkdir -p "$falso/bin"
-  python3 - "$FIXTURE" "$falso/datos.json" <<'PY'
-import json, re, sys
-from datetime import datetime, timezone
-d = json.load(open(sys.argv[1], encoding="utf-8"))
-gen = datetime.fromisoformat(d["generado"].replace("Z", "+00:00"))
-delta = datetime.now(timezone.utc) - gen
-ms = int(delta.total_seconds() * 1000)
-def correr(x):
-    if isinstance(x, dict):
-        return {k: (v + ms if k == "t" and isinstance(v, (int, float)) else correr(v)) for k, v in x.items()}
-    if isinstance(x, list):
-        return [correr(v) for v in x]
-    if isinstance(x, str) and re.match(r"^\d{4}-\d\d-\d\dT", x):
-        try:
-            return (datetime.fromisoformat(x.replace("Z", "+00:00")) + delta).isoformat().replace("+00:00", "Z")
-        except ValueError:
-            return x
-    return x
-json.dump(correr(d), open(sys.argv[2], "w", encoding="utf-8"))
-PY
+  python3 "$RAIZ/scripts/fixture-a-ahora.py" "$FIXTURE" "$falso/datos.json"
   cat > "$falso/bin/qm" <<EOF
 #!/bin/sh
 # El qm de la captura: el JSON del fixture y nada más. Lo demás que la barra
