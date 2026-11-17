@@ -12,8 +12,11 @@
 # CTA principal es `brew install`, que es justo el canal que no tiene contador. Como los adjuntos de GitHub son acumulados, «esta semana» sólo
 # existe si alguien anota lo que decían ayer: eso es esta corrida diaria.
 #
-# Comitea a main sólo si el JSON cambió. Es el mismo permiso con el que
-# release.yml crea la release; main no está protegida.
+# Comitea sólo si el JSON cambió, y NO a main: a la rama `publicacion`, que es
+# donde vive lo que escriben los workflows (ver scripts/publicacion.sh). Hasta
+# acá comiteaba a main, y eso era lo que no dejaba protegerla. Después despacha
+# pages.yml, que arma la página con docs/ de main más esa rama: un push hecho
+# con el GITHUB_TOKEN no dispara workflows, así que hay que pedírselo.
 name: descargas
 on:
   workflow_dispatch:
@@ -23,7 +26,8 @@ on:
     - cron: '0 12 * * *'
 
 permissions:
-  contents: write
+  contents: write   # empujar a la rama publicacion
+  actions: write    # despachar pages.yml
 
 jobs:
   contar:
@@ -33,6 +37,11 @@ jobs:
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
+      # descargas.mjs lee el JSON anterior: ahí está el historial de un renglón
+      # por día contra el que se calcula «esta semana». El que vale es el de la
+      # rama, no la copia que quedó en main.
+      - name: el historial, de la rama publicacion
+        run: ./scripts/publicacion.sh traer docs/descargas.json
       - name: bajar los números
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,14 +59,14 @@ jobs:
           # no puede parecerse a un cero.
           TOKEN_PAQUETES: ${{ secrets.TOKEN_PAQUETES }}
         run: node scripts/descargas.mjs
-      - name: comitear si cambió
+      - name: comitear a la rama publicacion si cambió
+        id: guardar
         run: |
-          if git diff --quiet -- docs/descargas.json; then
-            echo "sin cambios"
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/descargas.json
-          git commit -m "descargas: $(date -u +%F)"
-          git push
+          ./scripts/publicacion.sh guardar "descargas: $(date -u +%F)" docs/descargas.json
+      - name: desplegar la página
+        if: steps.guardar.outputs.subido == 'si'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run pages.yml --repo "$GITHUB_REPOSITORY" --ref main

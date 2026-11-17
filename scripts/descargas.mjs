@@ -26,6 +26,10 @@
 // los adjuntos de GitHub son acumulados: «esta semana» sólo existe restando
 // contra lo que decía hace siete días.
 //
+// En el repo, el que vale es el de la rama `publicacion`, no la copia de main:
+// descargas.yml lo trae antes de correr esto y lo guarda ahí después (ver
+// scripts/publicacion.sh). `make descargas` hace lo mismo con lo primero.
+//
 // La herramienta sigue sin telemetría: acá se leen dos APIs públicas desde
 // nuestro lado, y la máquina de quien instala no manda nada.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';

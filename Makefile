@@ -142,7 +142,12 @@ cambios:  ## regenera docs/cambios.html desde CHANGELOG.md
 
 .PHONY: descargas
 descargas:  ## ¿alguien lo instaló? npm y las releases, menos lo nuestro, a docs/descargas.json
+	@./scripts/publicacion.sh traer docs/descargas.json
 	@node scripts/descargas.mjs
+
+.PHONY: sitio
+sitio:  ## la página como la arma pages.yml: docs/ de main + lo de la rama publicacion, en dist/sitio
+	@./scripts/publicacion.sh sitio dist/sitio
 
 .PHONY: gate-cambios
 gate-cambios:  ## que la página de cambios sea la del CHANGELOG, no una copia vieja
