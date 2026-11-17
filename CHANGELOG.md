@@ -14,6 +14,41 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **A refresh that can't reach the server says what blocked it.** Every
+  network failure used to read `couldn't get the quota: fetch failed`,
+  whatever had failed. On a Mac it read that way for three days while an
+  application firewall dropped qm's connections. It now names the layer and
+  who to suspect: `no DNS answer for api.anthropic.com (ENOTFOUND)`,
+  `the connection to api.anthropic.com was refused (ECONNREFUSED): a firewall or
+  a proxy?`, `something on this machine dropped the connection to
+  api.anthropic.com (EBADF): an application firewall?`, or a certificate that
+  doesn't verify because something is intercepting TLS. z.ai's refresh says the
+  same, and Codex says it couldn't reach its server instead of `the response had
+  no rateLimits`.
+
+### Added
+
+- **`qm --diagnostico` tests the network.** A new section resolves
+  api.anthropic.com, connects to port 443 and does the TLS handshake, and says
+  which step failed. It runs from qm's own process, because an application
+  firewall lets one program through and blocks another: `curl` can fail while
+  qm works, and the other way round. If the check fails and Blackice, Little
+  Snitch, LuLu or Radio Silence (macOS) or OpenSnitch (Linux) is running, the
+  verdict names it as the likely cause and says what to allow. It sends no
+  HTTP request and no credential, takes at most five seconds, and `--sin-red`
+  skips it.
+
+### Changed
+
+- **Short plan names.** The plan chip in the panels was cut off
+  (`Ultra (max_2…`). Plans now read `Ultra · 20x`, `Max · 5x`, `Team · 5x`,
+  `Pro`, and Codex's `Pro Lite` or `Plus` instead of `prolite` and `plus`.
+  `qm --json` carries them in `planNombre`; `plan` keeps its old value.
+
 ## v0.1.28 — 2026-11-17
 
 ### Changed
