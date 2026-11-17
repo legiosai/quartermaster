@@ -5,6 +5,9 @@
 // `claude_max`. Una cuenta que había pasado a Ultra se seguía mostrando igual
 // que cuando era Max 5x. Las cuentas de acá son inventadas: sólo la FORMA de
 // `oauthAccount` es la que escribe Claude Code.
+//
+// Y corto: hasta 0.1.28 era «Ultra (max_20x)» y «team_tier_1 (max_5x)», y los
+// paneles cortaban el chip en «Ultra (max_2…». Ahora «Ultra · 20x».
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -12,7 +15,8 @@ import { mkdirSync, mkdtempSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import { leerCuenta, nombrePlan, planParaMostrar } from '../src/core/perfiles.ts';
+import { leerCuenta, nombreLegible, nombrePlan, planParaMostrar } from '../src/core/perfiles.ts';
+import { nombrePlanCodex } from '../src/adapters/codex.ts';
 
 // Estos tests leen las frases en castellano. El idioma sale del locale, y el
 // de CI es C.UTF-8 (inglés): se fija acá. Lo que es del inglés vive en idioma.test.ts.
@@ -59,28 +63,64 @@ const VIEJA = {
 };
 
 test('una cuenta Ultra se muestra Ultra, con el multiplicador, y no claude_max', () => {
-  assert.strictEqual(nombrePlan(ULTRA, 'claude_max'), 'Ultra (max_20x)');
+  assert.strictEqual(nombrePlan(ULTRA, 'claude_max'), 'Ultra · 20x');
 });
 
 test('en Teams manda el tier del asiento, no el nombre interno de la organización', () => {
-  assert.strictEqual(nombrePlan(TEAMS, 'team_tier_1'), 'team_tier_1 (max_5x)');
+  assert.strictEqual(nombrePlan(TEAMS, 'team_tier_1'), 'Team · 5x');
 });
 
-test('sin campos nuevos, el plan se muestra como siempre', () => {
-  assert.strictEqual(nombrePlan(VIEJA, 'claude_max'), 'claude_max');
+test('sin campos nuevos, el plan es la palabra del identificador', () => {
+  assert.strictEqual(nombrePlan(VIEJA, 'claude_max'), 'Max');
 });
 
 test('un tier sin multiplicador no se muestra: es un nombre interno', () => {
   assert.strictEqual(nombrePlan({ planDisplayName: 'Pro', organizationRateLimitTier: 'default_claude_ai' }, 'claude_pro'), 'Pro');
-  assert.strictEqual(nombrePlan({ organizationRateLimitTier: 'default_raven' }, 'claude_team'), 'claude_team');
+  assert.strictEqual(nombrePlan({ organizationRateLimitTier: 'default_raven' }, 'claude_team'), 'Team');
+  assert.strictEqual(nombrePlan({ organizationRateLimitTier: 'default_claude_ai' }, 'claude_pro'), 'Pro');
+  assert.strictEqual(nombrePlan({}, 'free'), 'Free');
 });
 
-test('si el nombre ya trae el multiplicador, no se repite entre paréntesis', () => {
-  assert.strictEqual(nombrePlan({ planDisplayName: 'Max 20x', organizationRateLimitTier: 'default_claude_max_20x' }, 'claude_max'), 'Max 20x');
+test('si el nombre ya trae el multiplicador, se escribe igual que los demás y una sola vez', () => {
+  assert.strictEqual(nombrePlan({ planDisplayName: 'Max 20x', organizationRateLimitTier: 'default_claude_max_20x' }, 'claude_max'), 'Max · 20x');
+  assert.strictEqual(nombrePlan({ planDisplayName: 'Max 5x' }, 'claude_max'), 'Max · 5x');
+});
+
+test('el tier manda sobre el multiplicador del nombre: es el que te frena', () => {
+  assert.strictEqual(nombrePlan({ planDisplayName: 'Max 5x', organizationRateLimitTier: 'default_claude_max_20x' }, 'claude_max'), 'Max · 20x');
 });
 
 test('un planDisplayName vacío no tapa al plan', () => {
-  assert.strictEqual(nombrePlan({ planDisplayName: '  ', organizationRateLimitTier: 'default_claude_max_5x' }, 'claude_max'), 'claude_max (max_5x)');
+  assert.strictEqual(nombrePlan({ planDisplayName: '  ', organizationRateLimitTier: 'default_claude_max_5x' }, 'claude_max'), 'Max · 5x');
+});
+
+test('los cuatro de las dos máquinas de acá, como los dibuja el chip', () => {
+  // Los valores de `oauthAccount` medidos el 2026-11-17 en las dos máquinas,
+  // con lo que mostraba 0.1.28 al lado.
+  assert.strictEqual(nombrePlan(ULTRA, 'claude_max'), 'Ultra · 20x'); // Ultra (max_20x)
+  assert.strictEqual(nombrePlan(TEAMS, 'team_tier_1'), 'Team · 5x'); // team_tier_1 (max_5x)
+  assert.strictEqual(nombrePlan(MAX5, 'claude_max'), 'Max · 5x'); // claude_max (max_5x)
+  assert.strictEqual(nombrePlanCodex('prolite'), 'Pro Lite'); // prolite
+  for (const n of ['Ultra · 20x', 'Team · 5x', 'Max · 5x', 'Pro Lite']) {
+    assert.ok(n.length <= 11, `«${n}» no entra en el chip sin cortarse`);
+  }
+});
+
+test('Codex: los planes de ChatGPT con su nombre, y uno desconocido legible igual', () => {
+  assert.strictEqual(nombrePlanCodex('plus'), 'Plus');
+  assert.strictEqual(nombrePlanCodex('pro'), 'Pro');
+  assert.strictEqual(nombrePlanCodex('free'), 'Free');
+  assert.strictEqual(nombrePlanCodex('team'), 'Team');
+  assert.strictEqual(nombrePlanCodex('api key'), 'API key');
+  assert.strictEqual(nombrePlanCodex('enterprise_plus'), 'Enterprise Plus');
+  assert.strictEqual(nombrePlanCodex(null), null);
+  assert.strictEqual(nombrePlanCodex(' '), null);
+});
+
+test('nombreLegible: guiones y guiones bajos son espacios, cada palabra en mayúscula', () => {
+  assert.strictEqual(nombreLegible('pro_lite'), 'Pro Lite');
+  assert.strictEqual(nombreLegible('zai-coding-plan'), 'Zai Coding Plan');
+  assert.strictEqual(nombreLegible(''), '');
 });
 
 test('sin plan y sin nombre, null: no se inventa un plan a partir del tier', () => {
@@ -95,8 +135,8 @@ test('leerCuenta deja `plan` como identificador y pone el nombre aparte', () => 
   // `plan` no cambia de significado: relevancia() lo compara contra `free` y
   // el JSON ya lo publicaba así.
   assert.strictEqual(c?.plan, 'claude_max');
-  assert.strictEqual(c?.planNombre, 'Ultra (max_20x)');
-  assert.strictEqual(planParaMostrar(c), 'Ultra (max_20x)');
+  assert.strictEqual(c?.planNombre, 'Ultra · 20x');
+  assert.strictEqual(planParaMostrar(c), 'Ultra · 20x');
 });
 
 // ── cuál de los dos .claude.json manda ────────────────────────────────
@@ -120,9 +160,9 @@ function perfilConDos(adentro: object, alLado: object, viejo: 'adentro' | 'alLad
 
 test('a igual riqueza manda el .claude.json más nuevo, no el que está primero', () => {
   // El caso medido: el de adentro es el viejo.
-  assert.strictEqual(leerCuenta(perfilConDos(MAX5, ULTRA, 'adentro'))?.planNombre, 'Ultra (max_20x)');
+  assert.strictEqual(leerCuenta(perfilConDos(MAX5, ULTRA, 'adentro'))?.planNombre, 'Ultra · 20x');
   // Y al revés, para que el test no pase por el orden de las rutas.
-  assert.strictEqual(leerCuenta(perfilConDos(ULTRA, MAX5, 'alLado'))?.planNombre, 'Ultra (max_20x)');
+  assert.strictEqual(leerCuenta(perfilConDos(ULTRA, MAX5, 'alLado'))?.planNombre, 'Ultra · 20x');
 });
 
 test('planParaMostrar cae en plan cuando la fuente no da un nombre', () => {
@@ -170,7 +210,7 @@ test('--json trae plan igual que antes y planNombre con el nombre de verdad', ()
   const p = d.perfiles.find((x) => x['perfil'] === '.claude');
   assert.ok(p !== undefined, 'la cuenta de la casa de mentira tiene que aparecer');
   assert.strictEqual(p['plan'], 'claude_max');
-  assert.strictEqual(p['planNombre'], 'Ultra (max_20x)');
+  assert.strictEqual(p['planNombre'], 'Ultra · 20x');
 });
 
 test('la terminal muestra el mismo nombre que el JSON', () => {
@@ -181,6 +221,6 @@ test('la terminal muestra el mismo nombre que el JSON', () => {
   }).replace(/\x1b\[[0-9;]*m/g, '');
   const fila = salida.split('\n').find((l) => l.includes('quien@ejemplo.com'));
   assert.ok(fila !== undefined, `no está la fila de la cuenta:\n${salida.slice(0, 400)}`);
-  assert.match(fila, /· Ultra \(max_20x\)/);
+  assert.match(fila, /· Ultra · 20x/);
   assert.doesNotMatch(fila, /claude_max/);
 });

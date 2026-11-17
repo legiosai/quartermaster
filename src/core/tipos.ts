@@ -21,7 +21,7 @@ export interface Cuenta {
   /** team_tier_1, max, pro… tal cual lo reporta .claude.json. */
   readonly plan: string | null;
   /**
-   * El plan como lo llama una persona, para mostrar: «Ultra (max_20x)». Va
+   * El plan como lo llama una persona, para mostrar: «Ultra · 20x». Va
    * aparte de `plan` y no lo reemplaza, porque `plan` es un identificador
    * —`relevancia()` lo compara contra `free`, y el JSON ya lo publica con ese
    * significado— y esto es una frase. Falta donde la fuente no da nada mejor

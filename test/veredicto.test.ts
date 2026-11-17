@@ -25,7 +25,7 @@ delete process.env['XDG_CACHE_HOME'];
 delete process.env['XDG_CONFIG_HOME'];
 delete process.env['CLAUDE_CONFIG_DIR'];
 
-const { concluir, diagnostico, VIEJO_MS } = await import('../src/cli/diagnostico.ts');
+const { concluir, diagnostico, hechosDeRed, VIEJO_MS } = await import('../src/cli/diagnostico.ts');
 type Hechos = Parameters<typeof concluir>[0];
 type Numero = NonNullable<Hechos['numeros']>[number];
 
@@ -199,10 +199,85 @@ test('si no se pudieron leer las cuentas, es un bug y lo dice', () => {
   assert.match(v.avisos[0]!, /issue/);
 });
 
+// ── la red ───────────────────────────────────────────────────────────────
+//
+// El caso que la hizo entrar: una Mac donde cada refresco decía «fetch failed»
+// durante tres días, y la causa era un firewall de aplicaciones que descartaba
+// las conexiones de node. El error de abajo es el que dejó, tal cual lo armó
+// undici con node 26 (medido): el código de arriba dice timeout, y el que
+// delata al filtro es el EBADF de la IPv4.
+
+const conCodigo = (mensaje: string, code: string, extra: object = {}) => Object.assign(new Error(mensaje), { code, ...extra });
+const DEL_FILTRO = new AggregateError([
+  conCodigo('connect ETIMEDOUT 2607:6bc0::10:443', 'ETIMEDOUT', { syscall: 'connect' }),
+  conCodigo('connect EBADF 160.79.104.10:443', 'EBADF', { syscall: 'connect' }),
+], 'connect failed');
+
+const sondaQueFalla = (paso: 'dns' | 'tcp' | 'tls', error: unknown) => ({
+  host: 'api.anthropic.com',
+  puerto: 443,
+  pasos: [
+    ...(paso === 'dns' ? [] : [{ paso: 'dns' as const, ok: true, ms: 12, detalle: '160.79.104.10' }]),
+    ...(paso === 'tls' ? [{ paso: 'tcp' as const, ok: true, ms: 30 }] : []),
+    { paso, ok: false, ms: 40, error },
+  ],
+});
+
+const BLACKICE = { nombre: 'Blackice', arreglo: 'dejá pasar a node en Blackice' };
+
+test('red: la conexión descartada con un firewall corriendo lo nombra como la causa, con su arreglo', () => {
+  const v = concluir(hechos({ red: hechosDeRed(sondaQueFalla('tcp', DEL_FILTRO), [BLACKICE]) }), AHORA);
+  assert.equal(v.avisos.length, 1);
+  assert.match(v.avisos[0]!, /qm no llega a api\.anthropic\.com/);
+  assert.match(v.avisos[0]!, /EBADF/);
+  assert.match(v.avisos[0]!, /Blackice está corriendo: es la causa probable/);
+  assert.match(v.avisos[0]!, /→ dejá pasar a node en Blackice$/m);
+});
+
+test('red: sin firewall conocido, dice la capa y que el disco sigue andando', () => {
+  const v = concluir(hechos({ red: hechosDeRed(sondaQueFalla('tcp', conCodigo('connect ECONNREFUSED', 'ECONNREFUSED')), []) }), AHORA);
+  assert.equal(v.avisos.length, 1);
+  assert.match(v.avisos[0]!, /rechazada \(ECONNREFUSED\)/);
+  assert.match(v.avisos[0]!, /--refrescar y --calentar van a fallar/);
+  assert.doesNotMatch(v.avisos[0]!, /causa probable/);
+});
+
+test('red: si falla el DNS no se culpa al firewall de aplicaciones', () => {
+  const v = concluir(hechos({ red: hechosDeRed(sondaQueFalla('dns', conCodigo('getaddrinfo ENOTFOUND', 'ENOTFOUND')), [BLACKICE]) }), AHORA);
+  assert.equal(v.avisos.length, 1);
+  assert.match(v.avisos[0]!, /sin respuesta del DNS para api\.anthropic\.com \(ENOTFOUND\)/);
+  assert.doesNotMatch(v.avisos[0]!, /Blackice/);
+});
+
+test('red: el TLS cortado también puede ser el firewall', () => {
+  const v = concluir(hechos({ red: hechosDeRed(sondaQueFalla('tls', conCodigo('socket hang up', 'ECONNRESET')), [BLACKICE]) }), AHORA);
+  assert.match(v.avisos[0]!, /se cortó \(ECONNRESET\)/);
+  assert.match(v.avisos[0]!, /Blackice está corriendo/);
+});
+
+test('red: una red que anda no agrega nada, aunque haya un firewall corriendo', () => {
+  const sana = { host: 'api.anthropic.com', puerto: 443, pasos: [
+    { paso: 'dns' as const, ok: true, ms: 5 }, { paso: 'tcp' as const, ok: true, ms: 30 }, { paso: 'tls' as const, ok: true, ms: 40 },
+  ] };
+  const v = concluir(hechos({ red: hechosDeRed(sana, [BLACKICE]) }), AHORA);
+  assert.deepEqual(v, { avisos: [], notas: [] });
+});
+
+test('red: va antes que los números viejos, y sin red no se manda a --refrescar', () => {
+  const v = concluir(hechos({
+    numeros: [numero('.claude', VIEJO_MS + 3_600_000)],
+    red: hechosDeRed(sondaQueFalla('tcp', DEL_FILTRO), []),
+  }), AHORA);
+  assert.equal(v.avisos.length, 2);
+  assert.match(v.avisos[0]!, /no llega a api\.anthropic\.com/);
+  assert.match(v.avisos[1]!, /nada lo está refrescando/);
+  assert.doesNotMatch(v.avisos[1]!, /qm --refrescar/);
+});
+
 // ── el informe entero, en las otras dos plataformas ──────────────────────
 
-test('el informe de macOS mira la barra, no GNOME, y termina en un veredicto', () => {
-  const s = diagnostico('0.0.0', 'darwin');
+test('el informe de macOS mira la barra, no GNOME, y termina en un veredicto', async () => {
+  const s = await diagnostico('0.0.0', 'darwin', { red: null });
   assert.match(s, /── la barra de menú/);
   assert.doesNotMatch(s, /extensión de GNOME/);
   assert.doesNotMatch(s, /XDG_CURRENT_DESKTOP/, 'el escritorio de Linux no tiene nada que hacer en una Mac');
@@ -210,15 +285,34 @@ test('el informe de macOS mira la barra, no GNOME, y termina en un veredicto', (
   assert.match(s, /── veredicto[^\n]*\n {2}[⚠ℹ✓]/u);
 });
 
-test('el informe de Windows mira la bandeja y termina en un veredicto', () => {
-  const s = diagnostico('0.0.0', 'win32');
+test('el informe de Windows mira la bandeja y termina en un veredicto', async () => {
+  const s = await diagnostico('0.0.0', 'win32', { red: null });
   assert.match(s, /── la bandeja/);
   assert.doesNotMatch(s, /extensión de GNOME/);
   assert.match(s, /── veredicto[^\n]*\n {2}[⚠ℹ✓]/u);
 });
 
-test('en una casa vacía, el veredicto dice que no hay nada que leer', () => {
-  const s = diagnostico('0.0.0', 'linux');
+test('en una casa vacía, el veredicto dice que no hay nada que leer', async () => {
+  const s = await diagnostico('0.0.0', 'linux', { red: null });
   assert.match(s, /── los números[^\n]*\n {2}\(ninguna cuenta\)/);
   assert.match(s, /⚠ no encontré ningún perfil/);
+});
+
+test('el informe muestra cada paso de la red y el veredicto nombra al firewall', async () => {
+  const s = await diagnostico('0.0.0', 'darwin', {
+    red: async () => sondaQueFalla('tcp', DEL_FILTRO),
+    firewalls: () => [BLACKICE],
+  });
+  assert.match(s, /── la red/);
+  assert.match(s, /^ {2}DNS {16}✓ 12 ms · 160\.79\.104\.10$/m);
+  assert.match(s, /^ {2}TCP {16}✗ 40 ms · algo en esta máquina descartó la conexión a api\.anthropic\.com \(EBADF\)/m);
+  assert.match(s, /^ {2}TLS {16}— \(no se probó\)$/m);
+  assert.match(s, /^ {2}firewall {11}Blackice$/m);
+  assert.match(s, /── veredicto[^]*Blackice está corriendo: es la causa probable/);
+});
+
+test('con --sin-red la sección lo dice y el veredicto no habla de la red', async () => {
+  const s = await diagnostico('0.0.0', 'linux', { red: null });
+  assert.match(s, /── la red[^\n]*\n {2}\(no se miró: --sin-red\)/);
+  assert.doesNotMatch(s, /no llega a/);
 });

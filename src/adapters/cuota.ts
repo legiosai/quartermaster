@@ -22,6 +22,7 @@ import { anotarFreno, frenadoHasta } from './cache-endpoint.ts';
 import { frenoPor } from '../core/pedir.ts';
 import type { Perfil, ResultadoCuota } from '../core/tipos.ts';
 import { tr } from '../core/idioma.ts';
+import { detalleDeRed } from '../core/red.ts';
 
 // 24 h a propósito: es-AR sin `hourCycle` da «03:21 p. m.».
 export const hora = (d: Date): string =>
@@ -64,8 +65,8 @@ export async function consultarCuota(perfil: Perfil, ms = 10_000): Promise<Resul
       signal: AbortSignal.timeout(ms),
     });
   } catch (e) {
-    const detalle = e instanceof Error ? e.message : tr('error de red', 'network error');
-    return { estado: 'error', detalle };
+    // «fetch failed» solo no dice nada: la capa que falló está en e.cause.
+    return { estado: 'error', detalle: detalleDeRed(e, new URL(ENDPOINT).hostname) };
   }
 
   if (respuesta.status === 401 || respuesta.status === 403) return { estado: 'vencida' };

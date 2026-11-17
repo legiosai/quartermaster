@@ -33,6 +33,7 @@ import {
   duenoCodex,
   hayCodex,
   DIRECTORIO_CODEX,
+  nombrePlanCodex,
   ultimaActividadCodex,
 } from '../adapters/codex.ts';
 import {
@@ -205,7 +206,9 @@ const ayuda = (): string =>
                       es un pedido menos a un endpoint que no es nuestro
   qm --calentar-codex igual pero sólo Codex, sin tocar el llavero
   qm --diagnostico    todo lo que hace falta para reportar un bug, en un solo
-                      comando y ya redactado: pegalo tal cual en el issue
+                      comando y ya redactado: pegalo tal cual en el issue.
+                      Prueba la red hasta api.anthropic.com (DNS, TCP y TLS,
+                      sin pedido HTTP) salvo con --sin-red
   qm --desglose       en qué se fue la cuota: costo ponderado por clase de
                       token, tamaño del prompt, cache reconstruido, subagentes
                       y sesiones más caras. Sólo disco. Acepta --dias=N (7 por
@@ -264,7 +267,9 @@ resto de los perfiles — la cuota igual se lee, porque sale del disco.`,
                       is one request fewer to an endpoint that isn't ours
   qm --calentar-codex the same but only Codex, without touching the keychain
   qm --diagnostico    everything a bug report needs, in one command and
-                      already redacted: paste it as is into the issue
+                      already redacted: paste it as is into the issue. It
+                      tests the network to api.anthropic.com (DNS, TCP and
+                      TLS, no HTTP request) unless given --sin-red
   qm --desglose       where the quota went: weighted cost by token class,
                       prompt size, rebuilt cache, subagents and the most
                       expensive sessions. Disk only. Takes --dias=N (7 by
@@ -406,6 +411,9 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
   }
 
   const dueno = duenoCodex();
+  // El modo va al final y no antes: si hay suscripción de verdad, el plan que
+  // informa el rollout o el id_token es más preciso que «api key».
+  const plan = info?.plan ?? dueno?.plan ?? (modoCodex() === 'apikey' ? 'api key' : null);
   const perfil: Perfil = {
     directorio: DIRECTORIO_CODEX,
     nombre: 'codex',
@@ -413,9 +421,8 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     cuenta: {
       email: dueno?.email ?? info?.accountId ?? null,
       organizacion: null,
-      // El modo va al final y no antes: si hay suscripción de verdad, el plan
-      // que informa el rollout o el id_token es más preciso que «api key».
-      plan: info?.plan ?? dueno?.plan ?? (modoCodex() === 'apikey' ? 'api key' : null),
+      plan,
+      planNombre: nombrePlanCodex(plan),
     },
   };
 
@@ -1292,8 +1299,8 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
       directorio: redactar(o, f.perfil.directorio),
       cuenta: redactar(o, f.perfil.cuenta?.email ?? null),
       // `plan` es el identificador de siempre (`claude_max`, `team_tier_1`) y
-      // no cambia de significado; `planNombre` es lo que se dibuja: «Ultra
-      // (max_20x)». Campo nuevo y no `plan` reescrito, para no mover `esquema`.
+      // no cambia de significado; `planNombre` es lo que se dibuja: «Ultra ·
+      // 20x». Campo nuevo y no `plan` reescrito, para no mover `esquema`.
       plan: f.perfil.cuenta?.plan ?? null,
       planNombre: planParaMostrar(f.perfil.cuenta),
       credencial: f.veredicto,
@@ -1445,7 +1452,8 @@ function maximo(filas: readonly FilaPerfil[], o: Opciones): number {
 // --diagnostico sale primero: tiene que contestar incluso cuando lo demás está
 // roto. Es lo único que se le pide a alguien que reporta un bug.
 if (process.argv.includes('--diagnostico')) {
-  process.stdout.write(diagnostico(VERSION));
+  const sinRed = process.argv.includes('--sin-red') || process.argv.includes('--offline');
+  process.stdout.write(await diagnostico(VERSION, process.platform, sinRed ? { red: null } : {}));
   await salir(0);
 }
 

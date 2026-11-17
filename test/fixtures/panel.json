@@ -25,7 +25,7 @@
             "directorio": "~/.claude",
             "cuenta": "***@hotmail.com",
             "plan": "claude_max",
-            "planNombre": "Ultra (max_20x)",
+            "planNombre": "Ultra \u00b7 20x",
             "credencial": "vigente (5h53m)",
             "cuota": {
                 "estado": "ok",
@@ -335,7 +335,7 @@
             "directorio": "~/.claude-teams",
             "cuenta": "***@teramot.com",
             "plan": "team_tier_1",
-            "planNombre": "team_tier_1 (max_5x)",
+            "planNombre": "Team \u00b7 5x",
             "credencial": "vigente (5h57m)",
             "cuota": {
                 "estado": "ok",
@@ -601,6 +601,7 @@
             "directorio": "~/.codex",
             "cuenta": "***@hotmail.com",
             "plan": "plus",
+            "planNombre": "Plus",
             "credencial": "la pone codex \u00b7 2 reset(s) sin usar",
             "cuota": {
                 "estado": "ok",
