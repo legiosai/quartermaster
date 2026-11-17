@@ -1,28 +1,28 @@
 {
-  "generado": "2026-11-16T21:37:04.969Z",
+  "generado": "2026-11-17T20:26:35.727Z",
   "resumen": {
     "humanasHastaHoy": {
-      "npm": 849,
-      "github": 141
+      "npm": 851,
+      "github": 153
     },
     "estaSemana": {
-      "desde": "2026-11-09",
-      "npm": 111,
-      "github": 1
+      "desde": "2026-11-10",
+      "npm": 91,
+      "github": 13
     },
     "sinContador": {
-      "brew": 29,
-      "scoop": 79
+      "brew": 31,
+      "scoop": 82
     },
-    "llegaron": 12,
+    "llegaron": 9,
     "estrellas": 11,
-    "cobertura": "faltan 1 de 62 días",
+    "cobertura": "faltan 1 de 63 días",
     "nota": "npm publica sus números con uno o dos días de atraso; los últimos dos días siempre están incompletos."
   },
   "npm": {
-    "total": 3787,
-    "enDiasSinPublicar": 849,
-    "porPublicacion": 140,
+    "total": 3789,
+    "enDiasSinPublicar": 851,
+    "porPublicacion": 109,
     "dias": [
       {
         "dia": "2026-09-11",
@@ -422,15 +422,159 @@
       },
       {
         "dia": "2026-11-16",
-        "descargas": 0,
+        "descargas": 2,
         "publicaciones": 0,
-        "humanas": 0
+        "humanas": 2
+      },
+      {
+        "dia": "2026-11-17",
+        "descargas": 0,
+        "publicaciones": 6,
+        "humanas": null
       }
     ]
   },
   "github": {
-    "humanas": 141,
+    "humanas": 153,
     "porVersion": [
+      {
+        "version": "v0.1.29",
+        "publicada": "2026-11-17",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 1,
+            "netas": 1
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
+      {
+        "version": "v0.1.28",
+        "publicada": "2026-11-17",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 1,
+            "netas": 1
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
+      {
+        "version": "v0.1.27",
+        "publicada": "2026-11-17",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 1,
+            "netas": 1
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
+      {
+        "version": "v0.1.26",
+        "publicada": "2026-11-17",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 1,
+            "netas": 1
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
+      {
+        "version": "v0.1.25",
+        "publicada": "2026-11-17",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 1,
+            "netas": 1
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
+      {
+        "version": "v0.1.24",
+        "publicada": "2026-11-17",
+        "humanas": 2,
+        "adjuntos": {
+          "exe": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "zip": {
+            "bajadas": 2,
+            "netas": 0
+          },
+          "extension": {
+            "bajadas": 1,
+            "netas": 1
+          },
+          "deb": {
+            "bajadas": 1,
+            "netas": 1
+          }
+        }
+      },
       {
         "version": "v0.1.23",
         "publicada": "2026-11-02",
@@ -895,19 +1039,9 @@
   "interes": {
     "nota": "Nada de esto es una instalación. Es quién llegó, de dónde, y el único rastro que dejan brew y scoop.",
     "vistas": {
-      "total": 34,
-      "unicos": 12,
+      "total": 30,
+      "unicos": 9,
       "dias": [
-        {
-          "dia": "2026-11-01",
-          "vistas": 1,
-          "unicos": 1
-        },
-        {
-          "dia": "2026-11-02",
-          "vistas": 7,
-          "unicos": 5
-        },
         {
           "dia": "2026-11-03",
           "vistas": 1,
@@ -967,14 +1101,24 @@
           "dia": "2026-11-14",
           "vistas": 0,
           "unicos": 0
+        },
+        {
+          "dia": "2026-11-15",
+          "vistas": 0,
+          "unicos": 0
+        },
+        {
+          "dia": "2026-11-16",
+          "vistas": 4,
+          "unicos": 1
         }
       ]
     },
     "referentes": [
       {
         "sitio": "github.com",
-        "vistas": 4,
-        "unicos": 4
+        "vistas": 2,
+        "unicos": 2
       },
       {
         "sitio": "quartermaster.legios.com.ar",
@@ -1018,25 +1162,11 @@
     "canalesSinContador": {
       "brew": {
         "repo": "legiosai/homebrew-tap",
-        "total": 61,
-        "unicos": 37,
-        "enDiasSinRelease": 29,
-        "diasSinRelease": 13,
+        "total": 48,
+        "unicos": 31,
+        "enDiasSinRelease": 31,
+        "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-11-01",
-            "clones": 1,
-            "unicos": 1,
-            "huboRelease": false,
-            "quietos": 1
-          },
-          {
-            "dia": "2026-11-02",
-            "clones": 15,
-            "unicos": 8,
-            "huboRelease": true,
-            "quietos": null
-          },
           {
             "dia": "2026-11-03",
             "clones": 11,
@@ -1120,30 +1250,30 @@
             "unicos": 2,
             "huboRelease": false,
             "quietos": 2
+          },
+          {
+            "dia": "2026-11-15",
+            "clones": 1,
+            "unicos": 1,
+            "huboRelease": false,
+            "quietos": 1
+          },
+          {
+            "dia": "2026-11-16",
+            "clones": 2,
+            "unicos": 2,
+            "huboRelease": false,
+            "quietos": 2
           }
         ]
       },
       "scoop": {
         "repo": "legiosai/scoop-bucket",
-        "total": 117,
-        "unicos": 91,
-        "enDiasSinRelease": 79,
-        "diasSinRelease": 13,
+        "total": 102,
+        "unicos": 82,
+        "enDiasSinRelease": 82,
+        "diasSinRelease": 14,
         "dias": [
-          {
-            "dia": "2026-11-01",
-            "clones": 6,
-            "unicos": 6,
-            "huboRelease": false,
-            "quietos": 6
-          },
-          {
-            "dia": "2026-11-02",
-            "clones": 18,
-            "unicos": 12,
-            "huboRelease": true,
-            "quietos": null
-          },
           {
             "dia": "2026-11-03",
             "clones": 39,
@@ -1227,6 +1357,20 @@
             "unicos": 5,
             "huboRelease": false,
             "quietos": 5
+          },
+          {
+            "dia": "2026-11-15",
+            "clones": 6,
+            "unicos": 6,
+            "huboRelease": false,
+            "quietos": 6
+          },
+          {
+            "dia": "2026-11-16",
+            "clones": 3,
+            "unicos": 3,
+            "huboRelease": false,
+            "quietos": 3
           }
         ]
       }
@@ -1238,8 +1382,8 @@
   },
   "huecos": {
     "desde": "2026-09-16",
-    "esperados": 62,
-    "anotados": 61,
+    "esperados": 63,
+    "anotados": 62,
     "faltan": [
       "2026-10-05"
     ]
@@ -1549,6 +1693,11 @@
       "fecha": "2026-11-16",
       "npm": 849,
       "github": 141
+    },
+    {
+      "fecha": "2026-11-17",
+      "npm": 851,
+      "github": 153
     }
   ]
 }
