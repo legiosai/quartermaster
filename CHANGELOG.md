@@ -14,6 +14,22 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Added
+
+- **The GNOME panel draws where you are heading.** The curve of the bar that
+  stops you used to end at the last reading, and the pace was a sentence under
+  it: `3.7 pts/h · 100 % en 15h56m — antes del reinicio`. The curve now carries
+  on as a dashed line, at that same pace, up to the bar's reset. If it reaches
+  100 % first, the stretch from there to the reset is drawn in red and says how
+  long you would be left without quota (`sin cuota 2d5h`), with the time you hit
+  100 % under that point and the reset at the end. If it doesn't, the line ends
+  at the reset with the percentage you would reach (`~79 % al reinicio`). When
+  the reset is days away, the past keeps a third of the width and a dotted mark
+  at «now» shows where the time scale changes. The line is drawn only when the
+  pace sentence is, so the two can't disagree.
+
 ## v0.1.25 — 2026-11-16
 
 ### Added
