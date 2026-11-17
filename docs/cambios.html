@@ -323,7 +323,7 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
-<h2>Unreleased</h2>
+<h2 id="v0.1.29">v0.1.29 — 2026-11-17</h2>
 <h3>Fixed</h3>
 <ul>
 <li><strong>A refresh that can't reach the server says what blocked it.</strong> Every network failure used to read <code>couldn't get the quota: fetch failed</code>, whatever had failed. On a Mac it read that way for three days while an application firewall dropped qm's connections. It now names the layer and who to suspect: <code>no DNS answer for api.anthropic.com (ENOTFOUND)</code>, <code>the connection to api.anthropic.com was refused (ECONNREFUSED): a firewall or a proxy?</code>, <code>something on this machine dropped the connection to api.anthropic.com (EBADF): an application firewall?</code>, or a certificate that doesn't verify because something is intercepting TLS. z.ai's refresh says the same, and Codex says it couldn't reach its server instead of <code>the response had no rateLimits</code>.</li>
