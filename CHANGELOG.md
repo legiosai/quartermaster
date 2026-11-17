@@ -49,6 +49,24 @@ out unless they changed what you see.
   `Pro`, and Codex's `Pro Lite` or `Plus` instead of `prolite` and `plus`.
   `qm --json` carries them in `planNombre`; `plan` keeps its old value.
 
+- **The Windows tray panel, redesigned like the GNOME panel and the macOS
+  menu.** It was the last of the three with the old layout. It now has the
+  same pieces:
+  - The header is a card tinted with the colour of the state, and it gives the
+    reset as a local time too, plus how old the reading of that bar is.
+  - Each account says on top how old its number is and how often it is read,
+    with the plan as a chip next to the name.
+  - The bars have names you can read (*Sesión*, *Semanal*, *Semanal (Fable)*).
+    Each bar shows the time to its reset next to the percentage, and the one
+    that stops the account is marked in the margin.
+  - The curve of the bar that stops you carries on, dashed, to the reset, with
+    the stretch you'd spend without quota marked in red. A curve that didn't
+    move says so in words instead of drawing a flat line.
+  - The pace, the daily budget (with its ring) and why an account is dormant sit
+    under a rule.
+  - Accounts with no number share one block at the end, and commands in their
+    message are set in monospace and never split across lines.
+
 ## v0.1.28 — 2026-11-17
 
 ### Changed

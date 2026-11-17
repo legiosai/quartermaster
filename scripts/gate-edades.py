@@ -102,8 +102,17 @@ def main() -> int:
         fallas.append("bin/qm-barra.swift: el «viejo» del item volvió a ser la edad de la cuenta")
 
     tray = (RAIZ / "bin/qm-tray.ps1").read_text(encoding="utf-8")
-    if "Escribir $g (PieBarra $v)" not in tray:
+    # El pie de cada barra es PieBarra —la edad propia y, en la que frena, el
+    # «sin cambios»— y la edad propia es EdadDeBarra, que es la que mira
+    # `medidoEn`. Desde el rediseño el reinicio subió al renglón de la barra,
+    # así que el pie ya no se escribe directo: se arma y después se mide.
+    if "$pie = PieBarra $v $quieta" not in tray:
         fallas.append("bin/qm-tray.ps1: el pie de la barra no pasa por PieBarra (sin edad propia)")
+    if "@((EdadDeBarra $v), $quieta)" not in tray:
+        fallas.append("bin/qm-tray.ps1: PieBarra ya no dice la edad propia de la barra")
+    # Y la cabecera, que suele mostrar justo la barra de la lectura vieja.
+    if "$edad = if ($v.PSObject.Properties['medidoEn']) { Faltan $v.medidoEn }" not in tray:
+        fallas.append("bin/qm-tray.ps1: la cabecera no dice la edad propia de la barra que encabeza")
     if "$v.PSObject.Properties['medidoEn']" not in tray:
         fallas.append("bin/qm-tray.ps1: lee `medidoEn` sin preguntar si está (StrictMode revienta con un qm viejo)")
     if "EdadDe $cuota.sesion $cuota" not in tray:

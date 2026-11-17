@@ -244,7 +244,9 @@ $PALETA = @{
   critico = [System.Drawing.Color]::FromArgb(208, 59, 59)   # #d03b3b
 }
 
-function NivelDe([int]$pct, [bool]$preocupa) {
+# Con [double] y no [int]: el [int] de PowerShell redondea, así que un 94.6 se
+# volvía 95 y pintaba de rojo una barra que en GNOME y en macOS es naranja.
+function NivelDe([double]$pct, [bool]$preocupa) {
   if ($pct -ge 95) { return 'critico' }
   if ($preocupa -or $pct -ge 80) { return 'aviso' }
   if ($pct -ge 60) { return 'atento' }
@@ -339,13 +341,13 @@ $script:Tinta3 = Mezclar $script:Tinta $script:Fondo 0.58
 # borde al 12 %. Apenas se ven, y eso es lo que se busca — agrupan sin pesar.
 $script:Tarjeta = Mezclar $script:Fondo $script:Tinta 0.06
 $script:BordeTarjeta = Mezclar $script:Fondo $script:Tinta 0.12
-# La pista del medidor se mide contra la TARJETA y no contra el fondo del panel.
-# Salía de `Mezclar $Fondo $Tinta 0.14` —#494949 sobre un fondo #2b2b2b—, y con
-# la cuenta dibujada plana sobre el panel estaba bien. Con la tarjeta en #383838
-# esa pista queda MÁS CLARA que la tarjeta, y la parte vacía de la barra se lee
-# como un relieve en vez de un surco. En GNOME la pista está apenas por encima
-# de la tarjeta (#313131 sobre #2e2e2e, medido), y eso es lo que se copia.
-$script:Pista  = Mezclar $script:Tarjeta $script:Tinta 0.04
+# La pista del medidor se mide contra la TARJETA y no contra el fondo del panel:
+# la tinta al 13 % encima de la tarjeta, que es la de los medidores de la barra
+# de macOS (labelColor al 13 %) y casi la de GNOME (TEMA.pista, al 15 %). Era
+# un 4 % de cuando las barras eran gruesas y el medidor se leía solo; con el
+# medidor fino del rediseño, a 4 % la parte vacía desaparecía y un 30 % se leía
+# como una barra corta en vez de una barra a un tercio.
+$script:Pista  = Mezclar $script:Tarjeta $script:Tinta 0.13
 $script:BarraOscura = $true
 
 # Todo el tema en un lugar, y aplicable de nuevo: cambiar Windows de claro a
@@ -367,13 +369,8 @@ function AplicarTema {
   # borde al 12 %. Apenas se ven, y eso es lo que se busca — agrupan sin pesar.
   $script:Tarjeta = Mezclar $script:Fondo $script:Tinta 0.06
   $script:BordeTarjeta = Mezclar $script:Fondo $script:Tinta 0.12
-  # La pista del medidor se mide contra la TARJETA y no contra el fondo del panel.
-  # Salía de `Mezclar $Fondo $Tinta 0.14` —#494949 sobre un fondo #2b2b2b—, y con
-  # la cuenta dibujada plana sobre el panel estaba bien. Con la tarjeta en #383838
-  # esa pista queda MÁS CLARA que la tarjeta, y la parte vacía de la barra se lee
-  # como un relieve en vez de un surco. En GNOME la pista está apenas por encima
-  # de la tarjeta (#313131 sobre #2e2e2e, medido), y eso es lo que se copia.
-  $script:Pista  = Mezclar $script:Tarjeta $script:Tinta 0.04
+  # La pista del medidor, contra la tarjeta: ver el comentario de arriba.
+  $script:Pista  = Mezclar $script:Tarjeta $script:Tinta 0.13
   if ($oscuro) {
     [QmTabla]::Fondo = $script:Fondo
     [QmTabla]::Resalte = Mezclar $script:Fondo $script:Tinta 0.12
@@ -505,19 +502,28 @@ function EdadDe($v, $cuota) {
   return $null
 }
 
-function PieBarra($v) {
-  # «reinicia en 3d7h   ·   leída hace 24m». Es pie_de_barra() de
-  # bin/qm-indicator: la edad sólo va cuando la barra trae la suya. Si es la de
-  # la cuenta ya la dice el renglón de «lecturas», y repetirla en cada barra es
-  # ruido.
-  $pie = Reinicio (Faltan $v.reinicia)
-  if (-not ($v.PSObject.Properties['medidoEn'] -and $v.medidoEn)) { return $pie }
+function EdadDeBarra($v) {
+  # «leída hace 24m», sólo cuando la barra trae su propia lectura: si es de
+  # cuando dice la cuenta, ya lo dice la cabecera de la tarjeta, y repetirlo en
+  # cada barra es ruido. Pasada la hora de vieja, lo dice. Es edad_de_barra()
+  # de bin/qm-indicator y edadDeBarra() de bin/qm-barra.swift. Se pregunta por
+  # la propiedad antes de leerla: StrictMode revienta con un qm que no la manda.
+  if ($null -eq $v -or -not ($v.PSObject.Properties['medidoEn'] -and $v.medidoEn)) { return $null }
   $f = Faltan $v.medidoEn
-  if ($null -eq $f) { return $pie }
+  if ($null -eq $f) { return $null }
   $e = [int][math]::Max(0, -$f)
-  $edad = "leída hace $(Dur $e)" + $(if ($e -ge $VIEJO_SEGUNDOS) { ' · vieja' } else { '' })
-  if ($pie) { return "$pie   ·   $edad" }
-  return $edad
+  return "leída hace $(Dur $e)" + $(if ($e -ge $VIEJO_SEGUNDOS) { ' · vieja' } else { '' })
+}
+
+function PieBarra($v, [string]$quieta = '') {
+  # Lo que va abajo del medidor: la edad propia de la barra, y en la que frena,
+  # «sin cambios en la última hora» si la serie no se movió. Es el `pie` de
+  # VistaCuenta._recorrer en bin/qm-indicator.
+  #
+  # El reinicio YA NO va acá: subió al renglón de la barra, al lado del
+  # porcentaje y con su ↻, como en GNOME y en macOS. Abajo quedaba repetido en
+  # cada barra con el mismo tamaño que el dato que sí cambia entre ellas.
+  return (@((EdadDeBarra $v), $quieta) | Where-Object { $_ }) -join ' · '
 }
 
 function NombreVentana($v) {
@@ -526,27 +532,125 @@ function NombreVentana($v) {
   return $v.clave
 }
 
+# El nombre de una barra para LEER: «Semanal (Fable)», no «weekly_scoped
+# (Fable)». Es etiqueta_de() de bin/qm-indicator y etiquetaDe() de
+# bin/qm-barra.swift: las mismas dos que reconoce el núcleo (`sesionDe` y
+# `semanalDe` en src/core/tipos.ts), y cualquier otra con el nombre que trae.
+# La clave de la API sigue en los avisos, que es donde se la busca en un log.
+function EtiquetaDe($v) {
+  $clave = if ($v.PSObject.Properties['clave'] -and $v.clave) { [string]$v.clave } else { '' }
+  $grupo = if ($v.PSObject.Properties['grupo']) { $v.grupo } else { $null }
+  $alcance = if ($v.PSObject.Properties['alcance']) { $v.alcance } else { $null }
+  if ($grupo -eq 'session' -or $clave -eq 'session' -or $clave -eq 'five_hour') { $base = 'Sesión' }
+  elseif ($grupo -eq 'weekly' -or $clave.StartsWith('weekly') -or $clave -eq 'seven_day') { $base = 'Semanal' }
+  else { return (NombreVentana $v) }
+  if ($alcance) { return "$base ($alcance)" }
+  return $base
+}
+
+# El reinicio en hora de acá: «22:30» si es hoy, «jue 22:30» si no.
+#
+# «reinicia en 3d1h» contesta cuánto falta; la hora contesta CUÁNDO, que es lo
+# que se usa para planear («¿llego al viernes?»). Redondeada al minuto y no
+# truncada: el servidor informa 03:59:59.6, y eso son las 04:00. Es
+# cuando_local() de bin/qm-indicator. Los días van escritos y no de la cultura
+# de la máquina, por lo mismo que el separador decimal: es parte del dibujo.
+$DIAS = @('dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb')
+function CuandoLocal($iso) {
+  if (-not $iso) { return $null }
+  try { $c = [datetimeoffset]::Parse([string]$iso, [cultureinfo]::InvariantCulture) } catch { return $null }
+  $c = $c.AddSeconds(30).ToLocalTime()
+  $ahora = [datetimeoffset]::Now
+  if ($c -lt $ahora) { return $null }
+  $hora = $c.ToString('HH:mm', [cultureinfo]::InvariantCulture)
+  if ($c.Date -eq $ahora.Date) { return $hora }
+  return "$($DIAS[[int]$c.DayOfWeek]) $hora"
+}
+
+# «1,2M»: las mismas unidades y la misma coma que tokens_corto() de
+# bin/qm-indicator y que el CLI.
+function TokensCorto([double]$n) {
+  $inv = [cultureinfo]::InvariantCulture
+  if ($n -ge 1e9) { return ($n / 1e9).ToString('0.0', $inv).Replace('.', ',') + 'G' }
+  if ($n -ge 1e6) { return ($n / 1e6).ToString('0.0', $inv).Replace('.', ',') + 'M' }
+  if ($n -ge 1e3) { return ($n / 1e3).ToString('0.0', $inv).Replace('.', ',') + 'k' }
+  return ([int64]$n).ToString($inv)
+}
+
 function FraseRitmo($p) {
-  # La misma distinción que hace qm: "no sé" no es "no".
+  # «4.5 pts/h · 100 % en 2h37m — antes del reinicio». Sólo cuando SUBE: es el
+  # renglón del ↗, y una flecha que sube al lado de «no sube» se contradice. Es
+  # VistaCuenta.ritmo de bin/qm-indicator, y por eso ya no dice «después del
+  # reinicio»: lo que no choca no tiene nada que avisar, y la curva ya dibuja
+  # hasta dónde llega.
   if (-not $p) { return $null }
-  if ($p.estado -eq 'sube') {
-    $seg = Faltan $p.techo
-    # Una proyección con el techo en el PASADO ya no proyecta nada: se leía
-    # «100 % en vencido», que no quiere decir nada. Cuando ya tocaste el techo
-    # la pregunta es cuándo te liberás, y ésa la contesta la cabecera del panel.
-    # Mismo criterio que VistaCuenta.ritmo en bin/qm-indicator.
-    if ($null -eq $seg -or $seg -le 0) { return $null }
-    # Invariante y no la cultura de la máquina: con `n1`, una Windows en
-    # español escribe «1,8 pts/h» y una en inglés «1.8», así que las pantallas
-    # dejaban de coincidir entre sí y con macOS, que usa %.1f. El separador de
-    # un número no es una decisión de localización acá: es parte del dibujo.
-    $ritmo = ([double]$p.ritmoPuntosPorHora).ToString('0.0', [cultureinfo]::InvariantCulture)
-    $cuando = "$ritmo pts/h · 100 % en $(Dur $seg)"
-    if ($p.chocasAntesDelReinicio) { return "$cuando — antes del reinicio" }
-    return "$cuando — después del reinicio"
+  if (-not $p.PSObject.Properties['estado'] -or $p.estado -ne 'sube') { return $null }
+  $seg = Faltan $p.techo
+  # Una proyección con el techo en el PASADO ya no proyecta nada: se leía
+  # «100 % en vencido», que no quiere decir nada. Cuando ya tocaste el techo
+  # la pregunta es cuándo te liberás, y ésa la contesta la cabecera del panel.
+  if ($null -eq $seg -or $seg -le 0) { return $null }
+  # Invariante y no la cultura de la máquina: con `n1`, una Windows en
+  # español escribe «1,8 pts/h» y una en inglés «1.8», así que las pantallas
+  # dejaban de coincidir entre sí y con macOS, que usa %.1f. El separador de
+  # un número no es una decisión de localización acá: es parte del dibujo.
+  $ritmo = ([double]$p.ritmoPuntosPorHora).ToString('0.0', [cultureinfo]::InvariantCulture)
+  $frase = "$ritmo pts/h · 100 % en $(Dur $seg)"
+  if ($p.chocasAntesDelReinicio) { $frase += ' — antes del reinicio' }
+  return $frase
+}
+
+# Si la serie no se movió, se dice en palabras en vez de dibujarla: una curva
+# plana gastaba 35 px en una raya al pie de una caja vacía, y la caja vacía se
+# leía como un dibujo que no terminó de cargar. Es _quieta() de
+# bin/qm-indicator. Redondeo de banquero, como el round() de Python.
+function SinCambios($ts, $ps) {
+  $ps = @($ps); $ts = @($ts)
+  if (-not $ps.Count) { return $null }
+  $redondos = @($ps | ForEach-Object { [math]::Round([double]$_) })
+  $m = $redondos | Measure-Object -Minimum -Maximum
+  if ($m.Maximum -ne $m.Minimum) { return $null }
+  $mt = $ts | Measure-Object -Minimum -Maximum
+  $horas = ($mt.Maximum - $mt.Minimum) / 3600000
+  if ($horas -lt 1) { return 'sin cambios en la última hora' }
+  return 'sin cambios en las últimas ' + $horas.ToString('0.0', [cultureinfo]::InvariantCulture) + ' h'
+}
+
+# La proyección, en la forma en que se dibuja a continuación de la curva.
+#
+# Es la MISMA recta que dice el renglón del ritmo, y sólo se arma cuando ese
+# renglón existe: el dibujo y la frase no pueden contradecirse. Sale del último
+# punto de la curva y termina en el reinicio, que es donde la recta deja de
+# valer. Si antes toca el 100 %, sigue pegada al techo hasta el reinicio: ese
+# tramo es el tiempo sin cuota. Es _hacia_donde() de bin/qm-indicator y
+# haciaDonde() de bin/qm-barra.swift, con las mismas ramas; ninguna regla nueva,
+# sólo la forma de dibujar los campos que manda qm.
+function HaciaDonde($proy, $frena, [bool]$choca, $ts, $ps) {
+  $ts = @($ts); $ps = @($ps)
+  if ($null -eq $frena -or $ts.Count -lt 3) { return $null }
+  $ahora = [double][datetimeoffset]::UtcNow.ToUnixTimeMilliseconds()
+  $sTecho = Faltan $proy.techo
+  $sReinicio = Faltan $frena.reinicia
+  if ($null -eq $sTecho -or $sTecho -le 0) { return $null }
+  $t0 = [double]$ts[$ts.Count - 1]
+  $p0 = if ($null -ne $frena.porcentaje) { [double]$frena.porcentaje } else { [double]$ps[$ps.Count - 1] }
+  $techo = $ahora + $sTecho * 1000.0
+  $reinicio = if ($null -ne $sReinicio -and $sReinicio -gt 0) { $ahora + $sReinicio * 1000.0 } else { $null }
+  if ($choca -or $null -eq $reinicio) {
+    $fin = if ($null -ne $reinicio -and $reinicio -gt $techo) { $reinicio } else { $techo }
+    $pFin = 100.0
+  } else {
+    $fin = $reinicio
+    $pFin = [math]::Min(100.0, $p0 + [double]$proy.ritmoPuntosPorHora * ($fin - $t0) / 3600000.0)
   }
-  if ($p.estado -eq 'plano') { return 'no sube' }
-  return "todavía no sé el ritmo: $($p.motivo)"
+  if ($fin -le $t0) { return $null }
+  return @{
+    t0 = $t0; p0 = $p0; fin = $fin; pFin = $pFin
+    # Dónde toca el techo, si lo toca antes del final del dibujo.
+    techo = $(if ($pFin -ge 100 -and $techo -lt $fin) { $techo } else { $null })
+    techoTxt = $(if ($pFin -ge 100) { CuandoLocal $proy.techo } else { $null })
+    reinicioTxt = $(if ($null -ne $reinicio) { CuandoLocal $frena.reinicia } else { $null })
+  }
 }
 
 # El presupuesto diario: cuánto se puede gastar por día para que la ventana
@@ -559,7 +663,11 @@ function FraseRitmo($p) {
 # Van DOS renglones: la frase entera no entra en los 340 px del panel y el
 # recorte se comía justo la hora —«desde las 1…»—, que es el dato que hace
 # honesto al número. Partir no es recortar.
-function RenglonesPresupuesto($pre) {
+#
+# `$nombre` es cómo LLAMA el panel a la barra que se reparte («Semanal
+# (Fable)»); sin él va la de qm («weekly_scoped (Fable)»). La frase es la misma:
+# es el `nombre` de renglones_presupuesto() en bin/qm-indicator.
+function RenglonesPresupuesto($pre, [string]$nombre = '') {
   if (-not $pre) { return @() }
   # El JSON de una versión anterior de `qm` no trae el campo, y con StrictMode
   # leer una propiedad que no está es una excepción en el hilo de la interfaz.
@@ -585,7 +693,8 @@ function RenglonesPresupuesto($pre) {
   # tarjeta muestra tres ventanas y el número reparte UNA, y sin decir cuál
   # queda un 24.1 que no cierra con ninguno de los tres porcentajes de arriba.
   $dia = "podés gastar $porDia %/día"
-  if ($pre.PSObject.Properties['barra'] -and $pre.barra) { $dia += " · $($pre.barra)" }
+  if ($nombre) { $dia += " · $nombre" }
+  elseif ($pre.PSObject.Properties['barra'] -and $pre.barra) { $dia += " · $($pre.barra)" }
   if ($pre.PSObject.Properties['gastadoHoy'] -and $null -ne $pre.gastadoHoy -and
       $pre.PSObject.Properties['restanteHoy'] -and $null -ne $pre.restanteHoy) {
     return @($dia, "gastaste $(& $un $pre.gastadoHoy) % hoy · te queda $(& $un $pre.restanteHoy) %")
@@ -787,43 +896,63 @@ function SoltarGlobos {
 }
 
 # ── dibujo ──────────────────────────────────────────────────────────────
-# Las medidas están en píxeles lógicos (los mismos números que la vista de
-# macOS) y se escalan por DPI al crear las fuentes. Si una constante de acá no
-# coincide con lo que dibuja DibujarPerfil, los renglones se pisan — que es
-# exactamente lo que le pasó a la versión de macOS y por eso lo dice ahí.
+# El panel es UN diseño en las tres pantallas: el de GNOME (VistaResumen,
+# VistaCuenta y VistaSinCuota en bin/qm-indicator) y el del menú de macOS (las
+# mismas tres clases en bin/qm-barra.swift). Ésta fue la última en pasarse, y
+# hasta entonces era otra pantalla: nombres de API en vez de «Semanal (Fable)»,
+# el reinicio abajo de cada barra, un renglón de «lecturas» que las otras dos ya
+# habían repartido, y la curva sin la recta que dice hacia dónde vas.
+#
+# Las medidas son las de macOS, que tiene el mismo ancho que éste —340—; las de
+# GNOME son para 360 y una letra más grande de cuerpo. Las reglas son las de los
+# dos: qué barra frena, cuándo hay ritmo, hasta dónde va la proyección y cuándo
+# choca llegan resueltas de qm, y acá sólo se dibujan.
+#
+# Todo se dibuja en píxeles LÓGICOS con la escala del DPI puesta en el Graphics
+# (ver Pieza). Antes cada número pasaba por Px a mano, y el número que se
+# olvidaba de pasar era un renglón corrido sólo en las pantallas de 150 %.
+#
+# Y se mide con el MISMO recorrido con que se dibuja (RecorrerCuenta): el menú
+# necesita el alto antes de que exista nada, y un alto calculado aparte de lo
+# que se pinta es cómo los renglones terminan pisándose. Acá eran AltoPerfil y
+# DibujarPerfil, dos funciones que tenían que coincidir sin que nada lo mirara.
 
 $script:Escala = 1.0
 $ANCHO_VISTA = 340
-$MARGEN = 15
-# Cada cuenta va en una TARJETA redondeada con fondo propio, en vez de una
-# sección plana separada de la siguiente por una línea de pelo. Es como agrupa
-# el panel de GNOME —la «boxed list» de libadwaita— y como se ve el de macOS, y
-# el pedido fue justamente que las tres pantallas se parezcan.
-#
-# El margen es 6 y no 12 como en GNOME porque este panel es 20 px más angosto
-# (340 contra 360) y el contenido ya arranca en $MARGEN = 15: con 6 de margen
-# quedan 9 px de aire adentro de la tarjeta, que es lo que entra sin tocar el
-# ancho del contenido ni, por lo tanto, dónde recorta cada texto.
+# Cada cuenta va en una TARJETA redondeada con fondo propio. Es como agrupa el
+# panel de GNOME —la «boxed list» de libadwaita— y el pedido fue justamente que
+# las tres pantallas se parezcan. El margen es 6 y no 12 como en GNOME porque
+# este panel es 20 px más angosto.
 $MARGEN_TARJETA = 6
 $RADIO_TARJETA = 10
-# El aire entre una tarjeta y la siguiente. Vive ABAJO del mapa de bits de cada
+# El aire de ADENTRO de la tarjeta, a los costados: 14, como PAD_TARJETA en
+# GNOME. Con los 9 de antes no entraba el triángulo que marca la barra que te
+# frena, que va EN el margen —entre el borde de la tarjeta y el nombre de la
+# barra—, como en la terminal.
+$PAD_TARJETA = 14
+$IX = $MARGEN_TARJETA + $PAD_TARJETA
+$ANCHO_CONTENIDO = $ANCHO_VISTA - 2 * $IX
+# El aire entre una tarjeta y la siguiente. Vive ARRIBA del mapa de bits de cada
 # una: como cada tarjeta es un item del menú, no hay dónde poner un espacio que
-# no sea adentro de una.
+# no sea adentro de una. Ver Pieza.
 $ENTRE_TARJETAS = 8
-$ALTO_CABECERA = 17 + 14 + 8   # título + subtítulo + aire
-$ALTO_BARRA = 15 + 3 + 5 + 4 + 12 + 7
-$ALTO_RITMO = 16
-# El renglón del presupuesto diario, debajo del ritmo: mismo cuerpo de letra.
-$ALTO_PRESUPUESTO = 16
-# 6 de aire + 16 de curva + 12 para los rótulos de abajo, igual que
-# VistaCuenta.ALTO_CURVA en Swift. Si esto no coincide con lo que dibuja
-# DibujarPerfil, los rótulos se comen el renglón siguiente.
-$ALTO_CURVA = 34
-# El anillo (44) más el aire de arriba y abajo: el alto de VistaResumen.
-$ALTO_RESUMEN = 74
-# El renglón de «lecturas: cada ~5m · última hace 2m», que contesta «¿este
-# número de cuándo es?» — una pregunta que un porcentaje no contesta.
-$ALTO_LECTURAS = 15
+# La tarjeta teñida de la cabecera, sin su aire: la de VistaResumen en macOS.
+$ALTO_RESUMEN = 72
+# De arriba de la tarjeta al primer renglón.
+$PAD_ARRIBA = 12
+# Las medidas de una cuenta, las de VistaCuenta en bin/qm-barra.swift. Si una
+# no coincide con lo que dibuja RecorrerCuenta, no pasa nada: el alto lo mide
+# el mismo recorrido que dibuja.
+$ALTO_ROTULO = 17
+$ALTO_MEDIDOR = 5
+$ENTRE_BARRAS = 10
+$ALTO_EDAD = 14
+$ALTO_CURVA = 22
+# Con la proyección la curva lleva el doble de cosas: más alta, para que la
+# pendiente del pasado no quede aplastada contra el piso.
+$ALTO_CURVA_FUTURO = 30
+$ALTO_EJE = 13
+$ALTO_RENGLON = 15
 # El renglón de «próxima lectura en 4m 12s», que va al pie del panel entero.
 $ALTO_PIE = 20
 
@@ -846,17 +975,66 @@ function Lienzo($ancho, $alto) {
     [int][math]::Max(1, [math]::Round([double]$alto)))
 }
 
+# Las letras, una vez cada una.
+#
+# Segoe UI no trae «medium» por GDI+: lo que en GNOME y en macOS es medium o
+# semibold acá es Segoe UI Semibold, que para GDI+ es OTRA FAMILIA y no un
+# estilo. Si no está, negrita: GDI+ no tira cuando la familia no existe, la
+# cambia en silencio por Microsoft Sans Serif, y eso se ve como un panel de otra
+# aplicación. Por eso se pregunta antes con FontFamily, que sí tira.
+#
+# En píxeles lógicos: la escala la pone el Graphics.
+$script:Fuentes = @{}
+$script:HaySemibold = $null
+function Fuente([double]$px, [string]$peso = 'normal') {
+  $clave = "$px|$peso"
+  if ($script:Fuentes.ContainsKey($clave)) { return $script:Fuentes[$clave] }
+  if ($null -eq $script:HaySemibold) {
+    try { (New-Object System.Drawing.FontFamily('Segoe UI Semibold')).Dispose(); $script:HaySemibold = $true }
+    catch { $script:HaySemibold = $false }
+  }
+  $unidad = [System.Drawing.GraphicsUnit]::Pixel
+  $normal = [System.Drawing.FontStyle]::Regular
+  $negrita = [System.Drawing.FontStyle]::Bold
+  if ($peso -eq 'semi' -and $script:HaySemibold) {
+    $f = New-Object System.Drawing.Font('Segoe UI Semibold', [float]$px, $normal, $unidad)
+  } elseif ($peso -eq 'semi' -or $peso -eq 'bold') {
+    $f = New-Object System.Drawing.Font('Segoe UI', [float]$px, $negrita, $unidad)
+  } elseif ($peso -eq 'mono') {
+    $f = New-Object System.Drawing.Font('Consolas', [float]$px, $normal, $unidad)
+  } else {
+    $f = New-Object System.Drawing.Font('Segoe UI', [float]$px, $normal, $unidad)
+  }
+  $script:Fuentes[$clave] = $f
+  return $f
+}
+
+# La escala de letra del panel, la de macOS: 9 los rótulos en mayúscula, 9.5
+# los ejes de la curva, 10 a 11 la letra chica, 12 a 12.5 el cuerpo, 13.5 el
+# nombre de la cuenta y 22 la cifra de arriba.
 function CrearFuentes {
-  $f = { param($px, $estilo) New-Object System.Drawing.Font('Segoe UI', (Px $px), $estilo, [System.Drawing.GraphicsUnit]::Pixel) }
-  $script:FTitulo = & $f 14 ([System.Drawing.FontStyle]::Bold)
-  $script:FSub    = & $f 11 ([System.Drawing.FontStyle]::Regular)
-  $script:FNombre = & $f 12 ([System.Drawing.FontStyle]::Regular)
-  $script:FActiva = & $f 12 ([System.Drawing.FontStyle]::Bold)
-  $script:FPct    = & $f 12 ([System.Drawing.FontStyle]::Bold)
-  $script:FPie    = & $f 10 ([System.Drawing.FontStyle]::Regular)
-  $script:FRotulo = & $f 9  ([System.Drawing.FontStyle]::Bold)
-  $script:FMini   = & $f 9  ([System.Drawing.FontStyle]::Regular)
-  $script:FCifra  = & $f 20 ([System.Drawing.FontStyle]::Bold)
+  $script:FRotulo       = Fuente 9 'semi'
+  $script:FCifra        = Fuente 22 'bold'
+  $script:FLider        = Fuente 12.5 'semi'
+  $script:FCabecera     = Fuente 11
+  $script:FCabeceraSemi = Fuente 11 'semi'
+  $script:FTitulo       = Fuente 13.5 'semi'
+  $script:FPlan         = Fuente 10 'semi'
+  $script:FChica        = Fuente 10.5
+  $script:FChicaSemi    = Fuente 10.5 'semi'
+  $script:FSub          = Fuente 11
+  $script:FPct          = Fuente 12.5 'bold'
+  $script:FBarra        = Fuente 12
+  $script:FBarraFrena   = Fuente 12 'semi'
+  $script:FEdad         = Fuente 10
+  $script:FEje          = Fuente 9.5
+  $script:FEjeSemi      = Fuente 9.5 'semi'
+  $script:FRenglon      = Fuente 11
+  $script:FRenglonSemi  = Fuente 11 'semi'
+  $script:FDormida      = Fuente 10.5
+  $script:FNombres      = Fuente 12 'semi'
+  $script:FFrase        = Fuente 10.5
+  $script:FCodigo       = Fuente 10 'mono'
 }
 
 function RectRedondeado($g, $rect, [float]$r, $brocha) {
@@ -940,68 +1118,335 @@ function Desplazo {
 # El ancho del LIENZO de una pieza del panel: el del dibujo más el desplazo.
 function AnchoLienzo([int]$anchoDibujo) { return [int]($anchoDibujo + (Desplazo)) }
 
-# El alto del mapa de bits de una tarjeta: la tarjeta más el aire de abajo.
-function AltoConAire([int]$altoTarjeta) { return [int]($altoTarjeta + (Px $ENTRE_TARJETAS)) }
+function Alfa($c, [double]$a) {
+  return [System.Drawing.Color]::FromArgb([int][math]::Round(255 * $a), $c.R, $c.G, $c.B)
+}
 
-# El fondo de una tarjeta, adentro de su propio mapa de bits.
+function Punto([double]$x, [double]$y) { return New-Object System.Drawing.PointF([float]$x, [float]$y) }
+
+function Preparar($g) {
+  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
+  $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
+}
+
+# Una pieza del panel: el mapa de bits de una tarjeta —o del pie— con el aire
+# de arriba, el desplazo y la escala ya puestos, así quien dibuja piensa en
+# píxeles lógicos y con la tarjeta arrancando en y = 0.
 #
-# Limpia con el fondo del MENÚ —así el aire de abajo y los costados se funden
-# con el panel— y encima pinta la caja redondeada. El medio píxel del borde no
-# es maña: sin él la línea de 1 px cae entre dos píxeles y sale de dos píxeles
-# grises en vez de uno.
-function FondoTarjeta($g, [int]$ancho, [int]$altoTarjeta) {
+# El desplazo va ANTES que todo: si no, la caja queda donde estaba y sólo se
+# corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
+# entero—, así que el aire de los costados sigue siendo fondo del menú.
+#
+# El aire vertical va ARRIBA de la tarjeta y no abajo. Abajo también separaba
+# una tarjeta de la siguiente, pero la PRIMERA quedaba pegada al borde de arriba
+# del menú: había 8 px entre tarjetas y ninguno encima de todo, y el panel se
+# veía cargado hacia arriba. Arriba resuelve las dos cosas con el mismo píxel —
+# la última tarjeta no necesita aire abajo porque el pie trae el suyo.
+function Pieza([double]$alto) {
+  $bmp = Lienzo (AnchoLienzo ([int](Px $ANCHO_VISTA))) ((Px $alto) + (Px $ENTRE_TARJETAS))
+  $g = [System.Drawing.Graphics]::FromImage($bmp)
+  Preparar $g
   $g.Clear($script:Fondo)
-  $m = Px $MARGEN_TARJETA
+  $g.TranslateTransform([float](Desplazo), [float](Px $ENTRE_TARJETAS))
+  $g.ScaleTransform([float]$script:Escala, [float]$script:Escala)
+  return @{ bmp = $bmp; g = $g }
+}
+
+# Un Graphics para MEDIR, con la misma escala y la misma forma de escribir que
+# los de dibujar: medir con otro es medir otro texto.
+$script:GMedir = $null
+function GraficoDeMedir {
+  if ($null -eq $script:GMedir) {
+    $script:BmpMedir = New-Object System.Drawing.Bitmap(1, 1)
+    $script:GMedir = [System.Drawing.Graphics]::FromImage($script:BmpMedir)
+    Preparar $script:GMedir
+    $script:GMedir.ScaleTransform([float]$script:Escala, [float]$script:Escala)
+  }
+  return $script:GMedir
+}
+
+# El fondo de una tarjeta. El medio píxel del borde no es maña: sin él la línea
+# de 1 px cae entre dos píxeles y sale de dos píxeles grises en vez de uno. La
+# cabecera pasa su propio relleno y su borde: es la tarjeta teñida.
+function FondoTarjeta($g, [double]$alto, $fondo = $null, $borde = $null) {
+  if ($null -eq $fondo) { $fondo = $script:Tarjeta }
+  if ($null -eq $borde) { $borde = $script:BordeTarjeta }
   $caja = New-Object System.Drawing.RectangleF(
-    ($m + 0.5), 0.5, ($ancho - 2 * $m - 1), ($altoTarjeta - 1))
-  $brocha = New-Object System.Drawing.SolidBrush($script:Tarjeta)
-  RectRedondeado $g $caja (Px $RADIO_TARJETA) $brocha
+    [float]($MARGEN_TARJETA + 0.5), [float]0.5,
+    [float]($ANCHO_VISTA - 2 * $MARGEN_TARJETA - 1), [float]($alto - 1))
+  $brocha = New-Object System.Drawing.SolidBrush($fondo)
+  RectRedondeado $g $caja $RADIO_TARJETA $brocha
   $brocha.Dispose()
-  $lapiz = New-Object System.Drawing.Pen($script:BordeTarjeta, 1)
-  BordeRedondeado $g $caja (Px $RADIO_TARJETA) $lapiz
+  $lapiz = New-Object System.Drawing.Pen($borde, [float]1)
+  BordeRedondeado $g $caja $RADIO_TARJETA $lapiz
   $lapiz.Dispose()
 }
 
-# Escribe una línea. Con $ancho, la RECORTA con puntos suspensivos.
+# ── escribir ────────────────────────────────────────────────────────────
+
+# Dos formatos para toda la escritura, tipográficos: sin el aire que GDI+ le
+# agrega de fábrica a cada lado del texto (un sexto del cuerpo), que corría
+# cada renglón un par de píxeles y hacía que «alineado a la derecha» no lo
+# estuviera. Con MeasureTrailingSpaces porque sin él un espacio al final mide
+# cero. Uno escribe en un punto; el otro corta con «…» adentro de una caja.
+$script:FmtLinea = $null
+$script:FmtCorte = $null
+function Formatos {
+  if ($null -ne $script:FmtLinea) { return }
+  $l = [System.Drawing.StringFormat]([System.Drawing.StringFormat]::GenericTypographic.Clone())
+  $l.FormatFlags = [System.Drawing.StringFormatFlags]'MeasureTrailingSpaces, NoWrap, NoClip'
+  $script:FmtLinea = $l
+  $c = [System.Drawing.StringFormat]([System.Drawing.StringFormat]::GenericTypographic.Clone())
+  $c.FormatFlags = [System.Drawing.StringFormatFlags]'MeasureTrailingSpaces, NoWrap'
+  $c.Trimming = [System.Drawing.StringTrimming]::EllipsisCharacter
+  $script:FmtCorte = $c
+}
+
+function Ascenso($f) {
+  $fam = $f.FontFamily
+  return [double]$f.Size * $fam.GetCellAscent($f.Style) / $fam.GetEmHeight($f.Style)
+}
+
+function AltoLinea($f) {
+  $fam = $f.FontFamily
+  return [double]$f.Size * $fam.GetLineSpacing($f.Style) / $fam.GetEmHeight($f.Style)
+}
+
+function Ancho($g, [string]$t, $fuente) {
+  if (-not $t) { return 0.0 }
+  Formatos
+  return [double]$g.MeasureString($t, $fuente, [System.Drawing.PointF]::Empty, $script:FmtLinea).Width
+}
+
+# Escribe un renglón con (x, y) en su esquina de arriba a la izquierda, como
+# Pango y AppKit, y con la LÍNEA DE BASE a 0,95 del cuerpo debajo de y, que es
+# donde la ponen Cantarell y la letra de macOS. Segoe UI la pone a 1,08: con la
+# cuenta de GDI+ todo el panel salía un píxel y medio más abajo y las medidas
+# copiadas de las otras dos pantallas dejaban de cerrar. De paso, dos letras
+# distintas —la del texto y la monoespaciada— comparten línea de base sin
+# cuentas aparte.
 #
-# GDI+ no recorta nada cuando se dibuja en un punto —igual que Cairo— así que un
-# nombre de perfil más largo que la tarjeta se dibujaba por encima del borde y
-# se salía del panel, y un nombre de ventana largo se metía por debajo del
-# porcentaje de la derecha y quedaban los dos ilegibles. Se ve con el fixture de
-# nombres largos y no se ve mirando el código, que es por lo que el panel de
-# GNOME tiene un gate que mide los píxeles del margen en vez de confiar en el ojo.
-function Escribir($g, [string]$t, [float]$x, [float]$y, $fuente, $color,
-                  [float]$derecha = -1, [float]$ancho = -1) {
+# Con $derecha se alinea a la derecha. Con $ancho se CORTA con «…»: GDI+ no
+# recorta nada cuando se dibuja en un punto —igual que Cairo—, así que un nombre
+# de perfil más largo que la tarjeta se dibujaba por encima del borde y se salía
+# del panel. Se ve con el fixture de nombres largos y no mirando el código, que
+# es por lo que scripts/gate-bandeja.ps1 mide los píxeles del margen.
+function Escribir($g, [string]$t, [double]$x, [double]$y, $fuente, $color,
+                  [double]$derecha = -1, [double]$ancho = -1) {
   if (-not $t) { return }
+  Formatos
+  $medido = Ancho $g $t $fuente
+  $w = if ($ancho -gt 0) { [math]::Min($medido, $ancho) } else { $medido }
+  if ($derecha -ge 0) { $x = $derecha - $w }
+  $arriba = $y + 0.95 * $fuente.Size - (Ascenso $fuente)
   $br = New-Object System.Drawing.SolidBrush($color)
-  if ($derecha -ge 0) {
-    $an = $g.MeasureString($t, $fuente).Width
-    if ($ancho -gt 0 -and $an -gt $ancho) { $an = $ancho }
-    $x = $derecha - $an
-  }
-  if ($ancho -gt 0) {
-    $fmt = New-Object System.Drawing.StringFormat
-    $fmt.Trimming = [System.Drawing.StringTrimming]::EllipsisCharacter
-    $fmt.FormatFlags = [System.Drawing.StringFormatFlags]::NoWrap
-    # El alto de UNA línea, del tipo de letra y no del texto: MeasureString de
-    # una cadena larga devuelve el alto que ocuparía envuelta, y con eso la caja
-    # dejaba de ser de una línea justo en el caso que hay que recortar.
-    $caja = New-Object System.Drawing.RectangleF($x, $y, $ancho, $fuente.GetHeight($g))
-    $g.DrawString($t, $fuente, $br, $caja, $fmt)
-    $fmt.Dispose()
+  if ($ancho -gt 0 -and $medido -gt $ancho) {
+    $caja = New-Object System.Drawing.RectangleF([float]$x, [float]$arriba, [float]$ancho,
+                                                 [float]((AltoLinea $fuente) + 2))
+    $g.DrawString($t, $fuente, $br, $caja, $script:FmtCorte)
   } else {
-    $g.DrawString($t, $fuente, $br, $x, $y)
+    $g.DrawString($t, $fuente, $br, [float]$x, [float]$arriba, $script:FmtLinea)
   }
   $br.Dispose()
+}
+
+# Los rótulos en mayúsculas piden aire entre letras, y GDI+ no tiene
+# interletrado: se escriben de a una. Es el `espaciado` de Pluma en GNOME y el
+# `kern` de macOS.
+function EscribirEspaciado($g, [string]$t, [double]$x, [double]$y, $fuente, $color, [double]$aire) {
+  foreach ($ch in $t.ToCharArray()) {
+    $s = [string]$ch
+    Escribir $g $s $x $y $fuente $color
+    $x += (Ancho $g $s $fuente) + $aire
+  }
+}
+
+# Una frase en renglones, con lo que va entre acentos graves en MONOESPACIADA y
+# sin partir. Es con_codigo() de bin/qm-indicator y conCodigo() de macOS:
+# `qm --refrescar` es un comando para copiar, con los acentos pegados se leía
+# como un error de tipeo, y partido en dos renglones —«qm --» arriba y
+# «statusline» abajo— ya no se puede copiar.
+#
+# GDI+ no mezcla dos letras en un DrawString, así que el renglón se arma acá:
+# las palabras de texto se parten en los espacios, cada trozo de código va
+# entero, y se llenan los renglones de a una palabra. Devuelve los renglones,
+# cada uno una lista de trozos con su letra y su x.
+function PartirConCodigo($g, [string]$texto, $fuente, $mono, [double]$ancho) {
+  $partes = $texto.Split([char]'`')
+  $hayCodigo = ($partes.Count -ge 3 -and ($partes.Count % 2) -eq 1)
+  if (-not $hayCodigo) { $partes = @($texto) }
+  $palabras = New-Object System.Collections.ArrayList
+  # ¿Hay un espacio antes de la próxima palabra? Lo que va pegado a un trozo de
+  # código —«`qm --refrescar`,»— tiene que seguir pegado.
+  $espacio = $false
+  for ($i = 0; $i -lt $partes.Count; $i++) {
+    if ($hayCodigo -and ($i % 2) -eq 1) {
+      if ($partes[$i]) { [void]$palabras.Add(@{ t = $partes[$i]; f = $mono; antes = $espacio }) }
+      $espacio = $false
+      continue
+    }
+    $trozos = $partes[$i].Split([char]' ')
+    for ($j = 0; $j -lt $trozos.Count; $j++) {
+      if ($j -gt 0) { $espacio = $true }
+      if ($trozos[$j]) {
+        [void]$palabras.Add(@{ t = $trozos[$j]; f = $fuente; antes = $espacio })
+        $espacio = $false
+      }
+    }
+  }
+  $blanco = Ancho $g ' ' $fuente
+  $renglones = New-Object System.Collections.ArrayList
+  $actual = New-Object System.Collections.ArrayList
+  $x = 0.0
+  foreach ($pa in $palabras) {
+    $w = Ancho $g $pa.t $pa.f
+    $sp = if ($pa.antes -and $actual.Count) { $blanco } else { 0.0 }
+    if ($actual.Count -and ($x + $sp + $w) -gt $ancho) {
+      [void]$renglones.Add($actual)
+      $actual = New-Object System.Collections.ArrayList
+      $x = 0.0
+      $sp = 0.0
+    }
+    $ult = if ($actual.Count) { $actual[$actual.Count - 1] } else { $null }
+    if ($null -ne $ult -and [object]::ReferenceEquals($ult.f, $pa.f)) {
+      # Con la misma letra que el trozo de antes va en el MISMO DrawString.
+      # Escritas de a una, cada palabra caía donde la ponía la medida y GDI+ la
+      # corría al píxel entero: los espacios salían de dos y de cuatro píxeles
+      # en el mismo renglón. Visto en la captura del CI.
+      $ult.t += $(if ($sp -gt 0) { ' ' } else { '' }) + $pa.t
+      $x = $ult.x + (Ancho $g $ult.t $ult.f)
+    } else {
+      [void]$actual.Add(@{ t = $pa.t; f = $pa.f; x = $x + $sp })
+      $x += $sp + $w
+    }
+  }
+  if ($actual.Count) { [void]$renglones.Add($actual) }
+  return , $renglones
+}
+
+# Los renglones de PartirConCodigo, uno abajo del otro. Cada trozo se corta
+# contra el borde: una palabra sola más ancha que el renglón —una ruta larga—
+# se sale de la tarjeta si no, y eso es lo que el gate mide.
+function EscribirRenglones($g, $renglones, [double]$x, [double]$y, $fuente, $color,
+                           [double]$ancho, [double]$alto) {
+  foreach ($r in $renglones) {
+    foreach ($tr in $r) {
+      Escribir $g $tr.t ($x + $tr.x) ($y + 0.95 * ($fuente.Size - $tr.f.Size)) $tr.f $color -1 ($ancho - $tr.x)
+    }
+    $y += $alto
+  }
+}
+
+# ── las piezas chicas ───────────────────────────────────────────────────
+
+# Pista tenue y relleno con el color del estado. Un 0 % deja la pista sola: un
+# puntito de color diría que hay algo gastado.
+function Medidor($g, [double]$x, [double]$y, [double]$ancho, [double]$alto, [double]$pct, $color) {
+  $br = New-Object System.Drawing.SolidBrush($script:Pista)
+  RectRedondeado $g (New-Object System.Drawing.RectangleF([float]$x, [float]$y, [float]$ancho, [float]$alto)) ($alto / 2) $br
+  $br.Dispose()
+  if ($pct -le 0) { return }
+  $lleno = [math]::Max($alto, $ancho * [math]::Min(100.0, $pct) / 100.0)
+  $br = New-Object System.Drawing.SolidBrush($color)
+  RectRedondeado $g (New-Object System.Drawing.RectangleF([float]$x, [float]$y, [float]$lleno, [float]$alto)) ($alto / 2) $br
+  $br.Dispose()
+}
+
+# Un anillo que se llena desde arriba en el sentido del reloj, con la punta
+# redondeada. Es _anillo() de GNOME: el de la cabecera y el chico del
+# presupuesto de hoy.
+function Anillo($g, [double]$cx, [double]$cy, [double]$radio, [double]$grosor, [double]$frac, $color, $pista) {
+  $x = [float]($cx - $radio); $y = [float]($cy - $radio); $d = [float](2 * $radio)
+  $lp = New-Object System.Drawing.Pen($pista, [float]$grosor)
+  $g.DrawEllipse($lp, $x, $y, $d, $d)
+  $lp.Dispose()
+  $frac = [math]::Max(0.0, [math]::Min(1.0, $frac))
+  if ($frac -le 0) { return }
+  $l = New-Object System.Drawing.Pen($color, [float]$grosor)
+  $l.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $l.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $g.DrawArc($l, $x, $y, $d, $d, [float](-90), [float](360 * $frac))
+  $l.Dispose()
+}
+
+# ↻, dibujada: el carácter no está en todas las tipografías, y el de reemplazo
+# sale de otro cuerpo y otro grosor que el texto de al lado. El círculo abierto
+# arriba a la derecha, con la punta llena: a este tamaño dos trazos finos no se
+# leen como flecha. Es glifo_reinicio() de GNOME, ángulo por ángulo.
+function GlifoReinicio($g, $color, [double]$x, [double]$y, [double]$lado) {
+  $cx = $x + $lado / 2; $cy = $y + $lado / 2 + 0.5; $r = $lado * 0.34
+  $l = New-Object System.Drawing.Pen($color, [float]1.2)
+  $l.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $l.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $ini = (1.35 - [math]::PI / 2) * 180 / [math]::PI
+  $fin = (3 * [math]::PI / 2 - 0.2) * 180 / [math]::PI
+  $g.DrawArc($l, [float]($cx - $r), [float]($cy - $r), [float](2 * $r), [float](2 * $r),
+             [float]$ini, [float]($fin - $ini))
+  $l.Dispose()
+  $h = $lado * 0.36; $tx = $cx + 0.4; $ty = $cy - $r
+  $br = New-Object System.Drawing.SolidBrush($color)
+  $g.FillPolygon($br, [System.Drawing.PointF[]]@(
+      (Punto ($tx + $h) $ty), (Punto ($tx - $h * 0.25) ($ty - $h * 0.75)),
+      (Punto ($tx - $h * 0.25) ($ty + $h * 0.75))))
+  $br.Dispose()
+}
+
+# ↗: sube.
+function GlifoTendencia($g, $color, [double]$x, [double]$y, [double]$lado) {
+  $a = $lado * 0.2; $b = $lado * 0.8
+  $l = New-Object System.Drawing.Pen($color, [float]1.4)
+  $l.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $l.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
+  $l.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+  $g.DrawLine($l, [float]($x + $a), [float]($y + $b), [float]($x + $b), [float]($y + $a))
+  $g.DrawLines($l, [System.Drawing.PointF[]]@(
+      (Punto ($x + $b - $lado * 0.36) ($y + $a)), (Punto ($x + $b) ($y + $a)),
+      (Punto ($x + $b) ($y + $a + $lado * 0.36))))
+  $l.Dispose()
+}
+
+# Una luna: la cuenta está, pero nadie la usa. GNOME y macOS la recortan con un
+# clip, y el clip de GDI+ no tiene antialias —a 11 px la luna salía dentada—,
+# así que acá se arma la medialuna de verdad: el arco del círculo que queda
+# afuera del segundo, y de vuelta por el arco del segundo que queda adentro.
+function GlifoDormida($g, $color, [double]$x, [double]$y, [double]$lado) {
+  $cx = $x + $lado / 2; $cy = $y + $lado / 2; $r = $lado * 0.38
+  $r2 = $r * 0.85; $ox = $cx + $r * 0.55; $oy = $cy - $r * 0.45
+  $gr = 180 / [math]::PI
+  $d = [math]::Sqrt(($ox - $cx) * ($ox - $cx) + ($oy - $cy) * ($oy - $cy))
+  # Dónde se cortan: a `a` del centro, sobre la recta entre los dos centros.
+  $a = ($r * $r - $r2 * $r2 + $d * $d) / (2 * $d)
+  $alfa = [math]::Acos($a / $r) * $gr
+  $beta = [math]::Atan2($oy - $cy, $ox - $cx) * $gr
+  $s = $beta + $alfa; $e = $beta - $alfa
+  $sx = $cx + $r * [math]::Cos($s / $gr); $sy = $cy + $r * [math]::Sin($s / $gr)
+  $ex = $cx + $r * [math]::Cos($e / $gr); $ey = $cy + $r * [math]::Sin($e / $gr)
+  $fiS = [math]::Atan2($sy - $oy, $sx - $ox) * $gr
+  $fiE = [math]::Atan2($ey - $oy, $ex - $ox) * $gr
+  # El arco del segundo círculo que va por ADENTRO del primero es el que mira
+  # al centro del primero; si el barrido corto mira para el otro lado, es el
+  # largo, en el otro sentido.
+  $barrido = (($fiS - $fiE) % 360 + 360) % 360
+  $medio = $fiE + $barrido / 2
+  $dif = (($medio - ($beta + 180)) % 360 + 540) % 360 - 180
+  if ([math]::Abs($dif) -gt 90) { $barrido -= 360 }
+  $p = New-Object System.Drawing.Drawing2D.GraphicsPath
+  $p.AddArc([float]($cx - $r), [float]($cy - $r), [float](2 * $r), [float](2 * $r), [float]$s, [float](360 - 2 * $alfa))
+  $p.AddArc([float]($ox - $r2), [float]($oy - $r2), [float](2 * $r2), [float](2 * $r2), [float]$fiE, [float]$barrido)
+  $p.CloseFigure()
+  $br = New-Object System.Drawing.SolidBrush($color)
+  $g.FillPath($br, $p)
+  $br.Dispose(); $p.Dispose()
 }
 
 # La marca de cada producto, dibujada: no hay ícono de sistema ni para Claude ni
 # para Codex. El asterisco es la forma de la de Claude; los chevrones, código.
 function GlifoProducto($g, [string]$producto, $color, [float]$x, [float]$y, [float]$lado, [float]$grosor = -1) {
-  # El grosor por defecto sigue al DPI, como el resto del menú. El ícono de la
-  # bandeja lo pasa explícito: ese se dibuja a 32 px fijos y lo baja Windows,
-  # así que un trazo de 1,3 se le desaparece en el camino a 16.
-  if ($grosor -le 0) { $grosor = Px 1.3 }
+  # El grosor por defecto es el del panel, en píxeles lógicos: la escala la pone
+  # el Graphics (ver Pieza). El ícono de la bandeja lo pasa explícito: ése se
+  # dibuja a 32 px fijos y lo baja Windows, así que un trazo de 1,3 se le
+  # desaparece en el camino a 16.
+  if ($grosor -le 0) { $grosor = 1.3 }
   $lapiz = New-Object System.Drawing.Pen($color, $grosor)
   $lapiz.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
   $lapiz.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
@@ -1037,77 +1482,199 @@ function GlifoProducto($g, [string]$producto, $color, [float]$x, [float]$y, [flo
   $lapiz.Dispose()
 }
 
+# Un degradé vertical del color, de $a0 arriba a $a1 abajo. El rectángulo es un
+# píxel más alto de cada lado: GDI+ repite el degradé en mosaico, y justo en el
+# borde la primera fila puede salir con el color del final.
+function Degrade([double]$y0, [double]$h, $color, [double]$a0, [double]$a1) {
+  $r = New-Object System.Drawing.RectangleF([float]0, [float]($y0 - 1), [float]10, [float]($h + 2))
+  return New-Object System.Drawing.Drawing2D.LinearGradientBrush($r, (Alfa $color $a0), (Alfa $color $a1),
+    [System.Drawing.Drawing2D.LinearGradientMode]::Vertical)
+}
+
+# ── la curva ────────────────────────────────────────────────────────────
+
+# Dónde cae un instante y un porcentaje dentro de la caja de la curva. Es el
+# px() y el py() de VistaCuenta._curva en GNOME.
+function EjeX($e, [double]$t) {
+  if ($t -le $e.tMax) { return $e.x0 + ($e.xAhora - $e.x0) * ($t - $e.tMin) / ($e.tMax - $e.tMin) }
+  if ($e.fin -le $e.tMax) { return $e.xFin }
+  return $e.xAhora + ($e.xFin - $e.xAhora) * ($t - $e.tMax) / ($e.fin - $e.tMax)
+}
+
+function EjeY($e, [double]$p) { return $e.y0 + 2 + ($e.h - 4) * (1 - ($p - $e.pMin) / $e.rango) }
+
 # Las muestras recientes de la barra que frena, dibujadas.
 #
-# El eje Y va del mínimo al máximo de la serie y NO de 0 a 100: lo que
-# interesa acá es la PENDIENTE, y a escala completa una subida de tres puntos
-# se ve plana. Es el mismo criterio —y el mismo dibujo— que dibujarCurva() en
-# qm-barra.swift, con la diferencia obvia de que en GDI+ la Y crece para abajo.
-function DibujarCurva($g, $historia, [string]$nivel, $caja) {
-  $h = @($historia)
-  if ($h.Count -lt 3) { return }
-  $ts = @($h | ForEach-Object { [double]$_.t })
-  $ps = @($h | ForEach-Object { [double]$_.porcentaje })
-  $t0 = ($ts | Measure-Object -Minimum).Minimum
-  $t1 = ($ts | Measure-Object -Maximum).Maximum
-  $p0 = ($ps | Measure-Object -Minimum).Minimum
-  $p1 = ($ps | Measure-Object -Maximum).Maximum
-  if ($t1 -le $t0) { return }
-  $rango = [math]::Max(1, $p1 - $p0)
-
-  $pts = @()
-  for ($i = 0; $i -lt $h.Count; $i++) {
-    $pts += New-Object System.Drawing.PointF(
-      [float]($caja.X + $caja.Width * ($ts[$i] - $t0) / ($t1 - $t0)),
-      [float]($caja.Bottom - $caja.Height * ($ps[$i] - $p0) / $rango))
+# El eje Y va del mínimo al máximo de la serie y NO de 0 a 100: lo que interesa
+# acá es la PENDIENTE, y a escala completa una subida de tres puntos se ve
+# plana. Por eso abajo dice de cuánto a cuánto fue: sin eso, una subida de 10 a
+# 12 y una de 10 a 90 dibujan la misma rampa. Es _curva() de GNOME y
+# dibujarCurva() de macOS.
+function DibujarCurva($g, $m, [double]$x0, [double]$y0, [double]$w, [double]$h, $color) {
+  $ts = @($m.ts); $ps = @($m.ps)
+  $n = $ts.Count
+  $mt = $ts | Measure-Object -Minimum -Maximum
+  $mp = $ps | Measure-Object -Minimum -Maximum
+  $tMin = [double]$mt.Minimum; $tMax = [double]$mt.Maximum
+  $pMin = [double]$mp.Minimum; $pMax = [double]$mp.Maximum
+  if ($tMax -le $tMin) { return }
+  $fut = $m.futuro
+  if ($fut) { $pMax = [math]::Max($pMax, [double]$fut.pFin) }
+  $rango = [math]::Max(1.0, $pMax - $pMin)
+  # Un píxel de aire a la derecha, para que el punto del final no quede cortado.
+  $xFin = $x0 + $w - 3
+  $xAhora = $xFin
+  if ($fut) {
+    # Pasado y futuro en UNA escala de tiempo cuando entran: la recta sigue
+    # derecha y la pendiente se compara a ojo. Una semanal con el reinicio a
+    # días dejaría el pasado en un píxel, así que ahí el pasado se queda con un
+    # tercio y la raya de «ahora» avisa que la escala cambia.
+    $pasado = $tMax - $tMin; $porVenir = [double]$fut.fin - $tMax
+    $parte = if ($porVenir -le 2 * $pasado) { $pasado / ($pasado + $porVenir) } else { 0.34 }
+    $xAhora = $x0 + ($xFin - $x0) * $parte
+  }
+  $e = @{
+    x0 = $x0; xAhora = $xAhora; xFin = $xFin; tMin = $tMin; tMax = $tMax
+    fin = $(if ($fut) { [double]$fut.fin } else { $tMax })
+    y0 = $y0; h = $h; pMin = $pMin; rango = $rango
   }
 
-  $c = $PALETA[$nivel]
-  # Un piso tenue, para que se vea que es un área y no una raya suelta.
-  $area = @(New-Object System.Drawing.PointF($pts[0].X, $caja.Bottom)) + $pts +
-          @(New-Object System.Drawing.PointF($pts[$pts.Count - 1].X, $caja.Bottom))
-  $br = New-Object System.Drawing.SolidBrush([System.Drawing.Color]::FromArgb(36, $c.R, $c.G, $c.B))
-  $g.FillPolygon($br, [System.Drawing.PointF[]]$area)
+  if ($fut) { DibujarFuturo $g $fut $e $x0 $y0 $w $h $color $ts[$n - 1] $ps[$n - 1] }
+
+  $pts = New-Object 'System.Collections.Generic.List[System.Drawing.PointF]'
+  for ($i = 0; $i -lt $n; $i++) { $pts.Add((Punto (EjeX $e $ts[$i]) (EjeY $e $ps[$i]))) }
+  $area = New-Object 'System.Collections.Generic.List[System.Drawing.PointF]'
+  $area.Add((Punto (EjeX $e $ts[0]) ($y0 + $h)))
+  $area.AddRange($pts)
+  $area.Add((Punto (EjeX $e $ts[$n - 1]) ($y0 + $h)))
+  $br = Degrade $y0 $h $color 0.30 0.02
+  $g.FillPolygon($br, $area.ToArray())
   $br.Dispose()
 
-  $lap = New-Object System.Drawing.Pen($c, (Px 1.5))
-  $lap.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
-  $g.DrawLines($lap, [System.Drawing.PointF[]]$pts)
-  $lap.Dispose()
+  $l = New-Object System.Drawing.Pen($color, [float]1.5)
+  $l.LineJoin = [System.Drawing.Drawing2D.LineJoin]::Round
+  $g.DrawLines($l, $pts.ToArray())
+  $l.Dispose()
 
   # El punto de ahora, que es el que se mira.
-  $fin = $pts[$pts.Count - 1]
-  $d = Px 5
-  $brF = New-Object System.Drawing.SolidBrush($c)
-  $g.FillEllipse($brF, ($fin.X - $d / 2), ($fin.Y - $d / 2), $d, $d)
-  $brF.Dispose()
+  $ult = $pts[$n - 1]
+  $br = New-Object System.Drawing.SolidBrush($color)
+  $g.FillEllipse($br, [float]($ult.X - 2.5), [float]($ult.Y - 2.5), [float]5, [float]5)
+  $br.Dispose()
 
-  $horas = ($t1 - $t0) / 3600000
-  Escribir $g ('{0:d}%' -f [int][math]::Round($p0)) $caja.X ($caja.Bottom + (Px 1)) $script:FMini $script:Tinta3
-  $cola = if ($horas -ge 1) {
-    'últimas ' + ([double]$horas).ToString('0.0', [cultureinfo]::InvariantCulture) + ' h'
-  } else { 'última hora' }
-  Escribir $g $cola 0 ($caja.Bottom + (Px 1)) $script:FMini $script:Tinta3 $caja.Right
-}
-
-# «lecturas: cada ~5m · última hace 2m».
-#
-# La pregunta «¿este número de cuándo es?» no la contesta un porcentaje, y la
-# edad del cache sola tampoco: «hace 40 minutos» es tranquilizador si se lee
-# cada hora y alarmante si se lee cada cinco minutos. Las dos juntas sí. Es
-# VistaCuenta.lecturas de bin/qm-indicator.
-function FraseLecturas($cuota) {
-  if ($cuota.estado -ne 'ok') { return $null }
-  $partes = @()
-  $cada = CadaCuanto $cuota.historia
-  if ($null -ne $cada) { $partes += "cada ~$(Dur ([int]$cada))" }
-  if ($cuota.PSObject.Properties['edadSegundos'] -and $null -ne $cuota.edadSegundos) {
-    $e = [int]$cuota.edadSegundos
-    $partes += "última hace $(Dur $e)" + $(if ($e -ge $VIEJO_SEGUNDOS) { ' · viejo' } else { '' })
+  $horas = ($tMax - $tMin) / 3600000
+  # Ni $desde ni $hasta: PowerShell no distingue mayúsculas, y -Desde es un
+  # parámetro de este archivo.
+  $primero = [math]::Round($ps[0]); $ultimo = [math]::Round($ps[$n - 1])
+  $rotulo = if ($primero -ne $ultimo) { "$primero → $ultimo %" } else { "$ultimo %, sin cambios" }
+  $yEje = $y0 + $h + 2
+  if (-not $fut) {
+    Escribir $g $rotulo $x0 $yEje $script:FEje $script:Tinta3
+    $cola = if ($horas -ge 1) {
+      'últimas ' + $horas.ToString('0.0', [cultureinfo]::InvariantCulture) + ' h'
+    } else { 'última hora' }
+    Escribir $g $cola 0 $yEje $script:FEje $script:Tinta3 ($x0 + $w)
+    return
   }
-  if (-not $partes.Count) { return $null }
-  return 'lecturas:  ' + ($partes -join '   ·   ')
+
+  # Con la proyección van tres rótulos: cuándo reinicia (al final), cuándo toca
+  # el 100 % (debajo de ese punto) y de cuánto a cuánto fue (debajo del pasado).
+  # Si no entran, se cae primero el del pasado, que es el único que la curva ya
+  # dice sola.
+  $critico = $PALETA['critico']
+  $reinicio = $fut.reinicioTxt
+  if ($null -ne $fut.techo) {
+    $derTxt = if ($reinicio) { "reinicio $reinicio" } else { 'reinicio' }
+    $colorDer = $script:Tinta3
+  } elseif ([double]$fut.pFin -ge 100) {
+    $derTxt = ('100 % ' + $fut.techoTxt).Trim()
+    $colorDer = $critico
+  } else {
+    $derTxt = ('~{0} % al reinicio' -f [math]::Round([double]$fut.pFin)) + $(if ($reinicio) { " · $reinicio" } else { '' })
+    $colorDer = $script:Tinta3
+  }
+  Escribir $g $derTxt 0 $yEje $script:FEje $colorDer ($x0 + $w)
+  $libre = $x0 + $w - (Ancho $g $derTxt $script:FEje) - 10
+  if ($null -ne $fut.techo) {
+    $medio = ('100 % ' + $fut.techoTxt).Trim()
+    $wMedio = Ancho $g $medio $script:FEjeSemi
+    $xm = [math]::Min((EjeX $e ([double]$fut.techo)) - $wMedio / 2, $libre - $wMedio)
+    $xm = [math]::Max($x0, $xm)
+    if ($xm + $wMedio -le $libre + 0.5) {
+      Escribir $g $medio $xm $yEje $script:FEjeSemi $critico
+      $libre = $xm - 10
+    }
+  }
+  if ($x0 + (Ancho $g $rotulo $script:FEje) -le $libre) {
+    Escribir $g $rotulo $x0 $yEje $script:FEje $script:Tinta3
+  }
 }
+
+# La recta punteada desde el último punto hasta el reinicio.
+#
+# Punteada porque no es un dato: es lo que pasa si seguís a este ritmo. Si toca
+# el 100 % antes del reinicio, de ahí en adelante el tramo va en rojo y lleva
+# escrito cuánto tiempo serían sin cuota: eso es lo que la frase «antes del
+# reinicio» no deja ver. Es _futuro() de GNOME y dibujarFuturo() de macOS.
+function DibujarFuturo($g, $fut, $e, [double]$x0, [double]$y0, [double]$w, [double]$h, $color,
+                       [double]$tDesde, [double]$pDesde) {
+  $xa = EjeX $e $tDesde; $ya = EjeY $e $pDesde
+  $xt = EjeX $e $(if ($null -ne $fut.techo) { [double]$fut.techo } else { [double]$fut.fin })
+  $yt = EjeY $e ([double]$fut.pFin)
+  $xf = EjeX $e ([double]$fut.fin)
+  $critico = $PALETA['critico']
+
+  # «Ahora»: la raya que separa lo medido de lo supuesto.
+  $l = New-Object System.Drawing.Pen((Alfa $script:Tinta3 0.6), [float]1)
+  $l.DashPattern = [float[]]@(1.5, 2.0)
+  $xr = [math]::Round($xa) + 0.5
+  $g.DrawLine($l, [float]$xr, [float]$y0, [float]$xr, [float]($y0 + $h))
+  $l.Dispose()
+
+  if ($null -ne $fut.techo) {
+    # El tiempo sin cuota: del techo al reinicio.
+    $br = New-Object System.Drawing.SolidBrush((Alfa $critico 0.13))
+    $g.FillRectangle($br, [float]$xt, [float]$y0, [float]($x0 + $w - $xt), [float]$h)
+    $br.Dispose()
+    $l = New-Object System.Drawing.Pen($critico, [float]2)
+    $g.DrawLine($l, [float]($xt + 2.6), [float]$yt, [float]$xf, [float]$yt)
+    $l.Dispose()
+    $seg = [int][math]::Floor(([double]$fut.fin - [double]$fut.techo) / 1000)
+    $texto = "sin cuota $(Dur $seg)"
+    $tw = Ancho $g $texto $script:FEjeSemi
+    $th = 1.19 * $script:FEjeSemi.Size
+    if ($x0 + $w - $xt -ge $tw + 10) {
+      Escribir $g $texto ($xt + ($x0 + $w - $xt - $tw) / 2) ($y0 + 3 + ($h - 3 - $th) / 2) $script:FEjeSemi $critico
+    }
+  }
+
+  # Debajo de la recta, el mismo degradé que el pasado pero más tenue.
+  $br = Degrade $y0 $h $color 0.14 0.0
+  $g.FillPolygon($br, [System.Drawing.PointF[]]@(
+      (Punto $xa ($y0 + $h)), (Punto $xa $ya), (Punto $xt $yt), (Punto $xt ($y0 + $h))))
+  $br.Dispose()
+
+  # La recta termina en el borde del punto hueco y no en su centro.
+  $radio = 2.6
+  $largo = [math]::Sqrt(($xt - $xa) * ($xt - $xa) + ($yt - $ya) * ($yt - $ya))
+  if ($largo -gt $radio + 1) {
+    $k = ($largo - $radio) / $largo
+    $l = New-Object System.Drawing.Pen($color, [float]1.5)
+    # 3 px de trazo y 3 de hueco, como en las otras dos: en GDI+ el patrón va en
+    # anchos de lápiz.
+    $l.DashPattern = [float[]]@(2.0, 2.0)
+    $l.DashCap = [System.Drawing.Drawing2D.DashCap]::Round
+    $g.DrawLine($l, [float]$xa, [float]$ya, [float]($xa + ($xt - $xa) * $k), [float]($ya + ($yt - $ya) * $k))
+    $l.Dispose()
+  }
+
+  # Donde termina la recta: un punto hueco, porque no es una lectura.
+  $l = New-Object System.Drawing.Pen($(if ([double]$fut.pFin -ge 100) { $critico } else { $color }), [float]1.4)
+  $g.DrawEllipse($l, [float]($xt - $radio), [float]($yt - $radio), [float](2 * $radio), [float](2 * $radio))
+  $l.Dispose()
+}
+
+# ── una cuenta ──────────────────────────────────────────────────────────
 
 # «dormida: sin usar hace 12 días · plan free».
 #
@@ -1115,9 +1682,9 @@ function FraseLecturas($cuota) {
 # núcleo y llega hecha en `relevancia`; acá sólo se dibuja. Una cuenta que
 # cambia de lugar sin decir por qué es indistinguible de un bug.
 function FraseDormida($p) {
-  if (-not $p.PSObject.Properties['relevancia']) { return $null }
+  if (-not $p.PSObject.Properties['relevancia'] -or -not $p.relevancia) { return $null }
   if (-not $p.relevancia.dormida) { return $null }
-  return 'dormida:  ' + (@($p.relevancia.porque) -join '   ·   ')
+  return 'dormida: ' + (@($p.relevancia.porque) -join ' · ')
 }
 
 function Presupuesto($p) {
@@ -1125,317 +1692,397 @@ function Presupuesto($p) {
   return $p.presupuesto
 }
 
-function AltoPerfil($p) {
-  $alto = (Px $MARGEN) + (Px $ALTO_CABECERA)
+# Lo que se dibuja de una cuenta, ya escrito. Es el __init__ de VistaCuenta en
+# GNOME y el init de macOS: los textos y los colores salen de acá, y
+# RecorrerCuenta sólo los pone en su lugar.
+function ModeloCuenta($p, [int]$indice) {
   $cuota = $p.cuota
-  $alto += (Px $ALTO_BARRA) * (@($cuota.mostrar)).Count
-  # La curva es de la barra que frena, así que suma una vez y no por barra.
-  if ((@($cuota.historia)).Count -ge 3) { $alto += (Px $ALTO_CURVA) }
-  if (FraseRitmo $p.proyeccion) { $alto += (Px $ALTO_RITMO) }
-  $alto += (Px $ALTO_PRESUPUESTO) * (@(RenglonesPresupuesto (Presupuesto $p))).Count
-  if (FraseLecturas $cuota) { $alto += (Px $ALTO_LECTURAS) }
-  if (FraseDormida $p) { $alto += (Px $ALTO_LECTURAS) }
-  return [int]($alto + (Px 10))
-}
+  $historia = if ($cuota.PSObject.Properties['historia']) { @($cuota.historia) } else { @() }
+  $hist = @($historia | Where-Object {
+      $null -ne $_ -and $_.PSObject.Properties['t'] -and $_.PSObject.Properties['porcentaje'] })
+  $ts = @($hist | ForEach-Object { [double]$_.t })
+  $ps = @($hist | ForEach-Object { [double]$_.porcentaje })
+  $frena = $cuota.frena
+  $proy = $p.proyeccion
+  $sube = [bool]($proy -and $proy.PSObject.Properties['estado'] -and $proy.estado -eq 'sube')
+  $choca = [bool]($sube -and $proy.chocasAntesDelReinicio)
 
-function DibujarPerfil($p, [int]$indice) {
-  $ancho = [int](Px $ANCHO_VISTA)
-  $altoTarjeta = AltoPerfil $p
-  $alto = AltoConAire $altoTarjeta
-  $bmp = Lienzo (AnchoLienzo $ancho) $alto
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
-  # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
-  # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
-  # entero—, así que el aire de los costados sigue siendo fondo del menú.
-  #
-  # El aire vertical va ARRIBA de la tarjeta y no abajo. Abajo también separaba
-  # una tarjeta de la siguiente, pero la PRIMERA quedaba pegada al borde de
-  # arriba del menú: había 8 px entre tarjetas y ninguno encima de todo, y el
-  # panel se veía cargado hacia arriba. Arriba resuelve las dos cosas con el
-  # mismo píxel — la última tarjeta no necesita aire abajo porque el pie trae
-  # el suyo.
-  $g.TranslateTransform((Desplazo), (Px $ENTRE_TARJETAS))
-  FondoTarjeta $g $ancho $altoTarjeta
-
-  $m = Px $MARGEN
-  $der = $ancho - $m
-  $y = Px $MARGEN
-
-  # El del MENÚ, que va sobre el fondo del menú.
-  $colorCuenta = ColorCuenta $indice $script:MenuOscuro
-  GlifoProducto $g $p.producto $colorCuenta $m ($y + (Px 2)) (Px 13)
-  $anchoCabecera = $der - $m - (Px 19)
-  Escribir $g (Corto $p.perfil) ($m + (Px 19)) $y $script:FTitulo $script:Tinta -1 $anchoCabecera
-  $y += Px 17
-
-  $partes = @()
-  if ($p.cuenta) { $partes += $p.cuenta }
-  # planNombre es el que se dibuja; un qm anterior no lo trae, y con StrictMode
-  # leer un campo que falta tira.
-  if ($p.PSObject.Properties['planNombre'] -and $p.planNombre) { $partes += $p.planNombre }
-  elseif ($p.plan) { $partes += $p.plan }
-  Escribir $g ($partes -join '  ·  ') ($m + (Px 19)) $y $script:FSub $script:Tinta3 -1 $anchoCabecera
-  $y += Px 22
-
-  # Acá sólo llegan cuentas CON número: las mudas van a DibujarSinCuota, que
-  # las junta en una tarjeta sola. Esta función tenía una rama para dibujarles
-  # la frase y quedó muerta con ese cambio; se saca en vez de dejarla, porque
-  # una rama que no se ejecuta es una rama que nadie va a notar cuando se rompa.
-  $cuota = $p.cuota
-  $peor = $cuota.frena
-  $chocas = [bool]($p.proyeccion -and $p.proyeccion.estado -eq 'sube' -and $p.proyeccion.chocasAntesDelReinicio)
-
+  $filas = @()
   foreach ($v in @($cuota.mostrar)) {
-    $esPeor = ($null -ne $peor -and $v.clave -eq $peor.clave -and $v.alcance -eq $peor.alcance)
-    $nivel = NivelDe ([int]$v.porcentaje) ([bool]($v.preocupa -or ($chocas -and $esPeor)))
-    $activa = [bool]$v.activa
-
-    $nombre = if ($activa) { (NombreVentana $v) + '  ▸' } else { NombreVentana $v }
-    # El porcentaje se dibuja PRIMERO —es lo que se viene a leer— y el nombre se
-    # recorta contra el hueco que dejó. Al revés, un nombre de ventana largo se
-    # metía por debajo del número y quedaban los dos ilegibles.
-    $cifra = '{0:d}%' -f [int][math]::Round($v.porcentaje)
-    Escribir $g $cifra 0 $y $script:FPct $script:Tinta $der
-    $anchoNombre = $der - $m - $g.MeasureString($cifra, $script:FPct).Width - (Px 8)
-    Escribir $g $nombre $m $y $(if ($activa) { $script:FActiva } else { $script:FNombre }) `
-      $(if ($activa) { $script:Tinta } else { $script:Tinta2 }) -1 $anchoNombre
-    $y += Px 18
-
-    # El medidor: pista tenue y relleno con el color del estado.
-    $h = Px 5
-    $brPista = New-Object System.Drawing.SolidBrush($script:Pista)
-    RectRedondeado $g (New-Object System.Drawing.RectangleF($m, $y, ($der - $m), $h)) ($h / 2) $brPista
-    $brPista.Dispose()
-    $frac = [math]::Max(0, [math]::Min(100, $v.porcentaje)) / 100
-    $anchoLleno = [math]::Max((Px 5), ($der - $m) * $frac)
-    $brLleno = New-Object System.Drawing.SolidBrush($PALETA[$nivel])
-    RectRedondeado $g (New-Object System.Drawing.RectangleF($m, $y, $anchoLleno, $h)) ($h / 2) $brLleno
-    $brLleno.Dispose()
-    $y += Px 9
-
-    # La edad del cache ya NO va acá: se mudó al renglón de «lecturas», abajo,
-    # donde va acompañada de cada cuánto se lee. Sola decía la mitad —«hace
-    # 40 m» es tranquilizador si se lee cada hora y alarmante si se lee cada
-    # cinco minutos— y encima la repetía una vez por perfil en el renglón de
-    # una barra que no es la suya.
-    # Con ancho: el pie ahora puede llevar la edad propia de la barra, y un
-    # renglón largo se recorta con «…» en vez de salirse de la tarjeta.
-    Escribir $g (PieBarra $v) $m $y $script:FPie $script:Tinta3 -1 ($der - $m)
-    $y += Px 19
-
-    # La curva va pegada a la barra que frena: es de ella, no del perfil.
-    if ($esPeor -and (@($cuota.historia)).Count -ge 3) {
-      DibujarCurva $g $cuota.historia $nivel `
-        (New-Object System.Drawing.RectangleF($m, ($y + (Px 2)), ($der - $m), (Px 16)))
-      $y += Px $ALTO_CURVA
+    if ($null -eq $v) { continue }
+    # Por clave Y alcance: dos semanales con alcance distinto comparten la clave
+    # `weekly_scoped`, y marcar las dos es marcar ninguna.
+    $esFrena = [bool]($null -ne $frena -and $v.clave -eq $frena.clave -and $v.alcance -eq $frena.alcance)
+    $seg = Faltan $v.reinicia
+    $edad = EdadDeBarra $v
+    $filas += @{
+      v        = $v
+      etiqueta = (EtiquetaDe $v)
+      pct      = [double]$v.porcentaje
+      nivel    = (NivelDe ([double]$v.porcentaje) ([bool]($v.preocupa -or ($choca -and $esFrena))))
+      frena    = $esFrena
+      reinicio = $(if ($null -eq $seg) { $null } else { Dur $seg })
+      vieja    = [bool]($edad -and $edad.EndsWith('· vieja'))
     }
   }
 
-  $ritmo = FraseRitmo $p.proyeccion
-  if ($ritmo) {
-    Escribir $g $ritmo $m $y $script:FPie `
-      $(if ($chocas) { $PALETA['critico'] } else { $script:Tinta3 }) -1 ($der - $m)
-    $y += Px $ALTO_RITMO
+  $ritmo = FraseRitmo $proy
+  $futuro = if ($ritmo) { HaciaDonde $proy $frena $choca $ts $ps } else { $null }
+
+  # El presupuesto, con la barra que reparte nombrada como la nombra el panel.
+  $pre = Presupuesto $p
+  $nombre = ''
+  if ($pre -and $pre.PSObject.Properties['barra'] -and $pre.barra) {
+    $nombre = EtiquetaDe ([pscustomobject]@{
+        clave   = $(if ($pre.PSObject.Properties['clave'] -and $pre.clave) { $pre.clave } else { '' })
+        alcance = $(if ($pre.PSObject.Properties['alcance']) { $pre.alcance } else { $null })
+        nombre  = $pre.barra
+      })
   }
 
-  # El ritmo dice hacia dónde vas; el presupuesto, a cuánto tendrías que ir para
-  # que la cuota llegue al reinicio. Van pegados: son la misma pregunta.
-  foreach ($renglon in @(RenglonesPresupuesto (Presupuesto $p))) {
-    Escribir $g $renglon $m $y $script:FPie $script:Tinta2 -1 ($der - $m)
-    $y += Px $ALTO_PRESUPUESTO
-  }
+  # De cuándo es el número y cada cuánto se lee: «¿este número de cuándo es?»
+  # no se contesta con un porcentaje.
+  $edad = if ($cuota.PSObject.Properties['edadSegundos']) { $cuota.edadSegundos } else { $null }
+  $vieja = [bool]($null -ne $edad -and [double]$edad -ge $VIEJO_SEGUNDOS)
+  $leida = $null
+  if ($null -ne $edad) { $leida = "leída hace $(Dur ([int]$edad))" + $(if ($vieja) { ' · vieja' } else { '' }) }
+  $cada = CadaCuanto $hist
 
-  $lecturas = FraseLecturas $cuota
-  if ($lecturas) {
-    Escribir $g $lecturas $m $y $script:FPie $script:Tinta3 -1 ($der - $m)
-    $y += Px $ALTO_LECTURAS
-  }
+  $plan = $null
+  # planNombre es el que se dibuja; `plan` queda para un qm anterior.
+  if ($p.PSObject.Properties['planNombre'] -and $p.planNombre) { $plan = [string]$p.planNombre }
+  elseif ($p.PSObject.Properties['plan'] -and $p.plan) { $plan = [string]$p.plan }
 
-  $dormida = FraseDormida $p
-  if ($dormida) {
-    Escribir $g $dormida $m $y $script:FPie $script:Tinta3 -1 ($der - $m)
+  return @{
+    producto    = $(if ($p.PSObject.Properties['producto'] -and $p.producto) { [string]$p.producto } else { 'claude' })
+    indice      = $indice
+    titulo      = (Corto $p.perfil)
+    cuenta      = $(if ($p.PSObject.Properties['cuenta'] -and $p.cuenta) { [string]$p.cuenta } else { $null })
+    plan        = $plan
+    leida       = $leida
+    vieja       = $vieja
+    cada        = $(if ($null -ne $cada) { "cada ~$(Dur ([int]$cada))" } else { $null })
+    ts          = $ts
+    ps          = $ps
+    filas       = $filas
+    ritmo       = $ritmo
+    ritmoRojo   = $choca
+    futuro      = $futuro
+    presupuesto = @(RenglonesPresupuesto $pre $nombre)
+    hoy         = (PctDiario $pre)
+    dormida     = (FraseDormida $p)
   }
-
-  $g.Dispose()
-  return $bmp
 }
 
-# La cabecera del panel: LO PRIMERO QUE TE FRENA.
+# El único lugar que sabe dónde va cada cosa de una cuenta. Sin $dibujar sólo
+# mide, y devuelve el alto de la tarjeta. Es _recorrer() de VistaCuenta en GNOME
+# y recorrer(dibujar:) en macOS, en el mismo orden y con las mismas medidas que
+# la de macOS:
 #
-# Es VistaResumen de qm-barra.swift. Con varias cuentas la primera pregunta no
-# es «cómo va cada una» sino «cuál me frena y cuándo me suelta», y eso es una
-# sola línea: va arriba de todo y el detalle por cuenta viene después.
+#   · quién es: el glifo, el nombre, el plan en una pastilla si entra, y a la
+#     derecha de cuándo es el número; abajo el mail y cada cuánto se lee;
+#   · un renglón por barra: el nombre, ↻ y cuánto falta para el reinicio, el
+#     porcentaje, el medidor, y abajo la edad propia de la barra. La que frena
+#     lleva el triángulo en el margen y, pegada, su curva;
+#   · bajo una línea, lo que se deduce: hacia dónde vas, cuánto te toca hoy y
+#     por qué la cuenta está dormida.
+function RecorrerCuenta($g, $m, [bool]$dibujar) {
+  $ix = [double]$IX
+  $ancho = [double]$ANCHO_CONTENIDO
+  $der = $ix + $ancho
+  $nx = $ix + 20
+  $y = [double]$PAD_ARRIBA
+
+  # ── quién es ──
+  $fLeida = if ($m.vieja) { $script:FChicaSemi } else { $script:FChica }
+  $w1 = if ($m.leida) { Ancho $g $m.leida $fLeida } else { 0.0 }
+  $hueco = $der - $nx - $(if ($m.leida) { $w1 + 10 } else { 0.0 })
+  $wTitulo = [math]::Max(1.0, [math]::Min((Ancho $g $m.titulo $script:FTitulo), $hueco))
+  # La pastilla del plan va arriba sólo si le quedan 48 px —o si entera es más
+  # chica—; si no, baja al renglón del mail. Las mismas cuentas que GNOME.
+  $planArriba = $null
+  if ($m.plan) {
+    $wPlan = (Ancho $g $m.plan $script:FPlan) + 12
+    $lugar = $hueco - $wTitulo - 8
+    if ($lugar -ge [math]::Min($wPlan, 48)) { $planArriba = [math]::Min($wPlan, $lugar) }
+  }
+  if ($dibujar) {
+    GlifoProducto $g $m.producto (ColorCuenta $m.indice ([bool]$script:MenuOscuro)) $ix ($y + 2) 13
+    Escribir $g $m.titulo $nx $y $script:FTitulo $script:Tinta -1 $wTitulo
+    if ($null -ne $planArriba) {
+      $cx = $nx + $wTitulo + 8
+      $br = New-Object System.Drawing.SolidBrush((Alfa $script:Tinta 0.08))
+      RectRedondeado $g (New-Object System.Drawing.RectangleF([float]$cx, [float]($y + 1), [float]$planArriba, [float]16)) 8 $br
+      $br.Dispose()
+      Escribir $g $m.plan ($cx + 6) ($y + 2.5) $script:FPlan $script:Tinta2 -1 ($planArriba - 12)
+    }
+    if ($m.leida) {
+      Escribir $g $m.leida 0 ($y + 2) $fLeida $(if ($m.vieja) { $PALETA['aviso'] } else { $script:Tinta3 }) $der
+    }
+  }
+  $y += 20
+
+  $izq2 = (@($m.cuenta, $(if ($null -eq $planArriba) { $m.plan } else { $null })) | Where-Object { $_ }) -join ' · '
+  if ($izq2 -or $m.cada) {
+    if ($dibujar) {
+      $w2 = if ($m.cada) { Ancho $g $m.cada $script:FChica } else { 0.0 }
+      if ($izq2) {
+        Escribir $g $izq2 $nx $y $script:FSub $script:Tinta3 -1 ($der - $nx - $(if ($m.cada) { $w2 + 10 } else { 0.0 }))
+      }
+      if ($m.cada) { Escribir $g $m.cada 0 $y $script:FChica $script:Tinta3 $der }
+    }
+    $y += 15
+  }
+  $y += 10
+
+  # ── las barras ──
+  foreach ($b in @($m.filas)) {
+    $v = $b.v
+    if ($dibujar) {
+      $color = $PALETA[$b.nivel]
+      $cifra = '{0}%' -f [math]::Round($b.pct)
+      $wCifra = Ancho $g $cifra $script:FPct
+      Escribir $g $cifra 0 ($y - 1) $script:FPct $script:Tinta $der
+      $finRotulo = $der - $wCifra - 10
+      if ($b.reinicio) {
+        $xR = $der - $wCifra - 10 - (Ancho $g $b.reinicio $script:FChica)
+        Escribir $g $b.reinicio $xR ($y + 0.5) $script:FChica $script:Tinta3
+        GlifoReinicio $g $script:Tinta3 ($xR - 12) ($y + 2.5) 9.5
+        $finRotulo = $xR - 12 - 8
+      }
+      if ($b.frena) {
+        # La que frena se marca en el margen, como en la terminal.
+        $br = New-Object System.Drawing.SolidBrush($color)
+        $g.FillPolygon($br, [System.Drawing.PointF[]]@(
+            (Punto ($ix - 9) ($y + 4.5)), (Punto ($ix - 4.5) ($y + 8)), (Punto ($ix - 9) ($y + 11.5))))
+        $br.Dispose()
+      }
+      Escribir $g $b.etiqueta $ix $y $(if ($b.frena) { $script:FBarraFrena } else { $script:FBarra }) `
+        $(if ($b.frena) { $script:Tinta } else { $script:Tinta2 }) -1 ([math]::Max(40, $finRotulo - $ix))
+      Medidor $g $ix ($y + $ALTO_ROTULO) $ancho $ALTO_MEDIDOR $b.pct $color
+    }
+    $y += $ALTO_ROTULO + $ALTO_MEDIDOR
+    # La curva va pegada a la barra que frena: es de ella.
+    $conCurva = [bool]($b.frena -and @($m.ts).Count -ge 3)
+    $quieta = if ($conCurva) { SinCambios $m.ts $m.ps } else { $null }
+    $pie = PieBarra $v $quieta
+    if ($pie) {
+      if ($dibujar) {
+        Escribir $g $pie $ix ($y + 3) $script:FEdad $(if ($b.vieja) { $PALETA['aviso'] } else { $script:Tinta3 }) -1 $ancho
+      }
+      $y += $ALTO_EDAD
+    }
+    if ($conCurva -and -not $quieta) {
+      $y += 7
+      $altoCurva = if ($m.futuro) { $ALTO_CURVA_FUTURO } else { $ALTO_CURVA }
+      if ($dibujar) { DibujarCurva $g $m $ix $y $ancho $altoCurva $PALETA[$b.nivel] }
+      $y += $altoCurva + $ALTO_EJE
+    }
+    $y += $ENTRE_BARRAS
+  }
+
+  # ── lo que se deduce ──
+  $nPre = @($m.presupuesto).Count
+  $renglones = $(if ($m.ritmo) { 1 } else { 0 }) + $nPre + $(if ($m.dormida) { 1 } else { 0 })
+  if ($renglones -eq 0) { return [double]($y - $ENTRE_BARRAS + 13) }
+  if ($dibujar) {
+    $br = New-Object System.Drawing.SolidBrush($script:BordeTarjeta)
+    $g.FillRectangle($br, [float]$ix, [float]$y, [float]$ancho, [float]1)
+    $br.Dispose()
+  }
+  $y += 9
+  $tx = $ix + 19
+  if ($m.ritmo) {
+    if ($dibujar) {
+      $color = if ($m.ritmoRojo) { $PALETA['critico'] } else { $script:Tinta3 }
+      GlifoTendencia $g $color ($ix + 1) ($y + 1.5) 11
+      Escribir $g $m.ritmo $tx $y $(if ($m.ritmoRojo) { $script:FRenglonSemi } else { $script:FRenglon }) `
+        $color -1 ($der - $tx)
+    }
+    $y += $ALTO_RENGLON
+  }
+  if ($nPre) {
+    if ($dibujar) {
+      # Al lado, un anillo con lo gastado de hoy: el mismo medidor que tiene el
+      # ícono de la cuenta en la bandeja, y que el panel nunca explicaba.
+      $medio = $y + $nPre * $ALTO_RENGLON / 2 - 1
+      $hoy = if ($null -ne $m.hoy) { [double]$m.hoy } else { 0.0 }
+      Anillo $g ($ix + 6.5) $medio 5 2.2 ($hoy / 100) $PALETA[(NivelDe $hoy $false)] (Alfa $script:Tinta 0.15)
+      $i = 0
+      foreach ($r in @($m.presupuesto)) {
+        Escribir $g $r $tx ($y + $i * $ALTO_RENGLON) $script:FRenglon $script:Tinta2 -1 ($der - $tx)
+        $i++
+      }
+    }
+    $y += $nPre * $ALTO_RENGLON
+  }
+  if ($m.dormida) {
+    if ($dibujar) {
+      GlifoDormida $g $script:Tinta3 ($ix + 1) ($y + 1.5) 11
+      Escribir $g $m.dormida $tx $y $script:FDormida $script:Tinta3 -1 ($der - $tx)
+    }
+    $y += $ALTO_RENGLON
+  }
+  return [double]($y + 10)
+}
+
+# Una cuenta con número, en su tarjeta. Acá sólo llegan cuentas CON número: las
+# mudas van a DibujarSinCuota, que las junta en una tarjeta sola.
 #
-# Devuelve $null cuando ninguna cuenta dejó número: una cabecera vacía sería
-# peor que no tenerla, y cada perfil ya dice su propia frase abajo.
+# El `[-1]` no es maña: una función de PowerShell devuelve TODO lo que se le
+# escapa al pipeline, y un `.Add()` sin `[void]` adentro del recorrido
+# convertiría el alto en un arreglo y la tarjeta en una excepción.
+function DibujarPerfil($p, [int]$indice) {
+  $m = @(ModeloCuenta $p $indice)[-1]
+  $alto = [math]::Ceiling([double](@(RecorrerCuenta (GraficoDeMedir) $m $false)[-1]))
+  $pz = Pieza $alto
+  FondoTarjeta $pz.g $alto
+  $null = RecorrerCuenta $pz.g $m $true
+  $pz.g.Dispose()
+  return $pz.bmp
+}
+
+# ── la cabecera ─────────────────────────────────────────────────────────
+# LO PRIMERO QUE TE FRENA.
+#
+# Es VistaResumen de GNOME y de macOS. Con varias cuentas la primera pregunta
+# no es «cómo va cada una» sino «cuál me frena y cuándo me suelta», y eso es una
+# sola línea: va arriba de todo, en una tarjeta TEÑIDA con el color del estado
+# —es lo primero que se mira, y el color dice si hace falta seguir leyendo antes
+# de leer nada— y el detalle por cuenta viene después.
+#
 # QUIÉN encabeza lo decide qm y llega en $datos.frenaPrimero. Acá adentro había
 # un foreach que se quedaba con el `frena` de porcentaje más alto: la misma
 # elección estaba escrita seis veces, una por pantalla, y las seis coincidían
 # sólo por casualidad. El día que el criterio cambió —una cuenta dormida en
 # 100 % ya no encabeza— cinco se quedaron con el criterio viejo.
+#
+# Devuelve $null cuando ninguna cuenta dejó número: una cabecera vacía sería
+# peor que no tenerla, y cada perfil ya dice su propia frase abajo.
 function DibujarResumen($datos) {
+  if (-not $datos.PSObject.Properties['frenaPrimero']) { return $null }
   $lider = $datos.frenaPrimero
-  if ($null -eq $lider -or $null -eq $lider.ventana) { return $null }
-  $mejor = $lider.ventana
-  $mejorP = $datos.perfiles | Where-Object { $_.perfil -eq $lider.perfil } | Select-Object -First 1
+  if ($null -eq $lider -or -not $lider.PSObject.Properties['ventana'] -or $null -eq $lider.ventana) { return $null }
+  $v = $lider.ventana
+  $p = @($datos.perfiles | Where-Object { $_.perfil -eq $lider.perfil }) | Select-Object -First 1
 
-  $pct = [int][math]::Round($mejor.porcentaje)
-  $chocas = [bool]($mejorP.proyeccion -and $mejorP.proyeccion.estado -eq 'sube' `
-      -and $mejorP.proyeccion.chocasAntesDelReinicio)
-  $nivel = NivelDe $pct ([bool]($mejor.preocupa -or $chocas))
+  $choca = [bool]($p -and $p.proyeccion -and $p.proyeccion.estado -eq 'sube' `
+      -and $p.proyeccion.chocasAntesDelReinicio)
+  $pct = [double]$v.porcentaje
+  $nivel = NivelDe $pct ([bool]($v.preocupa -or $choca))
   $c = $PALETA[$nivel]
+  $cuenta = Corto $(if ($p) { $p.perfil } else { $lider.perfil })
 
-  $ancho = [int](Px $ANCHO_VISTA)
-  $altoTarjeta = [int](Px $ALTO_RESUMEN)
-  $alto = AltoConAire $altoTarjeta
-  $bmp = Lienzo (AnchoLienzo $ancho) $alto
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
-  # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
-  # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
-  # entero—, así que el aire de los costados sigue siendo fondo del menú.
-  #
-  # El aire vertical va ARRIBA de la tarjeta y no abajo. Abajo también separaba
-  # una tarjeta de la siguiente, pero la PRIMERA quedaba pegada al borde de
-  # arriba del menú: había 8 px entre tarjetas y ninguno encima de todo, y el
-  # panel se veía cargado hacia arriba. Arriba resuelve las dos cosas con el
-  # mismo píxel — la última tarjeta no necesita aire abajo porque el pie trae
-  # el suyo.
-  $g.TranslateTransform((Desplazo), (Px $ENTRE_TARJETAS))
-  FondoTarjeta $g $ancho $altoTarjeta
+  $pz = Pieza $ALTO_RESUMEN
+  $g = $pz.g
+  FondoTarjeta $g $ALTO_RESUMEN (Alfa $c $(if ($script:MenuOscuro) { 0.13 } else { 0.08 })) (Alfa $c 0.30)
 
-  # El anillo, igual que el del tablero: pista tenue del mismo color y arco
-  # con punta redondeada.
-  $m = Px $MARGEN
-  $lado = Px 44
-  $grosor = Px 5
-  $caja = New-Object System.Drawing.RectangleF(
-    ($m + $grosor / 2), (($altoTarjeta - $lado) / 2 + $grosor / 2),
-    ($lado - $grosor), ($lado - $grosor))
-  $lapPista = New-Object System.Drawing.Pen(([System.Drawing.Color]::FromArgb(46, $c.R, $c.G, $c.B)), $grosor)
-  $g.DrawEllipse($lapPista, $caja)
-  $lapPista.Dispose()
-  $lap = New-Object System.Drawing.Pen($c, $grosor)
-  $lap.StartCap = [System.Drawing.Drawing2D.LineCap]::Round
-  $lap.EndCap = [System.Drawing.Drawing2D.LineCap]::Round
-  $g.DrawArc($lap, $caja, -90, [float]([math]::Max(4, [math]::Min(360, $pct * 3.6))))
-  $lap.Dispose()
+  $lado = 46.0
+  Anillo $g ($IX + $lado / 2) ($ALTO_RESUMEN / 2) ($lado / 2 - 3) 5.5 `
+    ([math]::Max(0.0, [math]::Min(100.0, $pct)) / 100) $c (Alfa $c 0.22)
 
-  $x = $m + $lado + (Px 14)
-  $der = $ancho - $m
-  Escribir $g 'LO PRIMERO QUE TE FRENA' $x (Px 11) $script:FRotulo $script:Tinta3 -1 ($der - $x)
-  $cifra = '{0:d}%' -f $pct
-  Escribir $g $cifra $x (Px 22) $script:FCifra $script:Tinta
-  # El nombre va a la derecha de la cifra, apoyado en su misma línea de base, y
-  # recortado contra el margen: es el texto más largo del panel —perfil más
-  # ventana— y era el que primero se salía.
-  $xNombre = $x + $g.MeasureString($cifra, $script:FCifra).Width
-  Escribir $g ('  {0} · {1}' -f (Corto $mejorP.perfil), (NombreVentana $mejor)) `
-    $xNombre (Px 30) $script:FSub $script:Tinta2 -1 ($der - $xNombre)
+  $x = $IX + $lado + 13
+  $der = $IX + $ANCHO_CONTENIDO
+  EscribirEspaciado $g 'LO PRIMERO QUE TE FRENA' $x 9 $script:FRotulo $script:Tinta3 0.6
+  $cifra = '{0}%' -f [math]::Round($pct)
+  $yCifra = 20
+  Escribir $g $cifra $x $yCifra $script:FCifra $script:Tinta
+  # El nombre va a la derecha de la cifra, sobre su misma línea de base, y
+  # recortado contra el margen: es el texto más largo de la cabecera —perfil
+  # más barra— y era el que primero se salía.
+  $xNombre = $x + (Ancho $g $cifra $script:FCifra) + 7
+  Escribir $g "$cuenta · $(EtiquetaDe $v)" $xNombre ($yCifra + 0.95 * ($script:FCifra.Size - $script:FLider.Size)) `
+    $script:FLider $script:Tinta2 -1 ($der - $xNombre)
 
   # Cuando ya te frenó, lo que importa no es cuándo «reinicia»: es cuándo
-  # volvés a poder trabajar. Es la misma fecha y una pregunta distinta.
-  $seg = Faltan $mejor.reinicia
-  $texto = if ($pct -ge 95 -and $null -ne $seg -and $seg -gt 0) { "libre en $(Dur $seg)" }
-    elseif ($null -ne $seg) { Reinicio $seg }
-    else { 'sin reinicio informado' }
-  Escribir $g $texto $x (Px 50) $script:FPie $(if ($pct -ge 95) { $c } else { $script:Tinta3 })
+  # volvés a poder trabajar. Es la misma fecha y una pregunta distinta. Y la
+  # hora de acá, que es lo que se usa para planear; y la edad propia de la
+  # barra, que suele ser de una lectura más vieja que su cuenta.
+  $seg = Faltan $v.reinicia
+  $urgente = ($pct -ge 95)
+  if ($null -eq $seg) { $texto = 'sin reinicio informado'; $urgente = $false }
+  elseif ($urgente -and $seg -gt 0) { $texto = "libre en $(Dur $seg)" }
+  else { $texto = Reinicio $seg }
+  $hora = CuandoLocal $v.reinicia
+  if ($hora -and $null -ne $seg -and $seg -ge 0) { $texto += " · $hora" }
+  $edad = if ($v.PSObject.Properties['medidoEn']) { Faltan $v.medidoEn } else { $null }
+  if ($null -ne $edad) { $texto += " · leída hace $(Dur ([int][math]::Max(0, -$edad)))" }
+  Escribir $g $texto $x ($ALTO_RESUMEN - 23) $(if ($urgente) { $script:FCabeceraSemi } else { $script:FCabecera }) `
+    $(if ($urgente) { $c } else { $script:Tinta2 }) -1 ($der - $x)
 
   $g.Dispose()
-  return $bmp
+  return $pz.bmp
 }
 
-# Las cuentas que no dejaron número, JUNTAS en una tarjeta.
+# ── las que no tienen número ────────────────────────────────────────────
+# Las cuentas sin número DE CUOTA, juntas en una tarjeta.
 #
-# Es VistaSinCuota de bin/qm-indicator. Antes cada perfil mudo se llevaba una
-# tarjeta entera de 340 px para decir una línea, y con cuatro perfiles el panel
-# se iba de pantalla mostrando sobre todo lo que NO se sabe. La respuesta a
-# «¿por qué esta cuenta no tiene número?» es una frase corta, y cuatro frases
-# cortas son una lista, no cuatro tarjetas.
+# Es VistaSinCuota de GNOME y de macOS. Cada perfil mudo se llevaba una tarjeta
+# entera de 340 px para decir una línea, y con cuatro perfiles el panel se iba
+# de pantalla mostrando sobre todo lo que NO se sabe. Juntas además se leen
+# mejor: no son tres misterios distintos, es un hecho con varios nombres. Por
+# eso se agrupan por frase, en el orden en que aparecieron: dos cuentas pueden
+# estar calladas por motivos distintos, y ahí la frase importa.
+#
+# Sin cuota NO es sin dato: si qm mandó el consumo local, va pegado al nombre,
+# y sólo cuando hay algo que contar — un «0» al lado de cada cuenta dormida
+# sería ruido con la misma forma que un dato.
 #
 # Ojo: esto agrupa el PANEL solamente. En la bandeja cada perfil mudo conserva
-# su propio item, y eso es a propósito — está explicado en Refrescar.
+# su propio item, y eso es a propósito — está explicado en ModeloPaneles.
 function DibujarSinCuota($calladas) {
   $cal = @($calladas)
   if (-not $cal.Count) { return $null }
 
-  $ancho = [int](Px $ANCHO_VISTA)
-  $m = Px $MARGEN
-  $der = $ancho - $m
-
-  # Medir antes de dibujar: el alto depende de cuántas líneas ocupa cada frase.
-  $medidor = New-Object System.Drawing.Bitmap(1, 1)
-  $gm = [System.Drawing.Graphics]::FromImage($medidor)
-  $altos = @()
+  $grupos = New-Object System.Collections.ArrayList
   foreach ($c in $cal) {
-    $an = $der - $m - (Px 84)
-    $altos += [math]::Max((Px 15), $gm.MeasureString($c.frase, $script:FPie, [int]$an).Height)
-  }
-  $gm.Dispose(); $medidor.Dispose()
-
-  $altoTarjeta = [int]((Px $MARGEN) + (Px 15) + ($altos | Measure-Object -Sum).Sum + (Px ($cal.Count * 5)) + (Px 10))
-  $alto = AltoConAire $altoTarjeta
-  $bmp = Lienzo (AnchoLienzo $ancho) $alto
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
-  # El desplazo va ANTES de la tarjeta: si no, la caja queda donde estaba y sólo
-  # se corre el contenido. `Clear()` no mira la transformación —pinta el lienzo
-  # entero—, así que el aire de los costados sigue siendo fondo del menú.
-  #
-  # El aire vertical va ARRIBA de la tarjeta y no abajo. Abajo también separaba
-  # una tarjeta de la siguiente, pero la PRIMERA quedaba pegada al borde de
-  # arriba del menú: había 8 px entre tarjetas y ninguno encima de todo, y el
-  # panel se veía cargado hacia arriba. Arriba resuelve las dos cosas con el
-  # mismo píxel — la última tarjeta no necesita aire abajo porque el pie trae
-  # el suyo.
-  $g.TranslateTransform((Desplazo), (Px $ENTRE_TARJETAS))
-  FondoTarjeta $g $ancho $altoTarjeta
-
-  $y = Px $MARGEN
-  Escribir $g 'SIN NÚMERO' $m $y $script:FRotulo $script:Tinta3
-  $y += Px 15
-
-  for ($i = 0; $i -lt $cal.Count; $i++) {
-    $c = $cal[$i]
-    Escribir $g $c.nombre $m $y $script:FNombre $script:Tinta2 -1 (Px 78)
-    $caja = New-Object System.Drawing.RectangleF(
-      ($m + (Px 84)), $y, ($der - $m - (Px 84)), $altos[$i])
-    $br = New-Object System.Drawing.SolidBrush($script:Tinta3)
-    $g.DrawString($c.frase, $script:FPie, $br, $caja)
-    $br.Dispose()
-    $y += $altos[$i] + (Px 5)
+    $etiqueta = if ($c.tokens -gt 0) { "$($c.nombre) $(TokensCorto $c.tokens)" } else { [string]$c.nombre }
+    $grupo = $null
+    foreach ($gr in $grupos) { if ($gr.frase -eq $c.frase) { $grupo = $gr; break } }
+    if ($null -eq $grupo) {
+      $grupo = @{ frase = [string]$c.frase; nombres = (New-Object System.Collections.ArrayList) }
+      [void]$grupos.Add($grupo)
+    }
+    [void]$grupo.nombres.Add($etiqueta)
   }
 
+  # Medir antes de dibujar: el alto depende de cuántos renglones ocupa cada frase.
+  $gm = GraficoDeMedir
+  $lh = 1.24 * $script:FFrase.Size
+  $alto = $PAD_ARRIBA + 18
+  foreach ($gr in $grupos) {
+    $gr.renglones = PartirConCodigo $gm $gr.frase $script:FFrase $script:FCodigo $ANCHO_CONTENIDO
+    $alto += 17 + $gr.renglones.Count * $lh + 9
+  }
+  $alto = [math]::Ceiling($alto + 3)
+
+  $pz = Pieza $alto
+  $g = $pz.g
+  FondoTarjeta $g $alto
+  $y = [double]$PAD_ARRIBA
+  EscribirEspaciado $g 'SIN NÚMERO DE CUOTA' $IX $y $script:FRotulo $script:Tinta3 0.6
+  $y += 18
+  foreach ($gr in $grupos) {
+    Escribir $g ($gr.nombres -join ' · ') $IX $y $script:FNombres $script:Tinta2 -1 $ANCHO_CONTENIDO
+    $y += 17
+    EscribirRenglones $g $gr.renglones $IX $y $script:FFrase $script:Tinta3 $ANCHO_CONTENIDO $lh
+    $y += $gr.renglones.Count * $lh + 9
+  }
   $g.Dispose()
-  return $bmp
+  return $pz.bmp
 }
 
 # El pie del panel: CUÁNDO DEJA DE SER CIERTO ESTE NÚMERO.
 #
 # Cada cuenta dice de cuándo es su número; esto dice cuándo deja de serlo. Es
 # la otra mitad de la misma pregunta, y es el renglón que baja solo mientras el
-# panel está abierto — por eso se dibuja aparte y no adentro de una tarjeta.
+# panel está abierto — por eso se dibuja aparte y no adentro de una tarjeta. Va
+# alineado con el contenido de las tarjetas, como en GNOME.
 function DibujarPieLectura([double]$falta) {
-  $ancho = [int](Px $ANCHO_VISTA)
-  $alto = [int](Px $ALTO_PIE)
-  # El pie también, o el menú lo alinearía a la izquierda contra tarjetas que
-  # ya están corridas y se vería el escalón. Y con el mismo aire arriba: se lo
-  # ponía la tarjeta anterior con su aire de abajo, y ahora ese aire está del
-  # otro lado.
-  $bmp = Lienzo (AnchoLienzo $ancho) (AltoConAire $alto)
-  $g = [System.Drawing.Graphics]::FromImage($bmp)
-  $g.SmoothingMode = [System.Drawing.Drawing2D.SmoothingMode]::AntiAlias
-  $g.TextRenderingHint = [System.Drawing.Text.TextRenderingHint]::ClearTypeGridFit
-  $g.Clear($script:Fondo)
-  $g.TranslateTransform((Desplazo), (Px $ENTRE_TARJETAS))
-  Escribir $g "próxima lectura en $(CuentaRegresiva $falta)" (Px $MARGEN) (Px 4) `
-    $script:FPie $script:Tinta3
-  $g.Dispose()
-  return $bmp
+  $pz = Pieza $ALTO_PIE
+  Escribir $pz.g "próxima lectura en $(CuentaRegresiva $falta)" $IX 4 $script:FChica $script:Tinta3
+  $pz.g.Dispose()
+  return $pz.bmp
 }
 
 # ── los íconos de la bandeja ────────────────────────────────────────────
@@ -2420,12 +3067,18 @@ function ModeloPaneles($datos, [bool]$avisar) {
       # una tarjeta de 340 px por frase corta llenaba la pantalla de lo que NO
       # se sabe. En su panel propio va la frase sola, que es la respuesta
       # completa a por qué no hay número.
-      $calladas += @{ nombre = $nombre; frase = $frase }
+      # Y el consumo local, si qm lo mandó: sin cuota no es sin dato. Con
+      # `--breve` viene en null, y entonces no se dice nada.
+      $tokens = 0
+      if ($p.PSObject.Properties['local'] -and $p.local -and
+          $p.local.PSObject.Properties['tokens'] -and $p.local.tokens) { $tokens = [double]$p.local.tokens }
+      $muda = @{ nombre = $nombre; frase = $frase; tokens = $tokens }
+      $calladas += $muda
       # Su panel propio es la MISMA tarjeta que le toca en el general, con ella
       # sola adentro: así el menú y la captura dibujan lo mismo, que es la única
       # forma de que el gate esté comprobando lo que el usuario ve. Va aparte y
       # no reusa la tarjeta agrupada porque esa lleva las demás cuentas.
-      $suya = DibujarSinCuota @(@{ nombre = $nombre; frase = $frase })
+      $suya = DibujarSinCuota @($muda)
       $bitmaps += $suya
       $paneles[$nombre] = @($suya)
       $tira += @{

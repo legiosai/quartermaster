@@ -178,11 +178,21 @@ if ($bmp) {
   #     tiempo de ejecución (ver `Desplazo` en bin/qm-tray.ps1), así que unos
   #     números fijos dejarían de apuntar al padding sin que nada avise.
   #
-  #     A la derecha la franja termina 9 px antes del borde y no 2 por el punto
-  #     con que termina la curva: está centrado en el último dato, que cae justo
-  #     en el margen del contenido, y su radio lo lleva 3 px más allá. Sobresale
-  #     del margen y NO de la tarjeta —le quedan 5 px hasta el borde—, así que
-  #     es dibujo bueno.
+  #     A la izquierda la franja son TRES píxeles y no seis: desde el rediseño
+  #     igual al de GNOME y macOS, el margen tiene un dueño legítimo, el
+  #     triángulo que marca la barra que frena, y va entre el borde de la
+  #     tarjeta y el nombre de la barra, como en la terminal. Lo que se vigila
+  #     es el aire de entre el borde y el triángulo. Del lado izquierdo nada se
+  #     sale por largo —todo texto ARRANCA en el contenido—; lo que se sale por
+  #     largo se sale a la derecha, y esa franja sigue entera.
+  #
+  #     Y la cabecera es una tarjeta TEÑIDA con el color del estado, así que su
+  #     padding no es gris: es el tinte. En sus filas la regla es la misma dicha
+  #     con su color —sólo puede haber el relleno teñido, su borde y la mezcla
+  #     de los dos con el fondo—, que en números es: el píxel menos el fondo
+  #     tiene que ser un MÚLTIPLO del relleno menos el fondo. El texto es
+  #     neutro y el anillo es el color entero, y ninguno de los dos cae sobre
+  #     esa recta.
   $medio = [int]($bmp.Height / 2)
   $bIzq = 0
   while ($bIzq -lt $bmp.Width - 1) {
@@ -248,10 +258,39 @@ if ($bmp) {
             "($($huecos[0]) px): el panel queda cargado para un lado")
   }
 
+  # La cabecera es la primera tarjeta: de donde termina el aire de arriba hasta
+  # el primer hueco. Su tinte se mide adentro, a mitad de alto y pegado al borde
+  # izquierdo, donde no hay ni texto ni anillo.
+  $finCabecera = $arriba
+  while ($finCabecera -lt $bmp.Height -and -not (& $esFondo $finCabecera)) { $finCabecera++ }
+  $relleno = $bmp.GetPixel($bIzq + 4, [int](($arriba + $finCabecera) / 2))
+  $tinte = @(($relleno.R - $fondo.R), ($relleno.G - $fondo.G), ($relleno.B - $fondo.B))
+  $eje = 0
+  foreach ($k in 1, 2) { if ([math]::Abs($tinte[$k]) -gt [math]::Abs($tinte[$eje])) { $eje = $k } }
+  if ([math]::Abs($tinte[$eje]) -lt 4) {
+    Fallar ("la cabecera no está teñida (relleno $($relleno.R),$($relleno.G),$($relleno.B) sobre un fondo " +
+            "de $($fondo.R)): tiene que llevar el color de lo que te frena")
+  }
+  $esTinte = {
+    param($c)
+    $dif = @(($c.R - $fondo.R), ($c.G - $fondo.G), ($c.B - $fondo.B))
+    $k = $dif[$eje] / $tinte[$eje]
+    # El borde es el color al 30 % encima del relleno al 13 %: unas tres veces
+    # el relleno. Más que eso ya no es la tarjeta.
+    if ($k -lt -0.15 -or $k -gt 3.6) { return $false }
+    foreach ($i in 0..2) { if ([math]::Abs($dif[$i] - $k * $tinte[$i]) -gt 6) { return $false } }
+    return $true
+  }
+
   $padding = @()
   foreach ($y in 0..($bmp.Height - 1)) {
-    foreach ($x in @(($bIzq + 2)..($bIzq + 7)) + @(($bDer - 4)..($bDer - 1))) {
+    $enCabecera = ($y -ge $arriba -and $y -lt $finCabecera)
+    foreach ($x in @(($bIzq + 2)..($bIzq + 4)) + @(($bDer - 4)..($bDer - 1))) {
       $c = $bmp.GetPixel($x, $y)
+      if ($enCabecera) {
+        if (-not (& $esTinte $c)) { $padding += "$x,$y" }
+        continue
+      }
       $max = [math]::Max($c.R, [math]::Max($c.G, $c.B))
       $min = [math]::Min($c.R, [math]::Min($c.G, $c.B))
       if ($max -gt $tope -or ($max - $min) -gt 12) { $padding += "$x,$y" }
@@ -493,6 +532,14 @@ if ($armar.Count -ne 1) {
   } elseif ($iAbrir -lt $iLayout) {
     Fallar 'ArmarMenu abre el submenú ANTES de PerformLayout(): sale en la esquina {0,0} de la pantalla, suelto del panel'
   }
+}
+
+# Las capturas, si el CI las pide: es la única forma de MIRAR la bandeja sin un
+# Windows al lado. El job `bandeja` las sube como artefacto, con las de
+# scripts/captura-bandeja.ps1, igual que el de macOS sube las de la barra.
+if ($env:QM_CAPTURAS) {
+  New-Item -ItemType Directory -Path $env:QM_CAPTURAS -Force | Out-Null
+  Copy-Item (Join-Path $salida '*.png') $env:QM_CAPTURAS -Force
 }
 
 Remove-Item $salida -Recurse -Force -ErrorAction SilentlyContinue

@@ -174,7 +174,9 @@ def por_powershell() -> list[str]:
     """La bandeja de Windows. Con StrictMode, como corre de verdad: leer una
     propiedad que no está es una excepción, y es justo lo que pasa con el JSON
     de un qm anterior."""
-    fn = bloque(RAIZ / "bin/qm-tray.ps1", "function RenglonesPresupuesto($pre) {")
+    # Con `$nombre` vacío, que es como llama el gate: el panel le pasa cómo
+    # nombra él a la barra («Semanal (Fable)»), y la frase es la misma.
+    fn = bloque(RAIZ / "bin/qm-tray.ps1", "function RenglonesPresupuesto($pre, [string]$nombre = '') {")
     with tempfile.TemporaryDirectory() as d:
         guion, datos, dicho = (pathlib.Path(d) / n for n in ("p.ps1", "casos.json", "dicho.txt"))
         datos.write_text(json.dumps([c["entrada"] for c in CASOS]), encoding="utf-8")
