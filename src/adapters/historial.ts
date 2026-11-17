@@ -37,6 +37,7 @@ interface Linea {
   readonly b: string; // barra (clave + alcance)
   readonly t: number; // medidoEn, epoch ms
   readonly v: number; // porcentaje
+  readonly o?: string; // origen: endpoint | cache | statusline. Las líneas de antes no lo tienen.
 }
 
 /** La identidad de una barra dentro de un perfil. */
@@ -72,6 +73,8 @@ export interface Lectura {
   readonly barra: string;
   readonly medidoEn: Date;
   readonly porcentaje: number;
+  /** El instrumento que la midió. Ver `muestras()`. */
+  readonly origen: string;
 }
 
 /**
@@ -84,15 +87,15 @@ export interface Lectura {
 export function anotar(lecturas: readonly Lectura[]): number {
   if (lecturas.length === 0) return 0;
   const previas = leerLineas();
-  const vistas = new Set(previas.map((l) => `${l.p}\u0000${l.b}\u0000${l.t}`));
+  const vistas = new Set(previas.map((l) => `${l.p}\u0000${l.b}\u0000${l.t}\u0000${l.o ?? ''}`));
 
   const nuevas: Linea[] = [];
   for (const l of lecturas) {
     const t = l.medidoEn.getTime();
-    const id = `${l.perfil}\u0000${l.barra}\u0000${t}`;
+    const id = `${l.perfil}\u0000${l.barra}\u0000${t}\u0000${l.origen}`;
     if (vistas.has(id)) continue;
     vistas.add(id);
-    nuevas.push({ p: l.perfil, b: l.barra, t, v: l.porcentaje });
+    nuevas.push({ p: l.perfil, b: l.barra, t, v: l.porcentaje, o: l.origen });
   }
   if (nuevas.length === 0) return 0;
 
@@ -112,10 +115,29 @@ function podar(lineas: readonly Linea[]): void {
   renameSync(tmp, rutaHistorial());
 }
 
-/** Las muestras de una barra, ordenadas. */
-export function muestras(perfil: string, barra: string): Muestra[] {
+/**
+ * Las muestras de una barra, ordenadas, de UN solo instrumento.
+ *
+ * POR QUÉ EL ORIGEN. La statusline y el endpoint pueden no coincidir sobre la
+ * misma barra: en la cuenta donde se encontró, la semanal decía 16 % por el
+ * endpoint y 4 % por la statusline, la misma ventana con el mismo reinicio. La
+ * barra que se muestra es la de la lectura más nueva, así que cada pocos
+ * minutos cambiaba de instrumento, y el historial anotaba las dos: 4, 16, 4,
+ * 16. Todo lo que se calcula sobre la serie se rompía en silencio. El
+ * presupuesto suma las subidas, así que cada vuelta al 16 eran 12 puntos «gastados»:
+ * «gastaste 802 % hoy» con la semanal al 16 %. El ritmo y la proyección
+ * ajustaban una recta sobre un serrucho. Con un solo punto de redondeo
+ * (9 contra 10) el error es más chico y está en todas las cuentas que usan
+ * statusline.
+ *
+ * Una serie es de un instrumento: se pide la del origen de la barra que se va
+ * a mostrar. Las líneas anteriores a este cambio no dicen de dónde vinieron y
+ * no entran: si la serie vieja era un serrucho, mezclarla repetiría el error
+ * hasta que se renueve, que son 24 h.
+ */
+export function muestras(perfil: string, barra: string, origen: string): Muestra[] {
   return leerLineas()
-    .filter((l) => l.p === perfil && l.b === barra)
+    .filter((l) => l.p === perfil && l.b === barra && l.o === origen)
     .map((l) => ({ t: l.t, porcentaje: l.v }))
     .sort((a, b) => a.t - b.t);
 }

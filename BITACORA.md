@@ -2469,6 +2469,35 @@ todo lo anterior— y recién ahí sale. `test/salida.test.ts` achica el pipe a
 4 KB con `F_SETPIPE_SZ` desde el lector, para que el corte pase en cualquier
 máquina y no sólo en una cargada: sin el arreglo da 4096 de 16 469.
 
+### Una serie, un instrumento (2026-11-16)
+
+En una cuenta Team, `qm` decía `budget: … spent 802.0 % today` con la semanal
+al 16 %. El historial de esa barra tenía 406 cambios en el día, casi todos de
+ida y vuelta: 2 → 3 → 2 → 3 a la madrugada, 4 → 16 → 4 → 16 a la tarde. Las
+lecturas de un lado caían siempre en los segundos :26 y :56 —la statusline,
+que se redibuja cada 30 s— y las del otro cada ~5 min —el calentado del
+endpoint—. Las dos describen la misma ventana, con el mismo reinicio, y no
+coinciden: 4 contra 16 en la Team, 9 contra 10 en la personal.
+
+`superponer()` muestra la lectura más nueva barra por barra, así que la barra
+que se ve cambia de instrumento cada vez que el otro refresca, y `medir()`
+anotaba en el historial lo que se veía. La serie quedaba hecha un serrucho, y
+`subidaDeHoy()` suma las subidas (está bien que lo haga: es lo que sobrevive a
+un reinicio a mitad del día). Cada vuelta al 16 contaba 12 puntos. Con 9 contra
+10 el error es de a un punto, pero está en toda cuenta con statusline, y el
+ritmo y la proyección ajustaban una recta sobre lo mismo.
+
+El arreglo es que cada línea del historial dice de qué origen salió (`o`), cada
+barra lo lleva desde `superponer()` (`VentanaCuota.origen`, con la misma regla
+que `medidaEn`), y `muestras()` devuelve la serie de un solo origen: el de la
+barra que se va a mostrar. Las líneas viejas, sin `o`, no entran en ninguna. Se
+pierde la historia del día en que se actualiza, y es a propósito: esa historia
+es justamente el serrucho.
+
+Lo que queda abierto es cuál de los dos tiene razón cuando no coinciden por
+más que un redondeo. Eso no lo arregla el historial: la tabla sigue mostrando
+la más nueva.
+
 ## El build, y por qué es opcional
 
 El repo lee el TypeScript directo: no hay paso de build y `make instalar`, el

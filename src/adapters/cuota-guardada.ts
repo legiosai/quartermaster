@@ -12,14 +12,19 @@ import { endpointEnCache, masNueva } from './cache-endpoint.ts';
 import { claveBarra, muestras } from './historial.ts';
 import { statuslineEnCache, superponer } from './statusline.ts';
 import { proyectar, type Proyeccion } from '../core/proyeccion.ts';
-import type { Perfil, ResultadoCuota, VentanaCuota } from '../core/tipos.ts';
+import { origenDe, type Perfil, type ResultadoCuota, type VentanaCuota } from '../core/tipos.ts';
 
 export function cuotaGuardada(perfil: Perfil): ResultadoCuota {
   return superponer(masNueva(cuotaEnCache(perfil), endpointEnCache(perfil.nombre)), statuslineEnCache(perfil.nombre));
 }
 
 /** Hacia dónde va una barra, con las muestras que ya hay en el historial. Sólo lee. */
-export function proyeccionDe(perfil: string, v: VentanaCuota | null, ahora = Date.now()): Proyeccion | null {
-  if (v === null) return null;
-  return proyectar(muestras(perfil, claveBarra(v.clave, v.alcance)), v.porcentaje, v.reinicia, ahora);
+export function proyeccionDe(
+  perfil: string,
+  cuota: ResultadoCuota,
+  v: VentanaCuota | null,
+  ahora = Date.now(),
+): Proyeccion | null {
+  if (v === null || cuota.estado !== 'ok') return null;
+  return proyectar(muestras(perfil, claveBarra(v.clave, v.alcance), origenDe(v, cuota)), v.porcentaje, v.reinicia, ahora);
 }
