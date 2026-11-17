@@ -7,7 +7,13 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, it, test } from 'node:test';
-import { perfilDeLaStatusline, sesionDeStatusline, superponer, ventanasDeStatusline } from '../src/adapters/statusline.ts';
+import {
+  perfilDeLaStatusline,
+  sesionDeStatusline,
+  sinSesionesAtrasadas,
+  superponer,
+  ventanasDeStatusline,
+} from '../src/adapters/statusline.ts';
 import type { ResultadoCuota, VentanaCuota } from '../src/core/tipos.ts';
 
 // Estos tests leen las frases en castellano. El idioma sale del locale, y el
@@ -235,6 +241,48 @@ test('qm --statusline con una entrada sin rate_limits dibuja igual y no pisa la 
   assert.match(renglon, /main 12%/);
   // Y basura en stdin tampoco la rompe.
   assert.match(qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, 'no es json'), /main 12%/);
+});
+
+// El 2026-11-17 había cuatro sesiones de Claude Code abiertas en la cuenta
+// Team. Cada una redibuja su statusline con la cuota de SU última respuesta, y
+// las quietas repetían un número viejo: la semanal guardada alternaba 18 y 19
+// cada setenta segundos y el presupuesto llegó a «gastaste 219 % hoy». (La
+// semanal va más alta que la sesión para que el renglón muestre las dos.)
+test('qm --statusline: una sesión atrasada no pisa a la que está al día', () => {
+  const { env } = casa();
+  const futuro = Math.floor(Date.now() / 1000) + 3600;
+  const semanal = futuro + 4 * 86_400;
+  const dibujar = (ses: number, sem: number, reinicioSem = semanal, reinicioSes = futuro): string =>
+    qm(['--statusline', '--sin-codex', '--sin-antigravity'], env, JSON.stringify({
+      rate_limits: {
+        five_hour: { used_percentage: ses, resets_at: reinicioSes },
+        seven_day: { used_percentage: sem, resets_at: reinicioSem },
+      },
+    }));
+
+  assert.match(dibujar(10, 40), /main 10\/40%/);
+  // La sesión quieta, con su número de hace horas, en la misma ventana.
+  assert.match(dibujar(8, 39), /main 10\/40%/, 'en la misma ventana el uso no baja');
+  // Una que no habla con la API desde antes del último reinicio de la semanal.
+  assert.match(dibujar(11, 64, semanal - 7 * 86_400), /main 11\/40%/, 'una ventana que ya terminó no describe la de ahora');
+  // Un reinicio de verdad trae otra fecha, más adelante, y pasa.
+  assert.match(dibujar(2, 40, semanal, futuro + 5 * 3600), /main 2\/40%/);
+});
+
+describe('sinSesionesAtrasadas', () => {
+  const r = (h: number): Date => new Date(Date.UTC(2026, 10, 20, h));
+  it('dentro de la misma ventana se queda con el más alto, con un minuto de holgura en el reinicio', () => {
+    const [s] = sinSesionesAtrasadas(
+      [v('session', 19, { reinicia: r(10), grupo: 'session' })],
+      [v('five_hour', 18, { reinicia: new Date(r(10).getTime() + 30_000), grupo: 'session' })],
+    );
+    assert.equal(s?.porcentaje, 19);
+  });
+  it('una barra que no estaba guardada, o sin fecha de reinicio, pasa tal cual', () => {
+    const nuevas = [v('seven_day', 40, { reinicia: null, grupo: 'weekly' })];
+    assert.deepEqual(sinSesionesAtrasadas([v('weekly_all', 70, { reinicia: null })], nuevas), nuevas);
+    assert.deepEqual(sinSesionesAtrasadas([], nuevas), nuevas);
+  });
 });
 
 describe('sesionDeStatusline · contexto y cache de la sesión que dibuja', () => {

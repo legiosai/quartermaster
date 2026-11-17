@@ -85,15 +85,49 @@ function leerTodo(): Record<string, Guardado> {
 }
 
 /**
+ * Lo que trae una statusline, sin dejar que una sesión atrasada pise a una al día.
+ *
+ * Cada sesión abierta de Claude Code redibuja su statusline con la cuota de SU
+ * última respuesta de la API. Con varias abiertas en el mismo perfil, la que
+ * está quieta hace horas repite un número viejo, y todas escriben acá por
+ * turnos. El 2026-11-17 había cuatro abiertas en la cuenta Team: la semanal
+ * guardada alternaba 18 y 19 cada setenta segundos (465 cambios en 485
+ * lecturas desde la medianoche) y el presupuesto decía «gastaste 219 % hoy».
+ *
+ * Dentro de una misma ventana el uso no baja, así que el número más alto es el
+ * más nuevo, venga de la sesión que venga. Y una lectura de una ventana que ya
+ * terminó —una sesión que no habla con la API desde antes del reinicio— no
+ * describe la de ahora. Un reinicio de verdad trae otra fecha, más adelante, y
+ * pasa.
+ */
+export function sinSesionesAtrasadas(
+  guardadas: readonly VentanaCuota[],
+  nuevas: readonly VentanaCuota[],
+): VentanaCuota[] {
+  const previas = new Map(guardadas.map((v) => [familia(v), v]));
+  return nuevas.map((n) => {
+    const p = previas.get(familia(n));
+    if (p === undefined || p.reinicia === null || n.reinicia === null) return n;
+    if (mismaVentana(p, n)) return p.porcentaje > n.porcentaje ? { ...n, porcentaje: p.porcentaje } : n;
+    return p.reinicia.getTime() > n.reinicia.getTime() ? p : n;
+  });
+}
+
+/**
  * Guarda lo que trajo la statusline para este perfil. Devuelve si había algo
  * que guardar: una entrada sin `rate_limits` (API key, primer prompt, una
  * sesión que todavía no habló con la API) no pisa la lectura anterior.
  */
 export function guardarStatusline(perfil: string, entrada: unknown, ahora = new Date()): boolean {
-  const ventanas = ventanasDeStatusline(entrada);
-  if (ventanas.length === 0) return false;
+  const nuevas = ventanasDeStatusline(entrada);
+  if (nuevas.length === 0) return false;
   try {
     const todo = leerTodo();
+    const antes = todo[perfil];
+    const guardadas: VentanaCuota[] = Array.isArray(antes?.ventanas)
+      ? antes.ventanas.map((v) => ({ ...v, reinicia: v.reinicia === null ? null : new Date(v.reinicia) }))
+      : [];
+    const ventanas = sinSesionesAtrasadas(guardadas, nuevas);
     todo[perfil] = {
       medidoEn: ahora.toISOString(),
       ventanas: ventanas.map((v) => ({ ...v, reinicia: v.reinicia?.toISOString() ?? null })),

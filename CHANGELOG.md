@@ -14,6 +14,23 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Fixed
+
+- **Several Claude Code sessions open on one account no longer inflate the
+  daily budget.** Each open session redraws its statusline with the quota of
+  *its own* last API response, so an idle one keeps repeating an old number.
+  With four sessions open on a Team account, the stored weekly bar flipped
+  between 18 % and 19 % every seventy seconds, and the budget counted each
+  return to 19 as spending: `spent 219 % today` with the weekly at 19 %. Within
+  one window usage never goes down, so the statusline now keeps the higher
+  number, and ignores a reading from a window that has already ended. A real
+  reset carries a later reset time and still goes through. The budget also
+  stopped counting a climb back after a small drop as new spending: it measures
+  from the highest reading since the last reset, so history recorded before
+  this version reads right too.
+
 ## v0.1.26 — 2026-11-17
 
 ### Added
