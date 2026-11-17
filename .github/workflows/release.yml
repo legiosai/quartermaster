@@ -206,6 +206,13 @@ jobs:
           node-version: '22'
           registry-url: 'https://registry.npmjs.org'
       - run: npm install
+      # El npm de Node 22 es 10.x y no sabe publicar por OIDC (trusted
+      # publishing pide 11.5.1 o más). Con el publicador de confianza cargado
+      # en npmjs.com, npm usa el token OIDC de este job; mientras no esté,
+      # sigue con NPM_TOKEN. npm deja de aceptar publicar con tokens que se
+      # saltean el 2FA en enero de 2027: para entonces NPM_TOKEN tiene que
+      # poder borrarse.
+      - run: npm install -g npm@11.6.2
       # --provenance deja la firma que prueba que este tarball salió de este
       # repo, en este commit, en este workflow. Para algo que lee credenciales,
       # poder demostrarlo vale más que el minuto que cuesta.
