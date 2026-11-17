@@ -1,20 +1,20 @@
 Architectures: all
 Codename: stable
 Components: main
-Date: Tue, 17 Nov 2026 11:26:46 +0000
+Date: Tue, 17 Nov 2026 12:52:55 +0000
 Description: quartermaster · Legios
 Label: quartermaster
 Origin: Legios
 Suite: stable
 MD5Sum:
- 78309dcc2a1e3352ea490823541c076e             1075 main/binary-all/Packages
- 4ea3783381b2b3cf0e8f1bf35b43fa39              737 main/binary-all/Packages.gz
+ ea6882de36c189428eeecb25dbbaf367             1075 main/binary-all/Packages
+ eec82383e3ea5112127b77e7c4325eea              737 main/binary-all/Packages.gz
 SHA1:
- 27ab324160879eae71a2ece97de9c0c178a60290             1075 main/binary-all/Packages
- b990c0a8ee60c8a74b4711796c1f44dc6a3dadec              737 main/binary-all/Packages.gz
+ 86f7b305af755a86a30beee6fd7558616a488b2b             1075 main/binary-all/Packages
+ f8abac69f3e9c3e9bb9be2481f31b0157390f039              737 main/binary-all/Packages.gz
 SHA256:
- 6cab4c1a173ef96b9763e43207f229dba6267cd6d8571f059bb94ae4da1861c6             1075 main/binary-all/Packages
- 44903f5a3b2a421641aeda62159ba941e10e718ef6269b192b882cb65fa6aeab              737 main/binary-all/Packages.gz
+ f18ee92dad441ea52d9e74c1097a1f020efcbe6d46083cd50f8e93460ba2e67b             1075 main/binary-all/Packages
+ 0f53461c066428f506105f4d728d3d93d5b65b5755758b0054244adac43bdbfd              737 main/binary-all/Packages.gz
 SHA512:
- 920837e70220527919c5b75576e546a6755da1655b4fad8db0382693b3a6ae1560f239ae3e7ac2ef6e925ebe1c990e1924a78bddd9f7eac0bf89d86aefafb2c0             1075 main/binary-all/Packages
- 1c9e0254bddf693edd3ce8a125d021736bd2265cc30b237a8036192b1febe6093df5aabb09f24db86ae6cb9484aaa4f2941c0da3da3e8a155d5a9c3a8979dd57              737 main/binary-all/Packages.gz
+ 5cdb27fd253c02fd53efccae0011fa919981f5f7ebbebe7a099ee3afa50ff56bc18e9e343ff8166a38802942f363d6c5a61f4f20726ea9fa0da242e3d089c10a             1075 main/binary-all/Packages
+ 7ecae4ffa081a08cba865ffcaa570fa39d51c8ee95edfd74142ba9e0d0cdcd1895b9b5d1dbc9be5bfbdcae8a00c46468e8286a5302d64a25c693b0db91eb9c1f              737 main/binary-all/Packages.gz
