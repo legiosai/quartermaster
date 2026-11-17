@@ -70,7 +70,7 @@ Each entry of `perfiles`:
   "directorio": "~/.claude-teams",
   "cuenta": "quien@ejemplo.com", // null if unknown. --redactado masks it
   "plan": "claude_max",          // an IDENTIFIER, as the provider reports it. null if unknown
-  "planNombre": "Ultra (max_20x)",   // what to DRAW. Falls back to `plan`; null only when `plan` is
+  "planNombre": "Ultra · 20x",   // what to DRAW. Falls back to `plan`; null only when `plan` is
   "credencial": "vigente (6h02m)",   // a SENTENCE, for humans. Never a token.
   "cuota": { … },
   "proyeccion": { … } | null,
@@ -82,11 +82,24 @@ Each entry of `perfiles`:
 **Draw `planNombre`, compare `plan`.** For a Claude account `plan` is
 `seatTier`, or `organizationType` when there is no seat — and an individual
 account has no seat, so Max 5x, Max 20x and Ultra are all `claude_max`.
-`planNombre` is the name Claude Code shows (`planDisplayName`) with the
-rate-limit multiplier next to it when there is one: `Ultra (max_20x)`, or
-`team_tier_1 (max_5x)` for a Teams seat. `plan` keeps its old meaning so a
-consumer that matches on it (`free`, `team_tier_1`) does not break; output from
-a `qm` older than the field has no `planNombre`, so fall back to `plan`.
+`planNombre` is short enough for a chip: the name Claude Code shows
+(`planDisplayName`), or the word in the identifier when there is none
+(`claude_max` → `Max`, `team_tier_1` → `Team`), followed by the rate-limit
+multiplier when the tier has one. For Codex it is the ChatGPT plan's name.
+
+| account | `plan` | `planNombre` |
+|---|---|---|
+| Claude Ultra | `claude_max` | `Ultra · 20x` |
+| Claude Max 5x, no display name | `claude_max` | `Max · 5x` |
+| Claude Teams seat | `team_tier_1` | `Team · 5x` |
+| Claude Pro | `claude_pro` | `Pro` |
+| Codex | `prolite` / `plus` / `free` | `Pro Lite` / `Plus` / `Free` |
+
+Up to 0.1.28 it read `Ultra (max_20x)` and `team_tier_1 (max_5x)`; it is a
+label, so do not parse it. `plan` keeps its old meaning so a consumer that
+matches on it (`free`, `team_tier_1`) does not break. Output from a `qm` older
+than the field has no `planNombre`, so fall back to `plan`. For opencode and
+Antigravity rows `planNombre` is `plan` as it comes.
 
 ### `presupuesto`
 

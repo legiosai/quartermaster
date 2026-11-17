@@ -33,6 +33,7 @@ import {
   duenoCodex,
   hayCodex,
   DIRECTORIO_CODEX,
+  nombrePlanCodex,
   ultimaActividadCodex,
 } from '../adapters/codex.ts';
 import {
@@ -410,6 +411,9 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
   }
 
   const dueno = duenoCodex();
+  // El modo va al final y no antes: si hay suscripción de verdad, el plan que
+  // informa el rollout o el id_token es más preciso que «api key».
+  const plan = info?.plan ?? dueno?.plan ?? (modoCodex() === 'apikey' ? 'api key' : null);
   const perfil: Perfil = {
     directorio: DIRECTORIO_CODEX,
     nombre: 'codex',
@@ -417,9 +421,8 @@ async function filaCodex(o: Opciones): Promise<FilaPerfil | null> {
     cuenta: {
       email: dueno?.email ?? info?.accountId ?? null,
       organizacion: null,
-      // El modo va al final y no antes: si hay suscripción de verdad, el plan
-      // que informa el rollout o el id_token es más preciso que «api key».
-      plan: info?.plan ?? dueno?.plan ?? (modoCodex() === 'apikey' ? 'api key' : null),
+      plan,
+      planNombre: nombrePlanCodex(plan),
     },
   };
 
@@ -1296,8 +1299,8 @@ function comoJson(filas: readonly FilaPerfil[], o: Opciones): unknown {
       directorio: redactar(o, f.perfil.directorio),
       cuenta: redactar(o, f.perfil.cuenta?.email ?? null),
       // `plan` es el identificador de siempre (`claude_max`, `team_tier_1`) y
-      // no cambia de significado; `planNombre` es lo que se dibuja: «Ultra
-      // (max_20x)». Campo nuevo y no `plan` reescrito, para no mover `esquema`.
+      // no cambia de significado; `planNombre` es lo que se dibuja: «Ultra ·
+      // 20x». Campo nuevo y no `plan` reescrito, para no mover `esquema`.
       plan: f.perfil.cuenta?.plan ?? null,
       planNombre: planParaMostrar(f.perfil.cuenta),
       credencial: f.veredicto,

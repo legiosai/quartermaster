@@ -27,6 +27,7 @@ import type { Compactacion, Registros, Uso } from '../core/desglose.ts';
 import { lineasCon } from './lineas.ts';
 import { rutaEnCache, rutaParaLeer } from './directorio-cache.ts';
 import { tr } from '../core/idioma.ts';
+import { nombreLegible } from '../core/perfiles.ts';
 
 export const DIRECTORIO_CODEX = join(homedir(), '.codex');
 
@@ -459,6 +460,33 @@ export function usosCodex(desde: Date): Registros {
 export interface LecturaCodex {
   readonly cuota: ResultadoCuota;
   readonly info: CuentaCodex | null;
+}
+
+/**
+ * Los planes de ChatGPT con nombre propio. `prolite` es el que obligó a esto:
+ * pegado y en minúscula, como lo manda el servidor, era lo que mostraba el chip.
+ */
+const PLANES_CODEX: Readonly<Record<string, string>> = {
+  free: 'Free',
+  go: 'Go',
+  plus: 'Plus',
+  pro: 'Pro',
+  prolite: 'Pro Lite',
+  team: 'Team',
+  business: 'Business',
+  enterprise: 'Enterprise',
+  edu: 'Edu',
+  'api key': 'API key',
+};
+
+/**
+ * El plan de Codex para mostrar: `prolite` → «Pro Lite». `plan` sigue siendo el
+ * identificador del servidor; esto es lo que va en `planNombre`. Uno que no
+ * conocemos sale legible igual («k12» → «K12») en vez de quedarse sin nombre.
+ */
+export function nombrePlanCodex(plan: string | null): string | null {
+  if (plan === null || plan.trim() === '') return null;
+  return PLANES_CODEX[plan.trim().toLowerCase()] ?? nombreLegible(plan);
 }
 
 /** ¿Hay Codex en esta máquina? Si no, no se dice nada de él. */

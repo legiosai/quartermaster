@@ -116,7 +116,8 @@ function texto(v: unknown): string | null {
 }
 
 /**
- * El plan como lo dice Claude Code en pantalla, con el multiplicador al lado.
+ * El plan corto, como se lee en un chip: «Ultra · 20x», «Team · 5x», «Max · 5x»,
+ * «Pro».
  *
  * `plan` sale de `seatTier ?? organizationType`, y en una cuenta individual
  * `seatTier` es null: el plan cae en `organizationType`, que vale `claude_max`
@@ -129,26 +130,53 @@ function texto(v: unknown): string | null {
  * El tier del usuario va antes que el de la organización: en Teams el de la
  * organización es un nombre interno (`default_raven`) y el del asiento
  * (`userRateLimitTier: default_claude_max_5x`) es el que te frena a vos.
+ *
+ * Hasta 0.1.28 esto era el nombre más el tier entre paréntesis —«Ultra
+ * (max_20x)», «team_tier_1 (max_5x)»— y los paneles lo cortaban: «Ultra
+ * (max_2…». Del tier sólo importa el multiplicador, y del identificador sólo
+ * la palabra que lo nombra.
  */
 export function nombrePlan(oauth: Record<string, unknown>, plan: string | null): string | null {
-  const nombre = texto(oauth['planDisplayName']) ?? plan;
-  if (nombre === null) return null;
-  const nivel = nivelPlan(texto(oauth['userRateLimitTier']) ?? texto(oauth['organizationRateLimitTier']));
-  if (nivel === null) return nombre;
-  // «Max 20x (max_20x)» no agrega nada: si el nombre ya lo dice, no se repite.
-  if (nombre.toLowerCase().replace(/[\s-]+/g, '_').includes(nivel)) return nombre;
-  return `${nombre} (${nivel})`;
+  const mostrado = texto(oauth['planDisplayName']);
+  if (mostrado === null && plan === null) return null;
+  let nombre = mostrado ?? nombreDeIdentificador(plan!);
+  // «Max 20x»: el multiplicador va aparte, igual que cuando sale del tier, así
+  // todas las cuentas se leen con la misma forma.
+  const propio = /\s*(\d+x)$/i.exec(nombre);
+  if (propio !== null && propio.index > 0) nombre = nombre.slice(0, propio.index);
+  const x = multiplicador(texto(oauth['userRateLimitTier']) ?? texto(oauth['organizationRateLimitTier']))
+    ?? propio?.[1]?.toLowerCase()
+    ?? null;
+  return x === null || x === nombre.toLowerCase() ? nombre : `${nombre} · ${x}`;
 }
 
 /**
- * `default_claude_max_20x` → `max_20x`. Sólo los tiers con multiplicador: los
- * otros (`default_raven`, `default_claude_ai`) son nombres internos que no le
- * dicen nada a quien lee, y entre paréntesis serían ruido.
+ * `default_claude_max_20x` → `20x`. Sólo los tiers con multiplicador: los otros
+ * (`default_raven`, `default_claude_ai`) son nombres internos que no le dicen
+ * nada a quien lee.
  */
-function nivelPlan(tier: string | null): string | null {
+function multiplicador(tier: string | null): string | null {
   if (tier === null) return null;
-  const corto = tier.replace(/^default_/, '').replace(/^claude_/, '');
-  return /\d+x$/.test(corto) ? corto : null;
+  return /(?:^|_)(\d+x)$/i.exec(tier)?.[1]?.toLowerCase() ?? null;
+}
+
+/**
+ * Un identificador de plan de Claude, en una palabra: `claude_max` → «Max»,
+ * `team_tier_1` → «Team». El número de tier del asiento no dice cuánta cuota
+ * hay —eso lo dice el multiplicador— y en un chip ocupa lo que no tiene.
+ */
+function nombreDeIdentificador(plan: string): string {
+  const nombre = nombreLegible(plan.replace(/^claude_/i, '').replace(/_tier_\d+$/i, ''));
+  return nombre !== '' ? nombre : plan;
+}
+
+/** `pro_lite` → «Pro Lite». Para los identificadores que no tienen un nombre mejor. */
+export function nombreLegible(id: string): string {
+  return id
+    .split(/[\s_-]+/)
+    .filter((p) => p !== '')
+    .map((p) => p.charAt(0).toUpperCase() + p.slice(1).toLowerCase())
+    .join(' ');
 }
 
 /**
