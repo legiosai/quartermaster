@@ -323,7 +323,7 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
-<h2>Unreleased</h2>
+<h2 id="v0.1.27">v0.1.27 — 2026-11-17</h2>
 <h3>Fixed</h3>
 <ul>
 <li><strong>Several Claude Code sessions open on one account no longer inflate the daily budget.</strong> Each open session redraws its statusline with the quota of <em>its own</em> last API response, so an idle one keeps repeating an old number. With four sessions open on a Team account, the stored weekly bar flipped between 18 % and 19 % every seventy seconds, and the budget counted each return to 19 as spending: <code>spent 219 % today</code> with the weekly at 19 %. Within one window usage never goes down, so the statusline now keeps the higher number, and ignores a reading from a window that has already ended. A real reset carries a later reset time and still goes through. The budget also stopped counting a climb back after a small drop as new spending: it measures from the highest reading since the last reset, so history recorded before this version reads right too.</li>
