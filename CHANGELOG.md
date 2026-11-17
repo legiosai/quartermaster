@@ -14,6 +14,27 @@ out unless they changed what you see.
 
 ---
 
+## Unreleased
+
+### Changed
+
+- **The macOS menu, redesigned like the GNOME panel.** The menu bar's dropdown
+  had kept the old layout. It now has the same pieces as the full GNOME panel:
+  - The bars have names you can read (*Sesión*, *Semanal*, *Semanal (Fable)*).
+    Each bar shows the time to its reset next to the percentage, and the one
+    that stops the account is marked in the margin.
+  - The header is a card tinted with the colour of the state, and it gives the
+    reset as a local time too.
+  - Each account says on top how old its number is and how often it is read,
+    with the plan as a chip next to the name.
+  - The curve of the bar that stops you carries on, dashed, to the reset, with
+    the stretch you'd spend without quota marked in red.
+  - The pace, the daily budget (with its ring) and why an account is dormant sit
+    under a rule.
+  - Accounts with no number share one block at the end instead of one card
+    each.
+  - A pace whose 100 % is already in the past no longer reads `100 % en 0s`.
+
 ## v0.1.27 — 2026-11-17
 
 ### Fixed

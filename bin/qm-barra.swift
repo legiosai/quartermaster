@@ -391,6 +391,8 @@ struct PerfilVista {
     let edadSegundos: Int?
     let proyeccion: Proyeccion?
     let presupuesto: Presupuesto?
+    /// La barra que reparte el presupuesto, como la nombra el menú («Semanal (Fable)»).
+    let barraPresupuesto: String?
     /// Cuándo se usó por última vez, según qm. Existe también en --breve.
     let ultimoUso: Date?
     /// Va al final y no encabeza. Lo decide qm; acá sólo se dibuja.
@@ -508,6 +510,16 @@ func leer() -> Lectura {
                 pre = .no(motivo)
             }
         }
+        var barraPre: String? = nil
+        if let pp = p["presupuesto"] as? [String: Any], (pp["estado"] as? String) == "ok" {
+            if let clave = pp["clave"] as? String {
+                barraPre = etiquetaDe(Ventana(clave: clave, alcance: pp["alcance"] as? String, porcentaje: 0,
+                                              severidad: "normal", activa: false, reinicia: nil, grupo: nil,
+                                              preocupa: false))
+            } else {
+                barraPre = pp["barra"] as? String
+            }
+        }
         return PerfilVista(
             producto: p["producto"] as? String ?? "claude",
             nombre: p["perfil"] as? String ?? "?",
@@ -523,6 +535,7 @@ func leer() -> Lectura {
             edadSegundos: cuota["edadSegundos"] as? Int,
             proyeccion: proy,
             presupuesto: pre,
+            barraPresupuesto: barraPre,
             ultimoUso: fecha(p["ultimoUso"]),
             dormida: ((p["relevancia"] as? [String: Any])?["dormida"] as? Bool) ?? false,
             porque: ((p["relevancia"] as? [String: Any])?["porque"] as? [String]) ?? [])
@@ -540,7 +553,8 @@ func leer() -> Lectura {
                                        activa: v["activa"] as? Bool ?? false,
                                        reinicia: fecha(v["reinicia"]),
                                        grupo: v["grupo"] as? String,
-                                       preocupa: v["preocupa"] as? Bool ?? false),
+                                       preocupa: v["preocupa"] as? Bool ?? false,
+                                       medidoEn: fecha(v["medidoEn"])),
                       dormida: (l["dormida"] as? Bool) ?? false)
     }
     return .ok(perfiles, lider)
@@ -570,151 +584,439 @@ func notificar(titulo: String, cuerpo: String) {
 
 
 // ── el menú, dibujado ────────────────────────────────────────────────────
-/// Una cuenta adentro del menú, dibujada con el mismo lenguaje que el item de
-/// arriba: medidores de verdad, no bloques `█░` de una tipografía monoespaciada.
-///
-/// Es una NSView y no un NSMenuItem con texto porque el menú es donde se
-/// contesta la pregunta completa —qué barra, cuánto, cuándo se reinicia, a qué
-/// ritmo— y eso pide una grilla, no un renglón.
-/// La cabecera del menú: la respuesta de una línea.
-///
-/// Es la misma pregunta que contesta el héroe del tablero —«qué me frena
-/// primero, en toda la máquina»— y faltaba acá: había que leer las tres
-/// cuentas y compararlas uno mismo. Cuando esa barra está llena, además dice
-/// **cuándo te liberás**, que es lo único que importa una vez que te frenaste.
+// Las mismas piezas que el panel de GNOME (bin/qm-indicator: VistaResumen,
+// VistaCuenta y VistaSinCuota), con la letra y los colores del sistema. Una
+// cuenta es una NSView y no un NSMenuItem con texto porque el menú es donde se
+// contesta la pregunta completa —qué barra, cuánto, cuándo se reinicia, a qué
+// ritmo— y eso pide una grilla, no un renglón.
+//
+// Las vistas son `isFlipped`: se recorren de arriba para abajo, como se lee el
+// menú y como está escrito el panel de GNOME. Y cada una mide y dibuja con el
+// MISMO recorrido: un alto calculado aparte de lo que se pinta es cómo los
+// renglones terminan pisándose, que es lo que pasó acá con la curva.
+
+let ANCHO_MENU: CGFloat = 340
+let MARGEN_MENU: CGFloat = 16
+
+func letra(_ px: CGFloat, _ peso: NSFont.Weight = .regular) -> NSFont {
+    .systemFont(ofSize: px, weight: peso)
+}
+
+/// Cifras de ancho fijo: sin esto el porcentaje, pegado al borde derecho, baila
+/// un punto cada vez que cambia un dígito.
+func cifras(_ px: CGFloat, _ peso: NSFont.Weight = .regular) -> NSFont {
+    .monospacedDigitSystemFont(ofSize: px, weight: peso)
+}
+
+func medida(_ t: String, _ f: NSFont, kern: CGFloat = 0) -> CGSize {
+    var atr: [NSAttributedString.Key: Any] = [.font: f]
+    if kern != 0 { atr[.kern] = kern }
+    return NSAttributedString(string: t, attributes: atr).size()
+}
+
+/// Un renglón de texto con (x, y) en su esquina de arriba a la izquierda. Con
+/// `ancho` se corta con puntos suspensivos: AppKit no recorta nada por su
+/// cuenta, y un nombre largo se dibujaría por encima del porcentaje.
+func escribir(_ t: String, _ x: CGFloat, _ y: CGFloat, _ f: NSFont, _ c: NSColor,
+              derecha: CGFloat? = nil, ancho: CGFloat? = nil, kern: CGFloat = 0) {
+    var atr: [NSAttributedString.Key: Any] = [.font: f, .foregroundColor: c]
+    if kern != 0 { atr[.kern] = kern }
+    if ancho != nil {
+        let p = NSMutableParagraphStyle()
+        p.lineBreakMode = .byTruncatingTail
+        atr[.paragraphStyle] = p
+    }
+    let a = NSAttributedString(string: t, attributes: atr)
+    let s = a.size()
+    let w = ancho.map { min($0, s.width) } ?? s.width
+    let x0 = derecha.map { $0 - w } ?? x
+    if ancho != nil {
+        a.draw(with: NSRect(x: x0, y: y, width: max(1, w + 1), height: ceil(s.height)),
+               options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
+    } else {
+        a.draw(at: NSPoint(x: x0, y: y))
+    }
+}
+
+/// Un relleno que se mezcla con lo de abajo. `NSRect.fill()` COPIA: con un
+/// color translúcido deja un agujero del color de la tinta, no un velo.
+func rellenar(_ r: NSRect, _ c: NSColor) {
+    c.setFill()
+    NSBezierPath(rect: r).fill()
+}
+
+/// El nombre de una barra para leer: «Semanal (Fable)», no «weekly_scoped
+/// (Fable)». Es `etiqueta_de` de bin/qm-indicator: las mismas dos que reconoce
+/// el núcleo, y cualquier otra con el nombre que trae. La clave sigue en la
+/// terminal, que es donde se la busca en un log.
+func etiquetaDe(_ v: Ventana) -> String {
+    let base: String
+    if v.grupo == "session" || v.clave == "session" || v.clave == "five_hour" {
+        base = "Sesión"
+    } else if v.grupo == "weekly" || v.clave.hasPrefix("weekly") || v.clave == "seven_day" {
+        base = "Semanal"
+    } else {
+        return v.nombre
+    }
+    if let a = v.alcance { return "\(base) (\(a))" }
+    return base
+}
+
+let DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"]
+
+/// El reinicio en hora de acá: «22:30» si es hoy, «jue 22:30» si no.
+/// «reinicia en 3d1h» contesta cuánto falta; la hora contesta CUÁNDO, que es lo
+/// que se usa para planear. Redondeada al minuto y no truncada: el servidor
+/// informa 03:59:59.6, y eso son las 04:00.
+func cuandoLocal(_ d: Date?, ahora: Date = Date()) -> String? {
+    guard let d else { return nil }
+    let c = d.addingTimeInterval(30)
+    guard c >= ahora else { return nil }
+    let f = DateFormatter()
+    f.dateFormat = "HH:mm"
+    let hora = f.string(from: c)
+    let cal = Calendar.current
+    if cal.isDate(c, inSameDayAs: ahora) { return hora }
+    return "\(DIAS[cal.component(.weekday, from: c) - 1]) \(hora)"
+}
+
+/// «leída hace 24m», sólo cuando la barra trae su propia lectura: la de la
+/// cuenta ya va arriba de la tarjeta, y repetirla en cada barra es ruido.
+/// Pasada la hora de vieja, lo dice. Es `edad_de_barra` de bin/qm-indicator.
+func edadDeBarra(_ v: Ventana) -> String? {
+    guard v.medidoEn != nil, let e = v.edad(nil) else { return nil }
+    return "leída hace \(duracion(e))" + (e >= VIEJO_SEGUNDOS ? " · vieja" : "")
+}
+
+/// Cada cuánto se lee la cuota de verdad: la mediana de los huecos entre
+/// lecturas. La mediana y no el promedio: una sola pausa larga —la máquina
+/// dormida— desplaza el promedio y no dice nada del ritmo normal.
+func cadaCuanto(_ historia: [(t: Double, pct: Int)]) -> Int? {
+    let ts = historia.map(\.t).sorted()
+    let huecos = zip(ts, ts.dropFirst()).map { $1 - $0 }.filter { $0 > 0 }.sorted()
+    guard !huecos.isEmpty else { return nil }
+    return Int(huecos[huecos.count / 2] / 1000)
+}
+
+/// Lo que va entre acentos graves, en monoespaciada: `qm --refrescar` es un
+/// comando para copiar. Sin cortes adentro: «qm --» en un renglón y
+/// «statusline» en el otro ya no se puede copiar.
+func conCodigo(_ texto: String, _ f: NSFont, _ c: NSColor) -> NSAttributedString {
+    let partes = texto.components(separatedBy: "`")
+    guard partes.count >= 3, partes.count % 2 == 1 else {
+        return NSAttributedString(string: texto, attributes: [.font: f, .foregroundColor: c])
+    }
+    let mono = NSFont.monospacedSystemFont(ofSize: f.pointSize - 0.5, weight: .regular)
+    let salida = NSMutableAttributedString()
+    for (i, parte) in partes.enumerated() {
+        if i % 2 == 1 {
+            let pegado = parte.replacingOccurrences(of: " ", with: "\u{00A0}")
+                .replacingOccurrences(of: "-", with: "-\u{2060}")
+            salida.append(NSAttributedString(string: pegado, attributes: [.font: mono, .foregroundColor: c]))
+        } else {
+            salida.append(NSAttributedString(string: parte, attributes: [.font: f, .foregroundColor: c]))
+        }
+    }
+    return salida
+}
+
+func altoDe(_ a: NSAttributedString, ancho: CGFloat) -> CGFloat {
+    ceil(a.boundingRect(with: NSSize(width: ancho, height: 10_000), options: [.usesLineFragmentOrigin]).height)
+}
+
+/// Pista tenue y relleno con el color del estado. Un 0 % deja la pista sola: un
+/// puntito de color diría que hay algo gastado.
+func dibujarMedidor(_ x: CGFloat, _ y: CGFloat, _ ancho: CGFloat, _ alto: CGFloat, _ pct: Int, _ color: NSColor) {
+    NSColor.labelColor.withAlphaComponent(0.13).setFill()
+    NSBezierPath(roundedRect: NSRect(x: x, y: y, width: ancho, height: alto),
+                 xRadius: alto / 2, yRadius: alto / 2).fill()
+    guard pct > 0 else { return }
+    let lleno = max(alto, ancho * CGFloat(min(100, pct)) / 100)
+    color.setFill()
+    NSBezierPath(roundedRect: NSRect(x: x, y: y, width: lleno, height: alto),
+                 xRadius: alto / 2, yRadius: alto / 2).fill()
+}
+
+/// Un anillo que se llena desde arriba en el sentido del reloj. En una vista
+/// invertida los ángulos crecen hacia abajo: -90 es arriba, y crecer es ir en
+/// el sentido del reloj.
+func dibujarAnillo(_ centro: NSPoint, _ radio: CGFloat, _ grosor: CGFloat, _ frac: CGFloat,
+                   _ color: NSColor, _ pista: NSColor) {
+    let fondo = NSBezierPath()
+    fondo.appendArc(withCenter: centro, radius: radio, startAngle: 0, endAngle: 360)
+    fondo.lineWidth = grosor
+    pista.setStroke()
+    fondo.stroke()
+    let f = max(0, min(1, frac))
+    guard f > 0 else { return }
+    let arco = NSBezierPath()
+    arco.appendArc(withCenter: centro, radius: radio, startAngle: -90, endAngle: -90 + 360 * f, clockwise: false)
+    arco.lineWidth = grosor
+    arco.lineCapStyle = .round
+    color.setStroke()
+    arco.stroke()
+}
+
+/// ↻, dibujada: el carácter sale de otra tipografía y otro grosor que el texto
+/// de al lado. El círculo abierto arriba a la derecha, con la punta llena: a
+/// este tamaño dos trazos finos no se leen como flecha.
+func glifoReinicio(_ color: NSColor, _ x: CGFloat, _ y: CGFloat, _ lado: CGFloat) {
+    let cx = x + lado / 2, cy = y + lado / 2 + 0.5, r = lado * 0.34
+    let grados = { (rad: CGFloat) -> CGFloat in rad * 180 / CGFloat.pi }
+    let arco = NSBezierPath()
+    arco.appendArc(withCenter: NSPoint(x: cx, y: cy), radius: r,
+                   startAngle: grados(-CGFloat.pi / 2 + 1.35), endAngle: grados(3 * CGFloat.pi / 2 - 0.2),
+                   clockwise: false)
+    arco.lineWidth = 1.2
+    arco.lineCapStyle = .round
+    color.setStroke()
+    arco.stroke()
+    let h = lado * 0.36
+    let tx = cx + 0.4, ty = cy - r
+    let punta = NSBezierPath()
+    punta.move(to: NSPoint(x: tx + h, y: ty))
+    punta.line(to: NSPoint(x: tx - h * 0.25, y: ty - h * 0.75))
+    punta.line(to: NSPoint(x: tx - h * 0.25, y: ty + h * 0.75))
+    punta.close()
+    color.setFill()
+    punta.fill()
+}
+
+/// ↗: sube.
+func glifoTendencia(_ color: NSColor, _ x: CGFloat, _ y: CGFloat, _ lado: CGFloat) {
+    let a = lado * 0.2, b = lado * 0.8
+    let p = NSBezierPath()
+    p.lineWidth = 1.4
+    p.lineCapStyle = .round
+    p.lineJoinStyle = .round
+    p.move(to: NSPoint(x: x + a, y: y + b))
+    p.line(to: NSPoint(x: x + b, y: y + a))
+    p.move(to: NSPoint(x: x + b - lado * 0.36, y: y + a))
+    p.line(to: NSPoint(x: x + b, y: y + a))
+    p.line(to: NSPoint(x: x + b, y: y + a + lado * 0.36))
+    color.setStroke()
+    p.stroke()
+}
+
+/// Una luna: la cuenta está, pero nadie la usa.
+func glifoDormida(_ color: NSColor, _ x: CGFloat, _ y: CGFloat, _ lado: CGFloat) {
+    let cx = x + lado / 2, cy = y + lado / 2, r = lado * 0.38
+    let r2 = r * 0.85, ox = cx + r * 0.55, oy = cy - r * 0.45
+    NSGraphicsContext.saveGraphicsState()
+    let recorte = NSBezierPath(rect: NSRect(x: x - 1, y: y - 1, width: lado + 2, height: lado + 2))
+    recorte.append(NSBezierPath(ovalIn: NSRect(x: ox - r2, y: oy - r2, width: 2 * r2, height: 2 * r2)))
+    recorte.windingRule = .evenOdd
+    recorte.addClip()
+    color.setFill()
+    NSBezierPath(ovalIn: NSRect(x: cx - r, y: cy - r, width: 2 * r, height: 2 * r)).fill()
+    NSGraphicsContext.restoreGraphicsState()
+}
+
+/// La cabecera del menú: la respuesta de una línea. Es la misma pregunta que
+/// contesta el héroe del tablero —qué me frena primero, en toda la máquina— y
+/// va en una tarjeta teñida con el color del estado: es lo primero que se mira,
+/// y el color dice si hace falta seguir leyendo antes de leer nada.
 final class VistaResumen: NSView {
     private let cuenta: String
     private let barra: String
     private let pct: Int
     private let nivel: Nivel
     private let reinicia: Date?
+    private let medidoEn: Date?
+    static let ALTO: CGFloat = 86
+
+    override var isFlipped: Bool { true }
 
     init?(_ lider: Lider?, _ perfiles: [PerfilVista]) {
         guard let l = lider else { return nil }
         let p = perfiles.first(where: { $0.nombre == l.perfil })
         let v = l.ventana
         cuenta = corto(p?.nombre ?? l.perfil)
-        barra = v.nombre
+        barra = etiquetaDe(v)
         pct = v.porcentaje
         nivel = nivelDe(v.porcentaje, preocupa: v.preocupa || (p?.proyeccion?.chocas ?? false))
         reinicia = v.reinicia
-        super.init(frame: NSRect(x: 0, y: 0, width: 340, height: 74))
+        medidoEn = v.medidoEn
+        super.init(frame: NSRect(x: 0, y: 0, width: ANCHO_MENU, height: VistaResumen.ALTO))
     }
 
     required init?(coder: NSCoder) { nil }
 
     override func draw(_ dirtyRect: NSRect) {
-        let m: CGFloat = 15
-        // El anillo, igual que el del tablero.
-        let lado: CGFloat = 44
-        let centro = NSPoint(x: m + lado / 2, y: bounds.height / 2)
-        let radio = lado / 2 - 3
-        let pista = NSBezierPath()
-        pista.appendArc(withCenter: centro, radius: radio, startAngle: 0, endAngle: 360)
-        pista.lineWidth = 5
-        nivel.color.withAlphaComponent(0.18).setStroke()
-        pista.stroke()
+        let caja = NSRect(x: 10, y: 8, width: bounds.width - 20, height: bounds.height - 14)
+        let tarjeta = NSBezierPath(roundedRect: caja.insetBy(dx: 0.5, dy: 0.5), xRadius: 10, yRadius: 10)
+        let oscuro = effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        nivel.color.withAlphaComponent(oscuro ? 0.13 : 0.08).setFill()
+        tarjeta.fill()
+        nivel.color.withAlphaComponent(0.30).setStroke()
+        tarjeta.lineWidth = 1
+        tarjeta.stroke()
 
-        let arco = NSBezierPath()
-        arco.appendArc(withCenter: centro, radius: radio, startAngle: 90,
-                       endAngle: 90 - 360 * CGFloat(min(100, max(0, pct))) / 100, clockwise: true)
-        arco.lineWidth = 5
-        arco.lineCapStyle = .round
-        nivel.color.setStroke()
-        arco.stroke()
+        let lado: CGFloat = 46
+        let izq = caja.minX + 12
+        dibujarAnillo(NSPoint(x: izq + lado / 2, y: caja.midY), lado / 2 - 3, 5.5,
+                      CGFloat(min(100, max(0, pct))) / 100, nivel.color, nivel.color.withAlphaComponent(0.22))
 
-        let x = m + lado + 14
-        let esc = { (t: String, y: CGFloat, f: NSFont, c: NSColor) in
-            NSAttributedString(string: t, attributes: [.font: f, .foregroundColor: c])
-                .draw(at: NSPoint(x: x, y: y))
+        let x = izq + lado + 13
+        let der = caja.maxX - 12
+        escribir("LO PRIMERO QUE TE FRENA", x, caja.minY + 9, letra(9, .semibold), .tertiaryLabelColor,
+                 ancho: der - x, kern: 0.6)
+        let cifra = "\(pct)%"
+        let fCifra = cifras(22, .bold)
+        let wCifra = medida(cifra, fCifra).width
+        let yCifra = caja.minY + 20
+        escribir(cifra, x, yCifra, fCifra, .labelColor)
+        // El nombre va a la derecha de la cifra, sobre su misma línea de base.
+        let fNombre = letra(12.5, .medium)
+        escribir("\(cuenta) · \(barra)", x + wCifra + 7, yCifra + fCifra.ascender - fNombre.ascender,
+                 fNombre, .secondaryLabelColor, ancho: der - (x + wCifra + 7))
+
+        // Cuando ya te frenó, lo que importa no es cuándo «reinicia»: es cuándo
+        // volvés a poder trabajar. Misma fecha, otra pregunta.
+        var texto: String
+        var urgente = false
+        if let r = reinicia {
+            let falta = Int(r.timeIntervalSinceNow)
+            if pct >= 95 {
+                texto = "libre en \(duracion(falta))"
+                urgente = true
+            } else {
+                texto = falta < 0 ? "reinicio vencido" : "reinicia en \(duracion(falta))"
+            }
+            if falta >= 0, let hora = cuandoLocal(r) { texto += " · \(hora)" }
+        } else {
+            texto = "sin reinicio informado"
         }
-        esc("LO PRIMERO QUE TE FRENA", bounds.height - 22, .systemFont(ofSize: 9, weight: .semibold),
-            .tertiaryLabelColor)
-        let cifra = NSAttributedString(string: "\(pct)%", attributes: [
-            .font: NSFont.systemFont(ofSize: 20, weight: .semibold), .foregroundColor: NSColor.labelColor,
-        ])
-        cifra.draw(at: NSPoint(x: x, y: bounds.height - 44))
-        // El nombre va a la derecha de la cifra, en su línea de base.
-        NSAttributedString(string: "  \(cuenta) · \(barra)", attributes: [
-            .font: NSFont.systemFont(ofSize: 11.5), .foregroundColor: NSColor.secondaryLabelColor,
-        ]).draw(at: NSPoint(x: x + cifra.size().width, y: bounds.height - 40))
-
-        // Cuando ya te frenó, lo que importa no es cuándo "reinicia": es cuándo
-        // volvés a poder trabajar. Es la misma fecha y una pregunta distinta.
-        let falta = reinicia.map { Int($0.timeIntervalSinceNow) }
-        let texto: String
-        if pct >= 95, let f = falta { texto = "libre en \(duracion(f))" }
-        else if let f = falta { texto = "reinicia en \(duracion(f))" }
-        else { texto = "sin reinicio informado" }
-        esc(texto, 12, .systemFont(ofSize: 11, weight: pct >= 95 ? .medium : .regular),
-            pct >= 95 ? nivel.color : .tertiaryLabelColor)
+        // La edad propia de la barra que encabeza: suele ser de una lectura más
+        // vieja que su cuenta, porque lo que frena puede ser una barra que sólo
+        // trae el endpoint.
+        if let m = medidoEn { texto += " · leída hace \(duracion(max(0, Int(-m.timeIntervalSinceNow))))" }
+        escribir(texto, x, caja.maxY - 23, letra(11, urgente ? .medium : .regular),
+                 urgente ? nivel.color : .secondaryLabelColor, ancho: der - x)
     }
 }
 
-/// La clave de la barra que frena, para saber a cuál pegarle la curva.
-private func peor_clave(_ p: PerfilVista) -> String? { p.frena?.nombre }
-
+/// Una cuenta con número.
+///
+/// Arriba quién es: el nombre con su plan, el mail, y de cuándo es el número.
+/// Después un renglón por barra —el nombre, cuánto falta para el reinicio y el
+/// porcentaje, con el medidor abajo—, y pegada a la barra que frena, su curva,
+/// que sigue punteada hasta el reinicio. Al pie, separado por una línea, lo que
+/// se deduce de todo eso: hacia dónde vas y cuánto te toca hoy.
 final class VistaCuenta: NSView {
+    private struct Fila {
+        let etiqueta: String
+        let pct: Int
+        let nivel: Nivel
+        let frena: Bool
+        let reinicio: String?
+        let edad: String?
+        let vieja: Bool
+    }
+
+    /// Hacia dónde va la barra que frena, en la forma en que se dibuja a
+    /// continuación de la curva: la MISMA recta que dice el renglón del ritmo, y
+    /// sólo cuando ese renglón existe, así el dibujo y la frase no se
+    /// contradicen nunca. Es `_hacia_donde` de bin/qm-indicator.
+    private struct Futuro {
+        let fin: Double
+        let pFin: Double
+        /// Dónde toca el 100 %, si lo toca antes del final del dibujo.
+        let techo: Double?
+        let techoTxt: String?
+        let reinicioTxt: String?
+    }
+
     private let titulo: String
-    private let sub: String
     private let icono: NSImage?
-    private let barras: [(nombre: String, pct: Int, nivel: Nivel, activa: Bool, pie: String)]
-    private let historia: [(t: Double, pct: Int)]
-    private let claveQueFrena: String?
+    private let cuenta: String?
+    private let plan: String?
+    private let leida: String?
+    private let vieja: Bool
+    private let cada: String?
     private let frase: String?
+    private let filas: [Fila]
+    private let historia: [(t: Double, pct: Int)]
     private let ritmo: String?
     private let ritmoRojo: Bool
+    private let futuro: Futuro?
     /// Los renglones del presupuesto: dos con número, uno con el motivo, ninguno sin cuota.
     private let presupuesto: [String]
+    /// La barra que reparte el presupuesto, pegada al primer renglón: la tarjeta
+    /// muestra tres ventanas y el número reparte UNA.
+    private let barraPresupuesto: String?
+    private let hoy: Int?
+    private let dormida: String?
 
-    private static let ANCHO: CGFloat = 340
-    private static let MARGEN: CGFloat = 15
-    // Un renglón de barra = nombre (14) + medidor (8) + pie (13). Si esta
-    // cuenta no coincide con lo que dibuja draw(), los renglones se pisan.
-    private static let ALTO_BARRA: CGFloat = 35
-    // 6 de aire + 16 de curva + 12 para los rótulos de abajo. Si esto no
-    // coincide con lo que dibuja draw(), los rótulos se comen el renglón
-    // siguiente — que fue exactamente lo que pasó.
-    private static let ALTO_CURVA: CGFloat = 34
+    private static let ALTO_ROTULO: CGFloat = 17
+    private static let ALTO_MEDIDOR: CGFloat = 5
+    private static let ENTRE_BARRAS: CGFloat = 10
+    private static let ALTO_EDAD: CGFloat = 14
+    private static let ALTO_CURVA: CGFloat = 22
+    private static let ALTO_EJE: CGFloat = 13
+    private static let ALTO_RENGLON: CGFloat = 15
+
+    override var isFlipped: Bool { true }
 
     init(_ p: PerfilVista, icono: NSImage?) {
         self.titulo = corto(p.nombre)
-        var partes: [String] = []
-        if let c = p.cuenta { partes.append(c) }
-        if let pl = p.plan { partes.append(pl) }
-        self.sub = partes.joined(separator: "  ·  ")
         self.icono = icono
+        self.cuenta = p.cuenta
+        self.plan = p.plan
         self.historia = p.historia
-        self.claveQueFrena = peor_clave(p)
-
-        let visibles = p.mostrar
-        let cual = p.frena
-        let chocas = p.proyeccion?.chocas ?? false
-        self.barras = p.hayNumero ? visibles.map { v in
-            var pie = v.reinicia.map { "reinicia en \(duracion(Int($0.timeIntervalSinceNow)))" } ?? ""
-            // Una barra de una lectura más vieja que la cuenta dice la suya,
-            // sea o no la que frena: es la de bin/qm-indicator, pie_de_barra().
-            if v.medidoEn != nil, let e = v.edad(nil) {
-                pie += pie.isEmpty ? "" : "   ·   "
-                pie += "leída hace \(duracion(e))" + (e >= VIEJO_SEGUNDOS ? " · vieja" : "")
-            } else if let e = p.edadSegundos, v.clave == cual?.clave {
-                pie += pie.isEmpty ? "" : "   ·   "
-                pie += "cache de hace \(duracion(e))" + (e >= VIEJO_SEGUNDOS ? " · viejo" : "")
-            }
-            return (v.nombre, v.porcentaje,
-                    nivelDe(v.porcentaje, preocupa: v.preocupa || (chocas && v.clave == cual?.clave)),
-                    v.activa, pie)
-        } : []
         // Silencio es el bug: si no hay número, hay una frase.
         self.frase = p.hayNumero ? nil : (p.frase ?? "sin cuota")
+
+        let frena = p.frena
+        let chocas = p.proyeccion?.chocas ?? false
+        // Por clave Y alcance: dos semanales con alcance distinto comparten la
+        // clave `weekly_scoped`, y marcar las dos es marcar ninguna.
+        let esLaQueFrena = { (v: Ventana) -> Bool in
+            guard let f = frena else { return false }
+            return v.clave == f.clave && v.alcance == f.alcance
+        }
+        self.filas = p.hayNumero ? p.mostrar.map { v in
+            let falta = v.reinicia.map { Int($0.timeIntervalSinceNow) }
+            let edad = edadDeBarra(v)
+            return Fila(etiqueta: etiquetaDe(v), pct: v.porcentaje,
+                        nivel: nivelDe(v.porcentaje, preocupa: v.preocupa || (chocas && esLaQueFrena(v))),
+                        frena: esLaQueFrena(v),
+                        reinicio: falta.map { $0 < 0 ? "vencido" : duracion($0) },
+                        edad: edad,
+                        vieja: edad?.hasSuffix("· vieja") ?? false)
+        } : []
+
+        // Un techo en el pasado ya no proyecta nada: se leía «100 % en 0s».
+        // Cuando ya tocaste el techo la pregunta es cuándo te liberás, y ésa la
+        // contesta la cabecera.
+        var ritmoTxt: String? = nil
         if let pr = p.proyeccion {
-            self.ritmo = String(format: "%.1f pts/h · 100 %% en %@%@", pr.ritmo,
-                                duracion(Int(pr.techo.timeIntervalSinceNow)),
-                                pr.chocas ? " — antes del reinicio" : "")
-            self.ritmoRojo = pr.chocas
+            let falta = Int(pr.techo.timeIntervalSinceNow)
+            if falta > 0 {
+                ritmoTxt = String(format: "%.1f pts/h · 100 %% en %@%@", pr.ritmo, duracion(falta),
+                                  pr.chocas ? " — antes del reinicio" : "")
+            }
+        }
+        self.ritmo = ritmoTxt
+        self.ritmoRojo = chocas
+        self.futuro = ritmoTxt == nil ? nil : VistaCuenta.haciaDonde(p)
+
+        // De cuándo es el número y cada cuánto se lee: «¿este número de cuándo
+        // es?» no se contesta con un porcentaje.
+        let edad = p.hayNumero ? p.edadSegundos : nil
+        let esVieja = (edad ?? 0) >= VIEJO_SEGUNDOS
+        self.vieja = esVieja
+        self.leida = edad.map { "leída hace \(duracion($0))" + (esVieja ? " · vieja" : "") }
+        self.cada = p.hayNumero ? cadaCuanto(p.historia).map { "cada ~\(duracion($0))" } : nil
+
+        // Por qué esta cuenta quedó al fondo. Lo decidió qm y lo escribió en
+        // palabras; acá sólo se dibuja.
+        self.dormida = p.dormida ? "dormida: " + p.porque.joined(separator: " · ") : nil
+        self.hoy = p.presupuesto?.pctDiario
+        if case .reparte? = p.presupuesto, p.hayNumero {
+            self.barraPresupuesto = p.barraPresupuesto
         } else {
-            self.ritmo = nil
-            self.ritmoRojo = false
+            self.barraPresupuesto = nil
         }
 
         // El ritmo dice hacia dónde vas; el presupuesto, a cuánto tendrías que
@@ -755,125 +1057,433 @@ final class VistaCuenta: NSView {
             self.presupuesto = []
         }
 
-        var alto = VistaCuenta.MARGEN + 16 + 15 + 6
-        alto += CGFloat(barras.count) * VistaCuenta.ALTO_BARRA
-        if historia.count >= 3 { alto += VistaCuenta.ALTO_CURVA }
-        if frase != nil { alto += 34 }
-        if ritmo != nil { alto += 16 }
-        alto += CGFloat(presupuesto.count) * 16
-        alto += 12
-        super.init(frame: NSRect(x: 0, y: 0, width: VistaCuenta.ANCHO, height: alto))
+        super.init(frame: NSRect(x: 0, y: 0, width: ANCHO_MENU, height: 10))
+        setFrameSize(NSSize(width: ANCHO_MENU, height: recorrer(dibujar: false)))
     }
 
     required init?(coder: NSCoder) { nil }
 
-    private func escribir(_ t: String, _ x: CGFloat, _ y: CGFloat, _ f: NSFont, _ c: NSColor,
-                          derecha: CGFloat? = nil) {
-        let a = NSAttributedString(string: t, attributes: [.font: f, .foregroundColor: c])
-        a.draw(at: NSPoint(x: derecha == nil ? x : derecha! - a.size().width, y: y))
+    private static func haciaDonde(_ p: PerfilVista) -> Futuro? {
+        guard let pr = p.proyeccion, let frena = p.frena, p.historia.count >= 3 else { return nil }
+        let ahora = Date().timeIntervalSince1970 * 1000
+        let techo = pr.techo.timeIntervalSince1970 * 1000
+        guard techo > ahora else { return nil }
+        let t0 = p.historia[p.historia.count - 1].t
+        let p0 = Double(frena.porcentaje)
+        let reinicio: Double? = frena.reinicia.map { $0.timeIntervalSince1970 * 1000 }.flatMap { $0 > ahora ? $0 : nil }
+        let fin: Double
+        let pFin: Double
+        if pr.chocas || reinicio == nil {
+            fin = (reinicio ?? 0) > techo ? reinicio! : techo
+            pFin = 100
+        } else {
+            fin = reinicio!
+            pFin = min(100, p0 + pr.ritmo * (fin - t0) / 3_600_000)
+        }
+        guard fin > t0 else { return nil }
+        return Futuro(fin: fin, pFin: pFin,
+                      techo: (pFin >= 100 && techo < fin) ? techo : nil,
+                      techoTxt: pFin >= 100 ? cuandoLocal(pr.techo) : nil,
+                      reinicioTxt: reinicio == nil ? nil : cuandoLocal(frena.reinicia))
     }
 
-    /// Las dos horas de muestras, dibujadas. El eje Y va del mínimo al máximo
-    /// de la serie y no de 0 a 100: lo que interesa acá es la PENDIENTE, y a
-    /// escala completa una subida de tres puntos se ve plana.
-    private func dibujarCurva(_ caja: NSRect, _ nivel: Nivel) {
-        guard historia.count >= 3 else { return }
+    /// Con la proyección la curva lleva el doble de cosas: más alta, para que la
+    /// pendiente del pasado no quede aplastada contra el piso.
+    private var altoCurva: CGFloat { futuro == nil ? VistaCuenta.ALTO_CURVA : 30 }
+
+    /// La curva va pegada a la barra que frena: es de ella.
+    private func conCurva(_ b: Fila) -> Bool { b.frena && historia.count >= 3 }
+
+    /// Si la serie no se movió, se dice en palabras en vez de dibujarlo: una
+    /// curva plana se leía como un dibujo que no terminó de cargar.
+    private func sinCambios() -> String? {
+        let ps = historia.map(\.pct)
+        guard let a = ps.min(), let b = ps.max(), a == b,
+              let t0 = historia.map(\.t).min(), let t1 = historia.map(\.t).max() else { return nil }
+        let horas = (t1 - t0) / 3_600_000
+        return horas < 1 ? "sin cambios en la última hora"
+            : String(format: "sin cambios en las últimas %.1f h", horas)
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        _ = recorrer(dibujar: true)
+    }
+
+    /// El único lugar que sabe dónde va cada cosa. Sin `dibujar` sólo mide.
+    private func recorrer(dibujar: Bool) -> CGFloat {
+        let ix = MARGEN_MENU
+        let ancho = ANCHO_MENU - 2 * MARGEN_MENU
+        let der = ix + ancho
+        let nx = ix + 20
+        var y: CGFloat = 11
+
+        // ── quién es ──
+        let fLeida = letra(10.5, vieja ? .medium : .regular)
+        let w1 = leida.map { medida($0, fLeida).width } ?? 0
+        let hueco = der - nx - (leida != nil ? w1 + 10 : 0)
+        let fTitulo = letra(13.5, .semibold)
+        let wTitulo = min(medida(titulo, fTitulo).width, hueco)
+        let fPlan = letra(10, .medium)
+        var planArriba: CGFloat? = nil
+        if let pl = plan {
+            let wPlan = medida(pl, fPlan).width + 12
+            let lugar = hueco - wTitulo - 8
+            if lugar >= min(wPlan, 48) { planArriba = min(wPlan, lugar) }
+        }
+        if dibujar {
+            icono?.draw(in: NSRect(x: ix, y: y + 2, width: 13, height: 13), from: .zero,
+                        operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            escribir(titulo, nx, y, fTitulo, .labelColor, ancho: wTitulo)
+            if let w = planArriba, let pl = plan {
+                let cx = nx + wTitulo + 8
+                NSColor.labelColor.withAlphaComponent(0.08).setFill()
+                NSBezierPath(roundedRect: NSRect(x: cx, y: y + 1, width: w, height: 16), xRadius: 8, yRadius: 8).fill()
+                escribir(pl, cx + 6, y + 2.5, fPlan, .secondaryLabelColor, ancho: w - 12)
+            }
+            if let l = leida {
+                escribir(l, 0, y + 2, fLeida, vieja ? Nivel.aviso.color : .tertiaryLabelColor, derecha: der)
+            }
+        }
+        y += 20
+
+        let izquierda2 = [cuenta, planArriba == nil ? plan : nil].compactMap { $0 }.joined(separator: " · ")
+        if !izquierda2.isEmpty || cada != nil {
+            if dibujar {
+                let f2 = letra(10.5)
+                let w2 = cada.map { medida($0, f2).width } ?? 0
+                if !izquierda2.isEmpty {
+                    escribir(izquierda2, nx, y, letra(11), .tertiaryLabelColor,
+                             ancho: der - nx - (cada != nil ? w2 + 10 : 0))
+                }
+                if let c = cada { escribir(c, 0, y, f2, .tertiaryLabelColor, derecha: der) }
+            }
+            y += 15
+        }
+        y += 10
+
+        if let f = frase {
+            let a = conCodigo(f, letra(11.5), .secondaryLabelColor)
+            let alto = altoDe(a, ancho: ancho)
+            if dibujar {
+                a.draw(with: NSRect(x: ix, y: y, width: ancho, height: alto), options: [.usesLineFragmentOrigin])
+            }
+            return y + alto + 12
+        }
+
+        // ── las barras ──
+        for b in filas {
+            if dibujar {
+                let color = b.nivel.color
+                let cifra = "\(b.pct)%"
+                let fCifra = cifras(12.5, .bold)
+                let wCifra = medida(cifra, fCifra).width
+                escribir(cifra, 0, y - 1, fCifra, .labelColor, derecha: der)
+                var finRotulo = der - wCifra - 10
+                if let r = b.reinicio {
+                    let fR = cifras(10.5)
+                    let xR = der - wCifra - 10 - medida(r, fR).width
+                    escribir(r, xR, y + 0.5, fR, .tertiaryLabelColor)
+                    glifoReinicio(.tertiaryLabelColor, xR - 12, y + 2.5, 9.5)
+                    finRotulo = xR - 12 - 8
+                }
+                if b.frena {
+                    // La que frena se marca en el margen, como en la terminal.
+                    let t = NSBezierPath()
+                    t.move(to: NSPoint(x: ix - 9, y: y + 4.5))
+                    t.line(to: NSPoint(x: ix - 4.5, y: y + 8))
+                    t.line(to: NSPoint(x: ix - 9, y: y + 11.5))
+                    t.close()
+                    color.setFill()
+                    t.fill()
+                }
+                escribir(b.etiqueta, ix, y, letra(12, b.frena ? .semibold : .regular),
+                         b.frena ? .labelColor : .secondaryLabelColor, ancho: max(40, finRotulo - ix))
+                dibujarMedidor(ix, y + VistaCuenta.ALTO_ROTULO, ancho, VistaCuenta.ALTO_MEDIDOR, b.pct, color)
+            }
+            y += VistaCuenta.ALTO_ROTULO + VistaCuenta.ALTO_MEDIDOR
+            let quieta = conCurva(b) ? sinCambios() : nil
+            let pie = [b.edad, quieta].compactMap { $0 }.joined(separator: " · ")
+            if !pie.isEmpty {
+                if dibujar {
+                    escribir(pie, ix, y + 3, letra(10), b.vieja ? Nivel.aviso.color : .tertiaryLabelColor, ancho: ancho)
+                }
+                y += VistaCuenta.ALTO_EDAD
+            }
+            if conCurva(b) && quieta == nil {
+                y += 7
+                if dibujar { dibujarCurva(NSRect(x: ix, y: y, width: ancho, height: altoCurva), b.nivel.color) }
+                y += altoCurva + VistaCuenta.ALTO_EJE
+            }
+            y += VistaCuenta.ENTRE_BARRAS
+        }
+
+        // ── lo que se deduce ──
+        let renglones = (ritmo != nil ? 1 : 0) + presupuesto.count + (dormida != nil ? 1 : 0)
+        if renglones == 0 { return y - VistaCuenta.ENTRE_BARRAS + 12 }
+        if dibujar { rellenar(NSRect(x: ix, y: y, width: ancho, height: 1), NSColor.labelColor.withAlphaComponent(0.10)) }
+        y += 9
+        let tx = ix + 19
+        if let r = ritmo {
+            if dibujar {
+                let color: NSColor = ritmoRojo ? Nivel.critico.color : .tertiaryLabelColor
+                glifoTendencia(color, ix + 1, y + 1.5, 11)
+                escribir(r, tx, y, letra(11, ritmoRojo ? .medium : .regular), color, ancho: der - tx)
+            }
+            y += VistaCuenta.ALTO_RENGLON
+        }
+        if !presupuesto.isEmpty {
+            if dibujar {
+                // Al lado, un anillo con lo gastado de hoy: el mismo medidor que
+                // tiene la cuenta en la barra de arriba, y que el menú nunca
+                // explicaba.
+                let medio = y + CGFloat(presupuesto.count) * VistaCuenta.ALTO_RENGLON / 2 - 1
+                dibujarAnillo(NSPoint(x: ix + 6.5, y: medio), 5, 2.2, CGFloat(hoy ?? 0) / 100,
+                              nivelDe(hoy ?? 0, preocupa: false).color, NSColor.labelColor.withAlphaComponent(0.15))
+                for (i, r) in presupuesto.enumerated() {
+                    let texto = (i == 0 && barraPresupuesto != nil) ? "\(r) · \(barraPresupuesto!)" : r
+                    escribir(texto, tx, y + CGFloat(i) * VistaCuenta.ALTO_RENGLON, letra(11),
+                             .secondaryLabelColor, ancho: der - tx)
+                }
+            }
+            y += CGFloat(presupuesto.count) * VistaCuenta.ALTO_RENGLON
+        }
+        if let d = dormida {
+            if dibujar {
+                glifoDormida(.tertiaryLabelColor, ix + 1, y + 1.5, 11)
+                escribir(d, tx, y, letra(10.5), .tertiaryLabelColor, ancho: der - tx)
+            }
+            y += VistaCuenta.ALTO_RENGLON
+        }
+        return y + 9
+    }
+
+    /// Las muestras recientes, dibujadas. El eje Y va del mínimo al máximo de
+    /// la serie y no de 0 a 100: lo que interesa acá es la PENDIENTE, y a escala
+    /// completa una subida de tres puntos se ve plana. Por eso abajo dice de
+    /// cuánto a cuánto fue.
+    private func dibujarCurva(_ caja: NSRect, _ color: NSColor) {
+        let x0 = caja.minX, y0 = caja.minY, w = caja.width, h = caja.height
         let ts = historia.map(\.t), ps = historia.map { Double($0.pct) }
-        let t0 = ts.min()!, t1 = ts.max()!
-        let p0 = ps.min()!, p1 = ps.max()!
-        guard t1 > t0 else { return }
-        let rango = max(1, p1 - p0)
+        guard let tMin = ts.min(), let tMax = ts.max(), tMax > tMin,
+              let pMin = ps.min(), let pMaxSerie = ps.max() else { return }
+        let fut = futuro
+        let pMax = fut.map { max(pMaxSerie, $0.pFin) } ?? pMaxSerie
+        let rango = max(1, pMax - pMin)
+        let xFin = x0 + w - 3
+        // Pasado y futuro en UNA escala de tiempo cuando entran: la recta sigue
+        // derecha y la pendiente se compara a ojo. Una semanal con el reinicio a
+        // días dejaría el pasado en un punto, así que ahí el pasado se queda con
+        // un tercio y la raya de «ahora» avisa que la escala cambia.
+        let xAhora: CGFloat
+        if let f = fut {
+            let pasado = tMax - tMin, porVenir = f.fin - tMax
+            let parte = porVenir <= 2 * pasado ? pasado / (pasado + porVenir) : 0.34
+            xAhora = x0 + (xFin - x0) * CGFloat(parte)
+        } else {
+            xAhora = xFin
+        }
+        let px = { (t: Double) -> CGFloat in
+            if t <= tMax { return x0 + (xAhora - x0) * CGFloat((t - tMin) / (tMax - tMin)) }
+            guard let f = fut else { return xFin }
+            return xAhora + (xFin - xAhora) * CGFloat((t - tMax) / (f.fin - tMax))
+        }
+        let py = { (p: Double) -> CGFloat in y0 + 2 + (h - 4) * CGFloat(1 - (p - pMin) / rango) }
 
-        let x = { (t: Double) in caja.minX + caja.width * CGFloat((t - t0) / (t1 - t0)) }
-        let y = { (p: Double) in caja.minY + caja.height * CGFloat((p - p0) / rango) }
+        if let f = fut {
+            dibujarFuturo(f, px: px, py: py, caja: caja, color: color, desde: (ts[ts.count - 1], ps[ps.count - 1]))
+        }
 
-        // Un piso tenue, para que se vea que es un área y no una raya suelta.
         let area = NSBezierPath()
-        area.move(to: NSPoint(x: x(ts[0]), y: caja.minY))
-        for (i, t) in ts.enumerated() { area.line(to: NSPoint(x: x(t), y: y(ps[i]))) }
-        area.line(to: NSPoint(x: x(ts[ts.count - 1]), y: caja.minY))
+        area.move(to: NSPoint(x: px(ts[0]), y: y0 + h))
+        for (t, p) in zip(ts, ps) { area.line(to: NSPoint(x: px(t), y: py(p))) }
+        area.line(to: NSPoint(x: px(ts[ts.count - 1]), y: y0 + h))
         area.close()
-        nivel.color.withAlphaComponent(0.14).setFill()
-        area.fill()
+        // En una vista invertida, 90° va de arriba hacia abajo: tinta arriba,
+        // nada abajo.
+        NSGradient(starting: color.withAlphaComponent(0.30), ending: color.withAlphaComponent(0.02))?
+            .draw(in: area, angle: 90)
 
         let linea = NSBezierPath()
         linea.lineWidth = 1.5
         linea.lineJoinStyle = .round
-        linea.move(to: NSPoint(x: x(ts[0]), y: y(ps[0])))
-        for (i, t) in ts.enumerated().dropFirst() { linea.line(to: NSPoint(x: x(t), y: y(ps[i]))) }
-        nivel.color.setStroke()
+        linea.move(to: NSPoint(x: px(ts[0]), y: py(ps[0])))
+        for (t, p) in zip(ts, ps).dropFirst() { linea.line(to: NSPoint(x: px(t), y: py(p))) }
+        color.setStroke()
         linea.stroke()
 
         // El punto de ahora, que es el que se mira.
-        let fin = NSRect(x: x(ts[ts.count - 1]) - 2.5, y: y(ps[ps.count - 1]) - 2.5, width: 5, height: 5)
-        nivel.color.setFill()
-        NSBezierPath(ovalIn: fin).fill()
+        color.setFill()
+        NSBezierPath(ovalIn: NSRect(x: px(ts[ts.count - 1]) - 2.5, y: py(ps[ps.count - 1]) - 2.5,
+                                    width: 5, height: 5)).fill()
 
-        let horas = (t1 - t0) / 3_600_000
-        escribir(String(format: "%.0f%%", p0), caja.minX, caja.minY - 11, .systemFont(ofSize: 9), .tertiaryLabelColor)
-        escribir(horas >= 1 ? String(format: "últimas %.1f h", horas) : "última hora",
-                 0, caja.minY - 11, .systemFont(ofSize: 9), .tertiaryLabelColor, derecha: caja.maxX)
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        let m = VistaCuenta.MARGEN
-        let der = bounds.width - m
-        var y = bounds.height - m - 16
-
-        // Cabecera: ícono, nombre y, debajo, cuenta y plan.
-        if let ic = icono {
-            ic.draw(in: NSRect(x: m, y: y + 1, width: 13, height: 13))
-        }
-        escribir(titulo, m + 19, y, .systemFont(ofSize: 13, weight: .semibold), .labelColor)
-        y -= 15
-        escribir(sub, m + 19, y, .systemFont(ofSize: 10.5), .tertiaryLabelColor)
-        y -= 6
-
-        if let f = frase {
-            let a = NSAttributedString(string: f, attributes: [
-                .font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor,
-            ])
-            a.draw(with: NSRect(x: m, y: y - 26, width: der - m, height: 32),
-                   options: [.usesLineFragmentOrigin])
+        let horas = (tMax - tMin) / 3_600_000
+        let desde = ps[0], hasta = ps[ps.count - 1]
+        let rotulo = desde.rounded() != hasta.rounded()
+            ? String(format: "%.0f → %.0f %%", desde, hasta)
+            : String(format: "%.0f %%, sin cambios", hasta)
+        let yEje = y0 + h + 2
+        let fEje = cifras(9.5)
+        guard let f = fut else {
+            escribir(rotulo, x0, yEje, fEje, .tertiaryLabelColor)
+            escribir(horas >= 1 ? String(format: "últimas %.1f h", horas) : "última hora",
+                     0, yEje, fEje, .tertiaryLabelColor, derecha: x0 + w)
             return
         }
 
-        for b in barras {
-            y -= 14
-            let nombre = b.activa ? "\(b.nombre)  ▸" : b.nombre
-            escribir(nombre, m, y, .systemFont(ofSize: 11, weight: b.activa ? .medium : .regular),
-                     b.activa ? .labelColor : .secondaryLabelColor)
-            escribir("\(b.pct)%", 0, y, .monospacedDigitSystemFont(ofSize: 11.5, weight: .semibold),
-                     .labelColor, derecha: der)
-            y -= 8
-            // El medidor: pista tenue y relleno con el color del estado.
-            let pista = NSRect(x: m, y: y, width: der - m, height: 4)
-            NSColor.labelColor.withAlphaComponent(0.14).setFill()
-            NSBezierPath(roundedRect: pista, xRadius: 2, yRadius: 2).fill()
-            let ancho = max(4, (der - m) * CGFloat(min(100, max(0, b.pct))) / 100)
-            b.nivel.color.setFill()
-            NSBezierPath(roundedRect: NSRect(x: m, y: y, width: ancho, height: 4),
-                         xRadius: 2, yRadius: 2).fill()
-            y -= 13
-            escribir(b.pie, m, y, .systemFont(ofSize: 10), .tertiaryLabelColor)
+        // Con la proyección van tres rótulos: cuándo reinicia (al final), cuándo
+        // toca el 100 % (debajo de ese punto) y de cuánto a cuánto fue (debajo
+        // del pasado). Si no entran, se cae primero el del pasado, que es el
+        // único que la curva ya dice sola.
+        let critico = Nivel.critico.color
+        let der: String
+        let colorDer: NSColor
+        if f.techo != nil {
+            der = f.reinicioTxt.map { "reinicio \($0)" } ?? "reinicio"
+            colorDer = .tertiaryLabelColor
+        } else if f.pFin >= 100 {
+            der = f.techoTxt.map { "100 % \($0)" } ?? "100 %"
+            colorDer = critico
+        } else {
+            der = String(format: "~%.0f %% al reinicio", f.pFin) + (f.reinicioTxt.map { " · \($0)" } ?? "")
+            colorDer = .tertiaryLabelColor
+        }
+        escribir(der, 0, yEje, fEje, colorDer, derecha: x0 + w)
+        var libre = x0 + w - medida(der, fEje).width - 10
+        if let techo = f.techo {
+            let medio = f.techoTxt.map { "100 % \($0)" } ?? "100 %"
+            let fMedio = cifras(9.5, .medium)
+            let wMedio = medida(medio, fMedio).width
+            let xm = max(x0, min(px(techo) - wMedio / 2, libre - wMedio))
+            if xm + wMedio <= libre + 0.5 {
+                escribir(medio, xm, yEje, fMedio, critico)
+                libre = xm - 10
+            }
+        }
+        if x0 + medida(rotulo, fEje).width <= libre {
+            escribir(rotulo, x0, yEje, fEje, .tertiaryLabelColor)
+        }
+    }
 
-            // La curva va pegada a la barra que frena: es de ella.
-            if b.nombre == claveQueFrena, historia.count >= 3 {
-                y -= VistaCuenta.ALTO_CURVA
-                dibujarCurva(NSRect(x: m, y: y + 14, width: der - m, height: 16), b.nivel)
+    /// La recta punteada desde el último punto hasta el reinicio. Punteada porque
+    /// no es un dato: es lo que pasa si seguís a este ritmo. Si toca el 100 %
+    /// antes del reinicio, de ahí en adelante el tramo va en rojo y dice cuánto
+    /// tiempo serías sin cuota.
+    private func dibujarFuturo(_ f: Futuro, px: (Double) -> CGFloat, py: (Double) -> CGFloat,
+                               caja: NSRect, color: NSColor, desde: (Double, Double)) {
+        let x0 = caja.minX, y0 = caja.minY, w = caja.width, h = caja.height
+        let xa = px(desde.0), ya = py(desde.1)
+        let xt = px(f.techo ?? f.fin), yt = py(f.pFin)
+        let xf = px(f.fin)
+        let critico = Nivel.critico.color
+
+        // «Ahora»: la raya que separa lo medido de lo supuesto.
+        let ahora = NSBezierPath()
+        ahora.lineWidth = 1
+        ahora.setLineDash([1.5, 2.0], count: 2, phase: 0)
+        ahora.move(to: NSPoint(x: xa.rounded() + 0.5, y: y0))
+        ahora.line(to: NSPoint(x: xa.rounded() + 0.5, y: y0 + h))
+        NSColor.tertiaryLabelColor.setStroke()
+        ahora.stroke()
+
+        if let techo = f.techo {
+            // El tiempo sin cuota: del techo al reinicio.
+            rellenar(NSRect(x: xt, y: y0, width: x0 + w - xt, height: h), critico.withAlphaComponent(0.13))
+            let tope = NSBezierPath()
+            tope.lineWidth = 2
+            tope.move(to: NSPoint(x: xt + 2.6, y: yt))
+            tope.line(to: NSPoint(x: xf, y: yt))
+            critico.setStroke()
+            tope.stroke()
+            let texto = "sin cuota \(duracion(Int((f.fin - techo) / 1000)))"
+            let fT = letra(9.5, .medium)
+            let tam = medida(texto, fT)
+            if x0 + w - xt >= tam.width + 10 {
+                escribir(texto, xt + (x0 + w - xt - tam.width) / 2, y0 + 3 + (h - 3 - tam.height) / 2, fT, critico)
             }
         }
 
-        if let r = ritmo {
-            y -= 16
-            escribir(r, m, y, .systemFont(ofSize: 10.5, weight: ritmoRojo ? .medium : .regular),
-                     ritmoRojo ? Nivel.critico.color : .tertiaryLabelColor)
+        // Debajo de la recta, el mismo degradé que el pasado pero más tenue.
+        let bajo = NSBezierPath()
+        bajo.move(to: NSPoint(x: xa, y: y0 + h))
+        bajo.line(to: NSPoint(x: xa, y: ya))
+        bajo.line(to: NSPoint(x: xt, y: yt))
+        bajo.line(to: NSPoint(x: xt, y: y0 + h))
+        bajo.close()
+        NSGradient(starting: color.withAlphaComponent(0.14), ending: color.withAlphaComponent(0))?
+            .draw(in: bajo, angle: 90)
+
+        // La recta termina en el borde del punto hueco y no en su centro.
+        let radio: CGFloat = 2.6
+        let largo = hypot(xt - xa, yt - ya)
+        if largo > radio + 1 {
+            let k = (largo - radio) / largo
+            let recta = NSBezierPath()
+            recta.lineWidth = 1.5
+            recta.lineCapStyle = .round
+            recta.setLineDash([3.0, 3.0], count: 2, phase: 0)
+            recta.move(to: NSPoint(x: xa, y: ya))
+            recta.line(to: NSPoint(x: xa + (xt - xa) * k, y: ya + (yt - ya) * k))
+            color.setStroke()
+            recta.stroke()
         }
 
-        for renglon in presupuesto {
-            y -= 16
-            escribir(renglon, m, y, .systemFont(ofSize: 10.5), .secondaryLabelColor)
+        // Donde termina la recta: un punto hueco, porque no es una lectura.
+        let punto = NSBezierPath(ovalIn: NSRect(x: xt - radio, y: yt - radio, width: 2 * radio, height: 2 * radio))
+        punto.lineWidth = 1.4
+        (f.pFin >= 100 ? critico : color).setStroke()
+        punto.stroke()
+    }
+}
+
+/// Las cuentas que todavía no tienen número de cuota, juntas: cada una ocupaba
+/// una tarjeta entera para decir la misma frase. Juntas además se leen mejor:
+/// no son tres misterios distintos, es un hecho con varios nombres.
+final class VistaSinCuota: NSView {
+    private var grupos: [(frase: String, nombres: [String])] = []
+
+    override var isFlipped: Bool { true }
+
+    init(_ cuentas: [(nombre: String, frase: String)]) {
+        super.init(frame: NSRect(x: 0, y: 0, width: ANCHO_MENU, height: 10))
+        // Agrupadas por frase y en el orden en que aparecieron: dos cuentas
+        // pueden estar calladas por motivos distintos, y ahí la frase importa.
+        for c in cuentas {
+            if let i = grupos.firstIndex(where: { $0.frase == c.frase }) {
+                grupos[i].nombres.append(c.nombre)
+            } else {
+                grupos.append((frase: c.frase, nombres: [c.nombre]))
+            }
         }
+        setFrameSize(NSSize(width: ANCHO_MENU, height: recorrer(dibujar: false)))
+    }
+
+    required init?(coder: NSCoder) { nil }
+
+    override func draw(_ dirtyRect: NSRect) {
+        _ = recorrer(dibujar: true)
+    }
+
+    private func recorrer(dibujar: Bool) -> CGFloat {
+        let ix = MARGEN_MENU, ancho = ANCHO_MENU - 2 * MARGEN_MENU
+        var y: CGFloat = 11
+        if dibujar {
+            escribir("SIN NÚMERO DE CUOTA", ix, y, letra(9, .semibold), .tertiaryLabelColor, kern: 0.6)
+        }
+        y += 18
+        for g in grupos {
+            if dibujar {
+                escribir(g.nombres.joined(separator: " · "), ix, y, letra(12, .medium), .secondaryLabelColor,
+                         ancho: ancho)
+            }
+            y += 17
+            let a = conCodigo(g.frase, letra(10.5), .tertiaryLabelColor)
+            let alto = altoDe(a, ancho: ancho)
+            if dibujar {
+                a.draw(with: NSRect(x: ix, y: y, width: ancho, height: alto), options: [.usesLineFragmentOrigin])
+            }
+            y += alto + 9
+        }
+        return y + 2
     }
 }
 
@@ -1230,16 +1840,23 @@ final class Barra: NSObject, NSApplicationDelegate {
                 menu.addItem(.separator())
             }
 
+            // Las cuentas sin número van juntas al final, en una sola vista: cada
+            // una ocupaba una tarjeta entera para decir la misma frase.
+            var calladas: [(nombre: String, frase: String)] = []
             for p in perfiles {
                 let visibles = p.mostrar
 
                 // El menú lo dibuja VistaCuenta: acá sólo se junta lo que va
                 // arriba, en el item.
-                let fila = NSMenuItem()
-                fila.view = VistaCuenta(p, icono: glifoProducto(p.producto, colorCuenta(iCuenta), 13))
-                if p.hayNumero { iCuenta += 1 }
-                menu.addItem(fila)
-                menu.addItem(.separator())
+                if p.hayNumero {
+                    let fila = NSMenuItem()
+                    fila.view = VistaCuenta(p, icono: glifoProducto(p.producto, colorCuenta(iCuenta), 13))
+                    iCuenta += 1
+                    menu.addItem(fila)
+                    menu.addItem(.separator())
+                } else {
+                    calladas.append((nombre: corto(p.nombre), frase: p.frase ?? "sin cuota"))
+                }
 
                 if p.hayNumero, let cual = p.frena {
                     // La edad de lo que se DIBUJA —la sesión y la semanal—, no la
@@ -1278,6 +1895,13 @@ final class Barra: NSObject, NSApplicationDelegate {
                         revisarLiberadas(p, visibles)
                     }
                 }
+            }
+
+            if !calladas.isEmpty {
+                let fila = NSMenuItem()
+                fila.view = VistaSinCuota(calladas)
+                menu.addItem(fila)
+                menu.addItem(.separator())
             }
 
             ultimas = piezas
