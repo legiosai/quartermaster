@@ -621,7 +621,7 @@ func escribir(_ t: String, _ x: CGFloat, _ y: CGFloat, _ f: NSFont, _ c: NSColor
               derecha: CGFloat? = nil, ancho: CGFloat? = nil, kern: CGFloat = 0) {
     var atr: [NSAttributedString.Key: Any] = [.font: f, .foregroundColor: c]
     if kern != 0 { atr[.kern] = kern }
-    if let ancho {
+    if ancho != nil {
         let p = NSMutableParagraphStyle()
         p.lineBreakMode = .byTruncatingTail
         atr[.paragraphStyle] = p
