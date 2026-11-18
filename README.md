@@ -126,7 +126,7 @@ get one, rather than dying with a syntax error.
 ```sh
 qm                  # quota and usage for every account
 qm --statusline     # one line, for Claude Code's statusLine — and it records
-                    # the quota Claude Code hands it, no network, no credential
+                    # the quota Claude Code hands it, with no network call
 qm --breve          # the quota part of that line, without reading stdin
 qm --todas          # dormant accounts in full, not one line each at the bottom
 qm --json           # the same, for scripts and panels

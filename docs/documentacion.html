@@ -258,7 +258,7 @@ footer a{color:var(--medio)}
 
   <table>
     <tr><th>Flag</th><th>What it does</th></tr>
-    <tr><td>qm</td><td>Quota and usage for every profile. No network and no credential: the quota is the one Claude Code already left in <code>.claude.json</code>.</td></tr>
+    <tr><td>qm</td><td>Quota and usage for every profile. No network call: the quota is the one Claude Code already left in <code>.claude.json</code>; credentials are only checked for whether they exist and when they expire.</td></tr>
     <tr><td>--refrescar</td><td>Also asks the endpoint for the number. Needs a live token.</td></tr>
     <tr><td>--json</td><td>The same information as JSON, for scripts and statuslines. It is a contract: see below.</td></tr>
     <tr><td>--statusline</td><td>The <code>--breve</code> line, for Claude Code's <code>statusLine</code>. It also reads what Claude Code passes on stdin and saves the session and weekly quota of the last response: a fresh number with no network and no credential.</td></tr>

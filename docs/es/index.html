@@ -5,7 +5,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>quartermaster · cuánta cuota te queda, en todas tus cuentas</title>
-<meta name="description" content="Cuánta cuota te queda en todos los perfiles de Claude Code de la máquina, más Codex y opencode. Sin red y sin credenciales: el número sale del cache que Claude Code deja en disco.">
+<meta name="description" content="Cuánta cuota te queda en todos los perfiles de Claude Code de la máquina, más Codex y opencode. Sin llamadas a la red: el número sale del cache que Claude Code deja en disco.">
 <!--
   hreflang tiene que ser RECÍPROCO: si esta página apunta a la otra lengua pero
   la otra no apunta de vuelta, Google descarta el par entero y las dos quedan
@@ -19,7 +19,7 @@
 <link rel="alternate" hreflang="x-default" href="https://quartermaster.legios.com.ar/">
 <link rel="icon" href="../favicon.svg" type="image/svg+xml">
 <meta property="og:title" content="quartermaster">
-<meta property="og:description" content="Cuánta cuota te queda, en todas tus cuentas de agentes. Sin red y sin credenciales.">
+<meta property="og:description" content="Cuánta cuota te queda, en todas tus cuentas de agentes. Directo del disco, sin llamadas a la red.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://quartermaster.legios.com.ar/img/og.png">
 <meta property="og:image:width" content="1200">
@@ -312,7 +312,7 @@ footer a:hover{color:var(--texto)}
     <h1>Enterate antes de chocarte contra el límite.</h1>
     <p class="bajada">
       Los que hay leen una credencial: la del directorio por defecto. Éste lee
-      todos tus perfiles, más Codex y opencode, sin red y sin credenciales.
+      todos tus perfiles, más Codex y opencode, directo del disco y sin llamadas a la red.
     </p>
     <p class="creditos">Construido por <b>Valentín&nbsp;Torassa</b> y <b>Sol&nbsp;Soletti</b></p>
     <div class="so" role="tablist" aria-label="Sistema operativo">
@@ -359,8 +359,8 @@ footer a:hover{color:var(--texto)}
       </div>
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v6c0 4-3 7-7 9-4-2-7-5-7-9V6z"/></svg></div>
-        <h3>Sin credenciales</h3>
-        <p>No abre tu llavero ni lee un token. El número sale de <code>cachedUsageUtilization</code>, donde Claude Code deja la última respuesta del servidor.</p>
+        <h3>Sin red</h3>
+        <p>El número sale de <code>cachedUsageUtilization</code>, donde Claude Code deja la última respuesta del servidor. De las credenciales sólo mira si existen y cuándo vencen; un token sale de la máquina sólo con <code>--refrescar</code> o <code>--calentar</code>.</p>
       </div>
       <div class="tarjeta aparece">
         <div class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>

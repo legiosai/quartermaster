@@ -258,7 +258,7 @@ footer a{color:var(--medio)}
 
   <table>
     <tr><th>Bandera</th><th>Qué hace</th></tr>
-    <tr><td>qm</td><td>Cuota y consumo de cada perfil. Sin red y sin credencial: la cuota sale de la que Claude Code ya dejó en <code>.claude.json</code>.</td></tr>
+    <tr><td>qm</td><td>Cuota y consumo de cada perfil. Sin llamadas a la red: la cuota sale de la que Claude Code ya dejó en <code>.claude.json</code>; de las credenciales sólo mira si existen y cuándo vencen.</td></tr>
     <tr><td>--refrescar</td><td>Además le pide el número al endpoint. Necesita un token vigente.</td></tr>
     <tr><td>--json</td><td>La misma información como JSON, para scripts y statuslines. Es un contrato: ver más abajo.</td></tr>
     <tr><td>--statusline</td><td>El renglón de <code>--breve</code>, para el <code>statusLine</code> de Claude Code. Además lee lo que Claude Code le pasa por stdin y guarda la cuota de sesión y semanal de la última respuesta: un número fresco sin red ni credencial.</td></tr>

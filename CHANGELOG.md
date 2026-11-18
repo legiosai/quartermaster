@@ -2,8 +2,9 @@
 
 **quartermaster** tells you how much quota is left in every agent account on the
 machine — every Claude Code profile, not just the default one, plus Codex and the
-providers stored by opencode. The number is read from disk: no network, no
-credential, no account.
+providers stored by opencode. The number is read from disk, with no network
+call and no account; credentials are only checked for whether they exist
+and when they expire.
 
 Install with `brew install legiosai/tap/quartermaster` or
 `npm install -g @legios/quartermaster`; the other channels are in the
