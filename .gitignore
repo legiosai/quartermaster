@@ -4,3 +4,8 @@ node_modules/
 __pycache__/
 dist/
 venv/
+
+# Generados por los workflows: viven en la rama `publicacion` (scripts/publicacion.sh).
+# `publicacion.sh traer` los baja acá para trabajar; no se comitean a main.
+docs/apt/
+docs/descargas.json
