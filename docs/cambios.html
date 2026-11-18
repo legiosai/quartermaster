@@ -323,6 +323,11 @@ footer a:hover{color:var(--texto)}
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
+<h2 id="v0.1.30">v0.1.30 — 2026-11-17</h2>
+<h3>Changed</h3>
+<ul>
+<li><strong>The npm package is published through trusted publishing.</strong> Its provenance on npmjs.com now comes from this repository's release workflow over OIDC, so publishing no longer depends on a long-lived npm token. The apt repository keeps the same URL and signing key; it is now built on its own branch. The app itself is the same as 0.1.29.</li>
+</ul>
 <h2 id="v0.1.29">v0.1.29 — 2026-11-17</h2>
 <h3>Fixed</h3>
 <ul>

@@ -1,6 +1,6 @@
 {
   "name": "@legios/quartermaster",
-  "version": "0.1.29",
+  "version": "0.1.30",
   "description": "Cuánta cuota te queda, en todas tus cuentas de agentes: cada perfil de Claude Code de la máquina —no sólo el de por defecto— más Codex y los proveedores de opencode. Por defecto, la CLI lee sólo archivos locales; los paneles (y qm --refrescar) le preguntan la cuota a Anthropic —y a z.ai, si lo usás— con el token que ya tenés.",
   "keywords": [
     "claude-code",

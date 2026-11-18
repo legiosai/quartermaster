@@ -14,6 +14,16 @@ out unless they changed what you see.
 
 ---
 
+## v0.1.30 — 2026-11-17
+
+### Changed
+
+- **The npm package is published through trusted publishing.** Its
+  provenance on npmjs.com now comes from this repository's release workflow
+  over OIDC, so publishing no longer depends on a long-lived npm token. The
+  apt repository keeps the same URL and signing key; it is now built on its
+  own branch. The app itself is the same as 0.1.29.
+
 ## v0.1.29 — 2026-11-17
 
 ### Fixed
