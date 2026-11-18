@@ -79,7 +79,6 @@ jobs:
     steps:
       - id: hay
         env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           TOKEN_PAQUETES: ${{ secrets.TOKEN_PAQUETES }}
           TOKEN_WINGET: ${{ secrets.TOKEN_WINGET }}
           GPG_PRIVADA: ${{ secrets.GPG_PRIVADA }}
@@ -217,18 +216,16 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - run: npm install
       # El npm de Node 22 es 10.x y no sabe publicar por OIDC (trusted
-      # publishing pide 11.5.1 o más). Con el publicador de confianza cargado
-      # en npmjs.com, npm usa el token OIDC de este job; mientras no esté,
-      # sigue con NPM_TOKEN. npm deja de aceptar publicar con tokens que se
-      # saltean el 2FA en enero de 2027: para entonces NPM_TOKEN tiene que
-      # poder borrarse.
+      # publishing pide 11.5.1 o más). Publica con el token OIDC de este job:
+      # el publicador de confianza está cargado en npmjs.com (GitHub Actions,
+      # legiosai/quartermaster, release.yml) y desde 0.1.30 el registro muestra
+      # «GitHub Actions» como quien publicó. No hay NPM_TOKEN: se borró el
+      # 18/11/2026, después de esa release.
       - run: npm install -g npm@11.6.2
       # --provenance deja la firma que prueba que este tarball salió de este
       # repo, en este commit, en este workflow. Para algo que lee credenciales,
       # poder demostrarlo vale más que el minuto que cuesta.
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   # ── la release, con todo colgado ──────────────────────────────────────
   release:
