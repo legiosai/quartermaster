@@ -319,7 +319,7 @@ footer a:hover{color:var(--texto)}
 
 <main class="cambios">
 <h1>Changelog</h1>
-<p><strong>quartermaster</strong> tells you how much quota is left in every agent account on the machine — every Claude Code profile, not just the default one, plus Codex and the providers stored by opencode. The number is read from disk: no network, no credential, no account.</p>
+<p><strong>quartermaster</strong> tells you how much quota is left in every agent account on the machine — every Claude Code profile, not just the default one, plus Codex and the providers stored by opencode. The number is read from disk, with no network call and no account; credentials are only checked for whether they exist and when they expire.</p>
 <p>Install with <code>brew install legiosai/tap/quartermaster</code> or <code>npm install -g @legios/quartermaster</code>; the other channels are in the <a href="README.md">README</a>. Every version below is a git tag and a GitHub release.</p>
 <p>Each entry says what a user would notice. Refactors, tests and CI work are left out unless they changed what you see.</p>
 <hr>
