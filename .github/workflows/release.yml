@@ -64,6 +64,11 @@ jobs:
   # correr, que es lo primero que uno quiere saber mirando una release.
   canales:
     runs-on: ubuntu-24.04
+    # Los secretos de publicar viven en el environment `release` (revisor:
+    # Valen; sólo tags v* y main). Este job los mira para decidir los canales,
+    # así que tiene que estar adentro: afuera los vería vacíos y la release
+    # saldría verde sin publicar en ningún lado.
+    environment: release
     outputs:
       npm: ${{ steps.hay.outputs.npm }}
       brew: ${{ steps.hay.outputs.brew }}
@@ -91,7 +96,11 @@ jobs:
             printf '  %-8s %s\n' "$1" "$estado"
           }
           echo "canales:"
-          di npm    "$([ -n "$NPM_TOKEN" ] && echo si || echo no)"
+          # npm publica por trusted publishing (OIDC): no depende de un
+          # secreto, así que va siempre. Si el publicador de npmjs.com no
+          # coincide con este repo y este workflow, el job falla a la vista
+          # en vez de saltearse.
+          di npm    si
           di brew   "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
           di scoop  "$([ -n "$TOKEN_PAQUETES" ] && echo si || echo no)"
           di winget "$([ -n "$TOKEN_WINGET" ] && echo si || echo no)"
@@ -199,6 +208,7 @@ jobs:
     needs: [canales, version, gates]
     if: (github.ref_type == 'tag' || inputs.publicar) && needs.canales.outputs.npm == 'si'
     runs-on: ubuntu-24.04
+    environment: release
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -318,6 +328,7 @@ jobs:
     needs: [canales, version, release]
     if: needs.canales.outputs.apt == 'si'
     runs-on: ubuntu-24.04
+    environment: release
     permissions:
       contents: write   # empujar a la rama publicacion
       actions: write    # despachar pages.yml
@@ -509,6 +520,7 @@ jobs:
     needs: [canales, version, release]
     if: needs.canales.outputs.aur == 'si'
     runs-on: ubuntu-24.04
+    environment: release
     outputs:
       publicado: ${{ steps.empujar.outputs.publicado }}
     steps:
