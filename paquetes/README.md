@@ -9,7 +9,7 @@ sale una versión.
 
 | Canal | Qué instala | Dónde | Lo dispara el tag | Secreto que necesita |
 |---|---|---|---|---|
-| npm | el tarball con `dist/` | registry de npm | sí, con provenance | `NPM_TOKEN` |
+| npm | el tarball con `dist/` | registry de npm | sí, con provenance | ninguno: trusted publishing (OIDC) |
 | Homebrew | la fórmula | `legiosai/homebrew-tap` | sí | `TOKEN_PAQUETES` |
 | apt | el repo firmado | `docs/apt/` de la rama `publicacion` (GitHub Pages, por `pages.yml`) | sí | `GPG_PRIVADA` |
 | release de GitHub | `.deb`, `setup.exe`, los dos zips | la release | sí | — |
@@ -26,16 +26,26 @@ todavía no esté configurado — pero tampoco se hace la que publicó todo.
 
 ## Los secretos, y qué tiene que tener cada uno
 
+npm no lleva secreto: publica por trusted publishing (OIDC). El publicador
+está cargado en npmjs.com → @legios/quartermaster → Settings → Trusted
+Publisher: GitHub Actions, `legiosai/quartermaster`, `release.yml`. Si se
+renombra el workflow o el repo, hay que editarlo ahí o npm rechaza el publish.
+
+Los secretos que firman o publican (`GPG_PRIVADA`, `GPG_CLAVE_ID`, `AUR_SSH`)
+van en el environment `release`, no en el repo: sólo los ven los jobs que lo
+declaran (canales, npm, apt, aur), sólo desde un tag `v*` o main, y cada
+corrida espera la aprobación de Valen. Los tokens de brew, scoop y winget
+quedan en el repo porque `descargas.yml` también usa `TOKEN_PAQUETES`.
+
 ```sh
-gh secret set NPM_TOKEN       # npm: un token granular con read-write SOLO en @legios/quartermaster
 gh secret set TOKEN_PAQUETES  # brew y scoop: fine-grained, resource owner legiosai,
                               # sólo homebrew-tap y scoop-bucket, Contents: read-write
 gh secret set TOKEN_WINGET    # winget: un PAT CLASSIC con public_repo (y nada más).
                               # Si vence, el job falla con «Token was invalid»
                               # y no manda nada: pasó en la release de 0.1.6.
-gh secret set GPG_PRIVADA     # apt: gpg --export-secret-subkeys --armor <ID>, SIN FRASE
-gh secret set GPG_CLAVE_ID    # opcional: el ID de la clave, si no es el default
-gh secret set AUR_SSH         # AUR: una clave SSH dedicada, no la de uso general
+gh secret set GPG_PRIVADA  --env release   # apt: gpg --export-secret-subkeys --armor <ID>, SIN FRASE
+gh secret set GPG_CLAVE_ID --env release   # opcional: el ID de la clave, si no es el default
+gh secret set AUR_SSH      --env release   # AUR: una clave SSH dedicada, no la de uso general
 gh variable set AUR_ENABLED --body true   # AUR: recién cuando la clave esté en la cuenta
 ```
 
